@@ -1,0 +1,32 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using VerlofBWZC.DataAccess.Enums;
+
+namespace VerlofBWZC.DataAccess.Entities
+{
+    public class Person:BaseEntity
+    {
+
+        public string FirstName { get; set; }
+        public string LastName { get; set; }
+        public string Email { get; set; }
+
+        // Login-specific fields
+        public string PasswordHash { get; set; }
+        public string Salt { get; set; }
+
+
+        // Enum-properties in plaats van foreign keys
+        public TeamName? Team { get; set; }
+        public Speciality? Speciality { get; set; }
+        public Grade? Grade { get; set; }
+        public Role? Role { get; set; }
+
+
+        // Many-to-many relationship
+        public ICollection<DayOff> DayOffs { get; set; }
+    }
+}
