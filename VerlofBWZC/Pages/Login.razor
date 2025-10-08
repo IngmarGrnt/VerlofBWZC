@@ -1,18 +1,27 @@
 ﻿@page "/login"
 @inject HttpClient Http
 @inject NavigationManager Navigation
+@using Radzen
+@using Radzen.Blazor
 
-<h3>Inloggen</h3>
-
-<EditForm Model="loginModel" OnValidSubmit="HandleLogin">
-    <InputText @bind-Value="loginModel.Email" placeholder="E-mail" />
-    <InputText @bind-Value="loginModel.Password" type="password" placeholder="Wachtwoord" />
-    <button type="submit" class="btn btn-primary">Login</button>
-    @if (!string.IsNullOrEmpty(errorMessage))
-    {
-        <div class="text-danger">@errorMessage</div>
-    }
-</EditForm>
+<div class="d-flex justify-content-center align-items-center min-vh-50">
+    <div class="card p-4 shadow" style="min-width: 320px; max-width: 400px; width: 100%;">
+        <h3 class="text-center mb-2">Inloggen</h3>
+        <EditForm Model="loginModel" OnValidSubmit="HandleLogin">
+            <div class="mb-3">
+                <RadzenTextBox @bind-Value="loginModel.Email" Name="Email" Placeholder="E-mail" Style="width:100%" />
+            </div>
+            <div class="mb-3">
+                <RadzenPassword @bind-Value="loginModel.Password" Name="Password" Placeholder="Wachtwoord" Style="width:100%" />
+            </div>
+            <RadzenButton ButtonType="ButtonType.Submit" Text="Login" Style="width:100%" />
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="text-danger mt-3 text-center">@errorMessage</div>
+            }
+        </EditForm>
+    </div>
+</div>
 
 @code {
     private LoginDTO loginModel = new();
@@ -25,7 +34,6 @@
         if (response.IsSuccessStatusCode)
         {
             var result = await response.Content.ReadFromJsonAsync<TokenResponse>();
-            // Sla het token op in localStorage
             await JS.InvokeVoidAsync("localStorage.setItem", "authToken", result.token);
             Navigation.NavigateTo("/");
         }
@@ -38,9 +46,4 @@
     [Inject] IJSRuntime JS { get; set; }
     public class TokenResponse { public string token { get; set; } }
     public class LoginDTO { public string Email { get; set; } public string Password { get; set; } }
-
-    // protected override void OnInitialized()
-    // {
-    //     Navigation.NavigateTo("/login", true);
-    // }
 }

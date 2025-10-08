@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
+using Radzen;
 using VerlofBWZC;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
@@ -16,7 +17,7 @@ builder.Services.AddScoped(sp =>
         BaseAddress = new Uri("https://localhost:7080/") // <-- Zet hier het adres van je API
     };
 });
-
+builder.Services.AddRadzenComponents();
 // builder.Services.AddOidcAuthentication(options =>
 // {
 //     builder.Configuration.Bind("Local", options.ProviderOptions);
