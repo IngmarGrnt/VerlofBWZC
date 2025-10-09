@@ -3,9 +3,15 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System;
+using System.Security.Claims;
 using System.Text;
 using VerlofBWZC.Api.Extensions;
 using VerlofBWZC.DataAccess.Entities;
+using System.IdentityModel.Tokens.Jwt;
+
+//JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
+//JwtSecurityTokenHandler.DefaultOutboundClaimTypeMap.Clear();
+
 
 var builder = WebApplication.CreateBuilder(args);
 var config = builder.Configuration;
@@ -34,6 +40,16 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = config["Jwt:Audience"],
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(config["Jwt:Key"]))
         };
+        //options.Events = new JwtBearerEvents
+        //{
+        //    OnTokenValidated = context =>
+        //    {
+        //        // Voeg hier extra claims toe of pas bestaande aan
+        //        var identity = context.Principal.Identity as ClaimsIdentity;
+    
+        //        return Task.CompletedTask;
+        //    }
+        //};
     });
 
 

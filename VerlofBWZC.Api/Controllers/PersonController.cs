@@ -3,9 +3,12 @@ using AutoMapper.QueryableExtensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using VerlofBWZC.DataAccess.Entities;
 using VerlofBWZC.DataContracts.DTO;
 using VerlofBWZC.DataContracts.Helpers;
+
 
 namespace VerlofBWZC.Api.Controllers
 {
@@ -86,17 +89,17 @@ namespace VerlofBWZC.Api.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginDTO loginDto)
         {
-            var person = await _context.Persons.SingleOrDefaultAsync(p => p.Email == loginDto.Email);
+            Person person = await _context.Persons.SingleOrDefaultAsync(p => p.Email == loginDto.Email);
             if (person == null)
                 return Unauthorized("Ongeldige gebruikersnaam of wachtwoord.");
 
             if (!PasswordHelper.VerifyPassword(loginDto.Password, person.PasswordHash, person.Salt))
                 return Unauthorized("Ongeldige gebruikersnaam of wachtwoord.");
+     
+            string token = JwtTokenHelper.GenerateJwtToken(person, _configuration);
 
-            // Controleer de waarden in de database
-           //Debug.WriteLine($"Team: {person.Team}, Speciality: {person.Speciality}, Grade: {person.Grade}");
-
-            var token = JwtTokenHelper.GenerateJwtToken(person, _configuration);
+            Console.WriteLine("token: " + token);
+           //token= "testtoken123"; // tijdelijk voor testen
             return Ok(new { token });
         }
     }
