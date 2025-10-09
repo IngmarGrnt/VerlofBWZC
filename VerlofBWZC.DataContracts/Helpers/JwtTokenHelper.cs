@@ -1,12 +1,13 @@
-using System;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using Microsoft.IdentityModel.Tokens;
-using System.Text;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
-using VerlofBWZC.DataAccess.Entities;
+using Microsoft.IdentityModel.Tokens;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
+using VerlofBWZC.DataAccess.Entities;
 
 namespace VerlofBWZC.DataContracts.Helpers
 {
@@ -16,10 +17,12 @@ namespace VerlofBWZC.DataContracts.Helpers
         {
             var claims = new List<Claim>
             {
-                new Claim(ClaimTypes.NameIdentifier, person.Id.ToString()),
-                new Claim(ClaimTypes.Name, $"{person.FirstName} {person.LastName}"),
-                new Claim(ClaimTypes.Email, person.Email),
-                new Claim(ClaimTypes.Role, person.Role?.ToString() ?? string.Empty)
+                //new Claim(ClaimTypes.NameIdentifier, person.Id.ToString()),
+                //new Claim(ClaimTypes.Name, $"{person.FirstName} {person.LastName}"),
+                //new Claim(ClaimTypes.Email, person.Email),
+                //new Claim(ClaimTypes.Role, person.Role?.ToString() ?? string.Empty),
+
+                 new Claim("TestClaim", "TestWaarde")
             };
 
             if (person.Team != null)
@@ -29,11 +32,7 @@ namespace VerlofBWZC.DataContracts.Helpers
             if (person.Grade != null)
                 claims.Add(new Claim("Grade", person.Grade.ToString()));
 
-            Debug.WriteLine($"Team: {person.Team}, Speciality: {person.Speciality}, Grade: {person.Grade}");
-            foreach (var claim in claims)
-            {
-                Debug.WriteLine($"Claim: {claim.Type} = {claim.Value}");
-            }
+
 
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(config["Jwt:Key"]));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -41,10 +40,15 @@ namespace VerlofBWZC.DataContracts.Helpers
             var token = new JwtSecurityToken(
                 issuer: config["Jwt:Issuer"],
                 audience: config["Jwt:Audience"],
-                claims: claims,
+                claims: claims, 
                 expires: DateTime.Now.AddHours(1),
                 signingCredentials: creds);
 
+            //Console.WriteLine($"Team: {person.Team}, Speciality: {person.Speciality}, Grade: {person.Grade}");
+            //foreach (var claim in claims)
+            //{
+            //    Console.WriteLine($"Claim: {claim.Type} = {claim.Value}");
+            //}
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
     }
