@@ -2,6 +2,7 @@
 using AutoMapper.QueryableExtensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Diagnostics;
 using VerlofBWZC.DataAccess.Entities;
 using VerlofBWZC.DataContracts.DTO;
 using VerlofBWZC.DataContracts.Helpers;
@@ -91,6 +92,9 @@ namespace VerlofBWZC.Api.Controllers
 
             if (!PasswordHelper.VerifyPassword(loginDto.Password, person.PasswordHash, person.Salt))
                 return Unauthorized("Ongeldige gebruikersnaam of wachtwoord.");
+
+            // Controleer de waarden in de database
+           //Debug.WriteLine($"Team: {person.Team}, Speciality: {person.Speciality}, Grade: {person.Grade}");
 
             var token = JwtTokenHelper.GenerateJwtToken(person, _configuration);
             return Ok(new { token });

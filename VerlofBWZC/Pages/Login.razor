@@ -4,7 +4,7 @@
 @using Radzen
 @using Radzen.Blazor
 
-<div class="d-flex justify-content-center align-items-center min-vh-50">
+<div class="d-flex justify-content-center align-items-center min-vh-100">
     <div class="card p-4 shadow" style="min-width: 320px; max-width: 400px; width: 100%;">
         <h3 class="text-center mb-2">Inloggen</h3>
         <EditForm Model="loginModel" OnValidSubmit="HandleLogin">
@@ -24,8 +24,12 @@
 </div>
 
 @code {
+    [Inject] IJSRuntime JS { get; set; }
+
     private LoginDTO loginModel = new();
     private string errorMessage;
+    public class TokenResponse { public string token { get; set; } }
+    public class LoginDTO { public string Email { get; set; } public string Password { get; set; } }
 
     private async Task HandleLogin()
     {
@@ -43,7 +47,5 @@
         }
     }
 
-    [Inject] IJSRuntime JS { get; set; }
-    public class TokenResponse { public string token { get; set; } }
-    public class LoginDTO { public string Email { get; set; } public string Password { get; set; } }
+   
 }
