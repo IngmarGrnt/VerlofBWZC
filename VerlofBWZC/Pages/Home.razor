@@ -3,73 +3,12 @@
 
 <PageTitle>Home</PageTitle>
 
-<h1>Tokengegevens</h1>
+<h1>Persoonsgegevens</h1>
 
-@if (claims?.Count > 0)
-{
-    <table class="table table-bordered w-auto">
-        <thead>
-            <tr>
-                <th>Claim</th>
-                <th>Waarde</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var claim in claims)
-            {
-                <tr>
-                    <td>@claim.Key</td>
-                    <td>@claim.Value</td>
 
-                </tr>
-            }
-        </tbody>
-    </table>
-}
-else
-{
-    <p>Geen token gevonden of niet ingelogd.</p>
-}
 
 @code {
-    private Dictionary<string, string>? claims;
+    public class PersonBaseDTO { public string FirstName { get; set; } public string LastName { get; set; } public string Email { get; set; } public string Team { get; set; } }
 
-    protected override async Task OnInitializedAsync()
-    {
-        var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
-        claims = ParseClaimsFromToken(token);
     }
 
-    private Dictionary<string, string> ParseClaimsFromToken(string? token)
-    {
-        var result = new Dictionary<string, string>();
-        if (string.IsNullOrEmpty(token))
-            return result;
-
-        try
-        {
-            var parts = token.Split('.');
-            if (parts.Length != 3)
-                return result;
-
-            var payload = parts[1];
-            switch (payload.Length % 4)
-            {
-                case 2: payload += "=="; break;
-                case 3: payload += "="; break;
-            }
-            var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(payload));
-            var doc = System.Text.Json.JsonDocument.Parse(json);
-
-            foreach (var prop in doc.RootElement.EnumerateObject())
-            {
-                result[prop.Name] = prop.Value.ToString();
-            }
-        }
-        catch
-        {
-            // Fout bij decoderen token, laat leeg
-        }
-        return result;
-    }
-}

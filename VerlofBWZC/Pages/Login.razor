@@ -1,8 +1,9 @@
 ﻿@page "/login"
-@inject HttpClient Http
+@inject PersonApiService PersonApi
 @inject NavigationManager Navigation
 @using Radzen
 @using Radzen.Blazor
+@using VerlofBWZC.Services
 
 <div class="d-flex justify-content-center align-items-center min-vh-100">
     <div class="card p-4 shadow" style="min-width: 320px; max-width: 400px; width: 100%;">
@@ -28,16 +29,17 @@
 
     private LoginDTO loginModel = new();
     private string errorMessage;
+
     public class TokenResponse { public string token { get; set; } }
+
     public class LoginDTO { public string Email { get; set; } public string Password { get; set; } }
 
     private async Task HandleLogin()
     {
         errorMessage = null;
-        var response = await Http.PostAsJsonAsync("api/person/login", loginModel);
-        if (response.IsSuccessStatusCode)
+        var result = await PersonApi.LoginAsync(loginModel);
+        if (result != null)
         {
-            var result = await response.Content.ReadFromJsonAsync<TokenResponse>();
             await JS.InvokeVoidAsync("localStorage.setItem", "authToken", result.token);
             Navigation.NavigateTo("/");
         }

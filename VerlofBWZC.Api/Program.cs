@@ -40,18 +40,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = config["Jwt:Audience"],
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(config["Jwt:Key"]))
         };
-        //options.Events = new JwtBearerEvents
-        //{
-        //    OnTokenValidated = context =>
-        //    {
-        //        // Voeg hier extra claims toe of pas bestaande aan
-        //        var identity = context.Principal.Identity as ClaimsIdentity;
-    
-        //        return Task.CompletedTask;
-        //    }
-        //};
     });
-
 
 
 builder.Services.AddCors(options =>
