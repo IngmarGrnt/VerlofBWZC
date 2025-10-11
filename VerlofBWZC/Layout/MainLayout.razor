@@ -1,6 +1,8 @@
 ﻿@inherits LayoutComponentBase
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
+@using Radzen
+@using Radzen.Blazor
 
 <div class="page">
     @if (isLoggedIn)
@@ -14,6 +16,8 @@
             <LoginDisplay />
         </div>
         <article class="content px-4">
+
+            <RadzenNotification />
             @Body
         </article>
     </main>

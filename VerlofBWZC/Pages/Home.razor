@@ -1,5 +1,6 @@
 ﻿@page "/"
 @using VerlofBWZC.DataContracts.DTO
+@using VerlofBWZC.Handler
 @using VerlofBWZC.Services
 @inject IJSRuntime JS
 @inject PersonApiService PersonApi
@@ -40,34 +41,13 @@ else
     protected override async Task OnInitializedAsync()
     {
         var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
-        var userId = GetUserIdFromToken(token);
+        var userId = JwtUtils.GetUserIdFromToken(token);
         if (int.TryParse(userId, out var id))
         {
             person = await PersonApi.GetPersonByIdAsync(id);
         }
     }
 
-    string? GetUserIdFromToken(string? token)
-    {
-        if (string.IsNullOrEmpty(token)) return null;
-        var parts = token.Split('.');
-        if (parts.Length != 3) return null;
-        var payload = parts[1];
-        switch (payload.Length % 4)
-        {
-            case 2: payload += "=="; break;
-            case 3: payload += "="; break;
-        }
-        var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(payload));
-        var doc = System.Text.Json.JsonDocument.Parse(json);
-
-        if (doc.RootElement.TryGetProperty("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier", out var id))
-            return id.GetString();
-
-        if (doc.RootElement.TryGetProperty("sub", out var sub))
-            return sub.GetString();
-
-        return null;
-    }
+   
 }
 

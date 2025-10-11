@@ -1,12 +1,15 @@
 ﻿@using System.Globalization
 @using Radzen
 @using Radzen.Blazor
+@using VerlofBWZC.Handler
+@using VerlofBWZC.DataContracts.DTO
+@using VerlofBWZC.Services
 
 @page "/workcalendar"
 @inject HttpClient Http
 @inject NotificationService NotificationService
 @inject IJSRuntime JS
-
+@inject PersonApiService PersonApi
 <h3>WorkCalendar</h3>
 
 <RadzenDataGrid Data="@monthGroups" TItem="MonthGroup" ShowPagingSummary="false" ShowPagination="false" ShowColumnPicker="false">
@@ -17,37 +20,23 @@
                 <div style="display: flex; flex-wrap: wrap; gap: 6px;">
                     @foreach (var day in data.WorkDays)
                     {
-                        <RadzenButton Variant="Variant.Outlined"
-                                      ButtonStyle="@(day.Shift == "D" ? ButtonStyle.Primary : ButtonStyle.Secondary)"
-                                      Text="@($"{day.Shift}{day.Date:dd-MM}")"
-                                      Click="@(args => OnDayClicked(day))">
-                        </RadzenButton>
-                        
-                    }
+                        var isSelected = selectedDays.Any(d => d.Date == day.Date && d.Shift == day.Shift);
+
+                        <RadzenButton Variant="@(isSelected? Variant.Filled: Variant.Outlined)"
+                                      ButtonStyle="@(isSelected
+                                                  ? ButtonStyle.Info
+                                                  : (day.Shift == "D" ? ButtonStyle.Primary : ButtonStyle.Secondary))"
+                                  Text="@($"{day.Shift}{day.Date:dd-MM}")"
+                                  Click="@(args => OnDayClicked(day))">
+                    </RadzenButton>
+                                        }
                 </div>
             </Template>
         </RadzenDataGridColumn>
     </Columns>
 </RadzenDataGrid>
 
-@if (selectedDays.Count > 0)
-{
-    <RadzenCard Style="max-width: 500px; margin-top: 2rem;">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-            <b>Geselecteerde dagen</b>
-            <RadzenBadge Style="font-size:1.1rem;" Color="Color.Primary" Value="@selectedDays.Count" />
-        </div>
-        <ul class="list-group">
-            @foreach (var day in selectedDays.OrderBy(x => x.Date).ThenBy(x => x.Shift))
-            {
-                <li class="list-group-item d-flex align-items-center">
-                    <RadzenIcon Icon="event" Style="vertical-align:middle; color:#1976d2;" />
-                    <span class="ms-2">@day.Date.ToString("dd-MM-yyyy") (@day.Shift)</span>
-                </li>
-            }
-        </ul>
-    </RadzenCard>
-}
+<RadzenButton Style="margin-top:2rem;" Text="Opslaan" ButtonStyle="ButtonStyle.Success" Click="@SaveSelectedDays" />
 
 @code {
     public class WorkDay
@@ -66,6 +55,11 @@
     private WorkDay? selectedDay;
 
     private List<WorkDay> selectedDays = new();
+    private PersonBaseDTO? person;
+    string userId;  
+
+ 
+
     protected override async Task OnInitializedAsync()
     {
         var workDays = await Http.GetFromJsonAsync<List<WorkDay>>("api/calender?teamName=Ploeg1&year=2026");
@@ -79,25 +73,55 @@
             })
             .OrderBy(g => g.WorkDays.First().Date.Month)
             .ToList();
+
+        var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
+        userId = JwtUtils.GetUserIdFromToken(token);
+
+
     }
 
 
     private void OnDayClicked(WorkDay day)
     {
-        // JS.InvokeVoidAsync("console.log", $"Geklikt op: {day.Date:dd-MM-yyyy} ({day.Shift})");
-        // NotificationService.Notify(new NotificationMessage
-        // {
-        //     Severity = NotificationSeverity.Info,
-        //     Summary = "Dag geselecteerd",
-        //     Detail = $"{day.Date:dd-MM-yyyy} ({day.Shift})",
-        //     Duration = 2000
-        // });
 
         var existing = selectedDays.FirstOrDefault(d => d.Date == day.Date && d.Shift == day.Shift);
         if (existing == null)
             selectedDays.Add(day);
         else
             selectedDays.Remove(existing);
+    }
+
+
+    private async Task SaveSelectedDays()
+    {
+        var persoonId = userId;
+        var payload = new
+        {
+            PersoonId = persoonId,
+            Days = selectedDays
+        };
+        var response = await Http.PostAsJsonAsync("api/calender/add-dayoff", payload);
+
+        if (response.IsSuccessStatusCode)
+        {
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Success,
+                Summary = "Opgeslagen",
+                Detail = "Geselecteerde dagen zijn opgeslagen.",
+                Duration = 2000
+            });
+        }
+        else
+        {
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Error,
+                Summary = "Fout",
+                Detail = "Opslaan mislukt.",
+                Duration = 2000
+            });
+        }
     }
     
 }
