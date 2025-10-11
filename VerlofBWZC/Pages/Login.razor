@@ -3,6 +3,7 @@
 @inject NavigationManager Navigation
 @using Radzen
 @using Radzen.Blazor
+@using VerlofBWZC.DataContracts.DTO
 @using VerlofBWZC.Services
 
 <div class="d-flex justify-content-center align-items-center min-vh-100">
@@ -32,7 +33,7 @@
 
     public class TokenResponse { public string token { get; set; } }
 
-    public class LoginDTO { public string Email { get; set; } public string Password { get; set; } }
+   
 
     private async Task HandleLogin()
     {

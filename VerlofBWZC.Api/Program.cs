@@ -3,11 +3,12 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System;
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using VerlofBWZC.Api.Extensions;
+using VerlofBWZC.Api.Helpers;
 using VerlofBWZC.DataAccess.Entities;
-using System.IdentityModel.Tokens.Jwt;
 
 //JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
 //JwtSecurityTokenHandler.DefaultOutboundClaimTypeMap.Clear();
@@ -42,7 +43,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-
+builder.Services.AddScoped<CalendarHelper>();
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>

@@ -31,6 +31,7 @@
   <ItemGroup>
     <ProjectReference Include="..\VerlofBWZC.Business\VerlofBWZC.Business.csproj" />
     <ProjectReference Include="..\VerlofBWZC.DataAccess\VerlofBWZC.DataAccess.csproj" />
+    <ProjectReference Include="..\VerlofBWZC.DataContracts\VerlofBWZC.DataContracts.csproj" />
   </ItemGroup>
 
 </Project>

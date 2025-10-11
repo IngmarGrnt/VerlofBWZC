@@ -1,5 +1,7 @@
 ﻿using System.Net.Http.Json;
+using VerlofBWZC.DataContracts.DTO;
 using static VerlofBWZC.Pages.Login;
+
 
 namespace VerlofBWZC.Services
 {
@@ -12,9 +14,13 @@ namespace VerlofBWZC.Services
             _http = http;
         }
 
+        public async Task<PersonBaseDTO?> GetPersonByIdAsync(int id)
+        {
+            return await _http.GetFromJsonAsync<PersonBaseDTO>($"api/person/{id}");
+        }
 
-      
-        
+
+
         public async Task<TokenResponse?> LoginAsync(LoginDTO login)
         {
             var response = await _http.PostAsJsonAsync("api/person/login", login);

@@ -2,9 +2,7 @@
 using AutoMapper.QueryableExtensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Diagnostics;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
+
 using VerlofBWZC.DataAccess.Entities;
 using VerlofBWZC.DataContracts.DTO;
 using VerlofBWZC.DataContracts.Helpers;

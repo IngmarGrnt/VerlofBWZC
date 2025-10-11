@@ -1,14 +1,73 @@
 ﻿@page "/"
+@using VerlofBWZC.DataContracts.DTO
+@using VerlofBWZC.Services
 @inject IJSRuntime JS
+@inject PersonApiService PersonApi
 
 <PageTitle>Home</PageTitle>
 
-<h1>Persoonsgegevens</h1>
+<h1 class="mb-4">Persoonsgegevens</h1>
 
-
+@if (person != null)
+{
+    <div class="card shadow-sm" style="max-width: 400px;">
+        <div class="card-body">
+            <div class="d-flex align-items-center mb-3">
+                <div class="rounded-circle bg-primary text-white d-flex justify-content-center align-items-center" style="width:64px; height:64px; font-size:2rem;">
+                    @person.FirstName.Substring(0,1)@person.LastName.Substring(0,1)
+                </div>
+                <div class="ms-3">
+                    <h4 class="card-title mb-0">@person.FirstName @person.LastName</h4>
+                    <small class="text-muted">@person.Role</small>
+                </div>
+            </div>
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item"><b>Team:</b> @person.Team</li>
+                <li class="list-group-item"><b>Specialiteit:</b> @person.Speciality</li>
+                <li class="list-group-item"><b>Graad:</b> @person.Grade</li>
+            </ul>
+        </div>
+    </div>
+}
+else
+{
+    <p>Loading...</p>
+}
 
 @code {
-    public class PersonBaseDTO { public string FirstName { get; set; } public string LastName { get; set; } public string Email { get; set; } public string Team { get; set; } }
+    private PersonBaseDTO? person;
 
+    protected override async Task OnInitializedAsync()
+    {
+        var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
+        var userId = GetUserIdFromToken(token);
+        if (int.TryParse(userId, out var id))
+        {
+            person = await PersonApi.GetPersonByIdAsync(id);
+        }
     }
+
+    string? GetUserIdFromToken(string? token)
+    {
+        if (string.IsNullOrEmpty(token)) return null;
+        var parts = token.Split('.');
+        if (parts.Length != 3) return null;
+        var payload = parts[1];
+        switch (payload.Length % 4)
+        {
+            case 2: payload += "=="; break;
+            case 3: payload += "="; break;
+        }
+        var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(payload));
+        var doc = System.Text.Json.JsonDocument.Parse(json);
+
+        if (doc.RootElement.TryGetProperty("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier", out var id))
+            return id.GetString();
+
+        if (doc.RootElement.TryGetProperty("sub", out var sub))
+            return sub.GetString();
+
+        return null;
+    }
+}
 
