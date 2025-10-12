@@ -6,7 +6,10 @@ using System.Threading.Tasks;
 
 namespace VerlofBWZC.DataContracts.DTO
 {
-    internal class DayOffDTO
+    public class DayOffDTO
     {
+        public DateTime Date { get; set; }
+        //public string? Description { get; set; }
+        //public DayOffstatus Status { get; set; }
     }
 }

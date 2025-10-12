@@ -25,7 +25,6 @@ builder.Services.AddScoped(sp =>
 //PersonServices
 builder.Services.AddScoped<PersonApiService>();
 
-//VerofServices
 
 //Radzen components
 builder.Services.AddRadzenComponents();

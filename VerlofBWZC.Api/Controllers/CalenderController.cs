@@ -40,6 +40,7 @@ namespace VerlofBWZC.Api.Controllers
         [HttpPost("add-dayoff")]
         public async Task<IActionResult> AddMultipleDayOffs([FromBody] AddMultipleDayOffsRequest request)
         {
+
             // Controleer of de persoon bestaat
             var person = await _context.Persons.FindAsync(request.PersoonId);
             if (person == null)
@@ -55,12 +56,18 @@ namespace VerlofBWZC.Api.Controllers
             // Bepaal de datums die in de request zitten
             var requestedDates = request.Days.Select(d => d.Date.Date).ToHashSet();
 
-            // Verwijder alle bestaande DayOffs die niet in de nieuwe lijst zitten
-            var toRemove = existingDayOffs.Where(d => !requestedDates.Contains(d.Date.Date)).ToList();
+            
+            // Alleen verwijderen als het jaar toegestaan is
+            var currentYear = DateTime.Now.Year;
+            var allowedYears = new[] {currentYear + 1 };
+            var toRemove = existingDayOffs
+                .Where(d => !requestedDates.Contains(d.Date.Date) && allowedYears.Contains(d.Date.Year))
+                .ToList();
             if (toRemove.Any())
             {
                 _context.DayOffs.RemoveRange(toRemove);
             }
+
 
             var addedDates = new List<DateTime>();
             var skippedDates = new List<DateTime>();

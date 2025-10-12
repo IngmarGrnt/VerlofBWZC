@@ -10,7 +10,26 @@
 @inject NotificationService NotificationService
 @inject IJSRuntime JS
 @inject PersonApiService PersonApi
-<h3>WorkCalendar</h3>
+<h3>WerkKalender</h3>
+
+<div style="display: flex; align-items: center; margin-bottom: 1.5rem;">
+    <RadzenDropDown @bind-Value="SelectedYear"
+                    Data="@Years"
+                    Placeholder="Selecteer een jaar"
+                    Style="width:200px; margin-right: 1.5rem;"
+                    Change="OnYearChanged" />
+    <div class="rz-button rz-button-info rz-border-radius-6 rz-shadow-6" style="display: flex; align-items: center; padding: 0.5rem 1.2rem; border: none;">
+        <span style="color: white; font-size: 1.1rem;">
+            verlofdagen geselecteerd in @SelectedYear
+        </span>
+        <RadzenBadge Variant="Variant.Filled"
+                     BadgeStyle="BadgeStyle.Info"
+                     Text="@(SelectedYearDayOffCount.ToString())"
+                     Style="margin-left: 1rem; font-size: 2rem; font-weight: bold; background: transparent; color: white; box-shadow: none; border: none;" />
+    </div>
+
+   
+</div>
 
 <RadzenDataGrid Data="@monthGroups" TItem="MonthGroup" ShowPagingSummary="false" ShowPagination="false" ShowColumnPicker="false">
     <Columns>
@@ -26,19 +45,25 @@
                                       ButtonStyle="@(isSelected
                                                   ? ButtonStyle.Info
                                                   : (day.Shift == "D" ? ButtonStyle.Primary : ButtonStyle.Secondary))"
-                                  Text="@($"{day.Shift}{day.Date:dd-MM}")"
+                                  Text="@($"{day.Shift}{" "}{day.Date:dd-MM}")"
                                   Click="@(args => OnDayClicked(day))">
                     </RadzenButton>
-                                        }
+                    }
                 </div>
             </Template>
         </RadzenDataGridColumn>
     </Columns>
 </RadzenDataGrid>
+@if (SelectedYear == CurrentDayOffYear)
+{
+    <RadzenButton Style="margin-top:2rem;" Text="Opslaan" ButtonStyle="ButtonStyle.Success" Click="@SaveSelectedDays" />
+}
 
-<RadzenButton Style="margin-top:2rem;" Text="Opslaan" ButtonStyle="ButtonStyle.Success" Click="@SaveSelectedDays" />
 
 @code {
+
+
+
     public class WorkDay
     {
         public DateTime Date { get; set; }
@@ -51,19 +76,79 @@
         public List<WorkDay> WorkDays { get; set; } = new();
     }
 
+    public class DayOffDTO{
+        public DateTime Date { get; set; }
+    }
+
+    // NOG IN DTO STEKEN
+    private List<DayOffDTO> personDaysOff = new();
     private List<MonthGroup> monthGroups = new();
-    private WorkDay? selectedDay;
-
     private List<WorkDay> selectedDays = new();
-    private PersonBaseDTO? person;
-    string userId;  
+    // private WorkDay? selectedDay;
+    // private PersonBaseDTO? person;
 
- 
+    string userId;
+    private int SelectedYear { get; set; } = DateTime.Now.Year+1;
+    private List<int> Years { get; set; } = new();
+    private int CurrentDayOffYear = DateTime.Now.AddYears(1).Year;
+    private int SelectedYearDayOffCount => selectedDays.Count(d => d.Date.Year == SelectedYear);
+
 
     protected override async Task OnInitializedAsync()
     {
-        var workDays = await Http.GetFromJsonAsync<List<WorkDay>>("api/calender?teamName=Ploeg1&year=2026");
+        await LoadWorkDays();
+        
+        //Haal token op
+        var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
+        userId = JwtUtils.GetUserIdFromToken(token);
 
+       // Verlofdagen ophalen
+        await GetDaysOff();
+
+        //Jarenlijst vullen
+        int startYear = DateTime.Now.Year-1;
+        int endYear = DateTime.Now.Year + 10;
+        Years = Enumerable.Range(startYear, endYear - startYear + 1).Reverse().ToList();
+
+    }
+
+    private async Task GetDaysOff()
+    {
+        if (int.TryParse(userId, out var persoonId))
+        {
+            personDaysOff = await Http.GetFromJsonAsync<List<DayOffDTO>>($"api/calender/person-days-off/{persoonId}");
+
+            // Vul selectedDays met de juiste shift per dag
+            selectedDays.Clear();
+            foreach (var dayOff in personDaysOff)
+            {
+                // Zoek alle workdays op deze datum (kan dag- en nachtdienst zijn)
+                var workDay = monthGroups
+                    .SelectMany(mg => mg.WorkDays)
+                    .FirstOrDefault(wd => wd.Date.Date == dayOff.Date.Date);
+
+                if (workDay != null)
+                {
+                    selectedDays.Add(new WorkDay { Date = workDay.Date, Shift = workDay.Shift });
+                }
+            }
+        }
+    }
+
+    private async Task OnYearChanged(object value)
+    {
+        if (value is int year)
+        {
+            SelectedYear = year;
+            await LoadWorkDays();
+            await GetDaysOff();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadWorkDays()
+    {
+        var workDays = await Http.GetFromJsonAsync<List<WorkDay>>($"api/calender?teamName=Ploeg1&year={SelectedYear}");
         monthGroups = workDays
             .GroupBy(wd => wd.Date.Month)
             .Select(g => new MonthGroup
@@ -73,11 +158,11 @@
             })
             .OrderBy(g => g.WorkDays.First().Date.Month)
             .ToList();
+    }
 
-        var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
-        userId = JwtUtils.GetUserIdFromToken(token);
-
-
+    private void GetDayOffs()
+    {
+        // Logica om verlofdagen op te halen en selectedDays bij te werken
     }
 
 
