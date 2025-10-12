@@ -4,6 +4,7 @@ using Radzen;
 using VerlofBWZC;
 using VerlofBWZC.Services;
 
+
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
@@ -24,6 +25,7 @@ builder.Services.AddScoped(sp =>
 
 //PersonServices
 builder.Services.AddScoped<PersonApiService>();
+
 
 
 //Radzen components

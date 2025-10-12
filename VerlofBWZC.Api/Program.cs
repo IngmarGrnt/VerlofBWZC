@@ -42,7 +42,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(config["Jwt:Key"]))
         };
     });
-
+builder.Services.AddHttpClient();
 builder.Services.AddScoped<CalendarHelper>();
 builder.Services.AddCors(options =>
 {

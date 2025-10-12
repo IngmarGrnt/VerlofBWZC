@@ -10,6 +10,7 @@
 @inject NotificationService NotificationService
 @inject IJSRuntime JS
 @inject PersonApiService PersonApi
+
 <h3>WerkKalender</h3>
 
 <div style="display: flex; align-items: center; margin-bottom: 1.5rem;">
@@ -59,6 +60,13 @@
     <RadzenButton Style="margin-top:2rem;" Text="Opslaan" ButtonStyle="ButtonStyle.Success" Click="@SaveSelectedDays" />
 }
 
+<RadzenDataGrid Data="@(GetAllHolidaysForGrid())" TItem="HolidayGridRow" ShowPagingSummary="false" ShowPagination="false" Style="margin-top:2rem;">
+    <Columns>
+        <RadzenDataGridColumn TItem="HolidayGridRow" Property="DateText" Title="Datum" Width="220px" />
+        <RadzenDataGridColumn TItem="HolidayGridRow" Property="Name" Title="Naam" Width="300px" />
+        <RadzenDataGridColumn TItem="HolidayGridRow" Property="Type" Title="Type" Width="140px" />
+    </Columns>
+</RadzenDataGrid>
 
 @code {
 
@@ -93,6 +101,8 @@
     private int CurrentDayOffYear = DateTime.Now.AddYears(1).Year;
     private int SelectedYearDayOffCount => selectedDays.Count(d => d.Date.Year == SelectedYear);
 
+    private List<PublicHolidayDto> PublicHolidays { get; set; } = new();
+    private List<SchoolHolidayDto> SchoolHolidays { get; set; } = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -102,6 +112,8 @@
         var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
         userId = JwtUtils.GetUserIdFromToken(token);
 
+
+        await LoadHolidaysAndVacations();
        // Verlofdagen ophalen
         await GetDaysOff();
 
@@ -134,6 +146,11 @@
             }
         }
     }
+    private async Task LoadHolidaysAndVacations()
+    {
+        PublicHolidays = await Http.GetFromJsonAsync<List<PublicHolidayDto>>($"api/holidays/public/{SelectedYear}") ?? new();
+        SchoolHolidays = await Http.GetFromJsonAsync<List<SchoolHolidayDto>>($"api/holidays/school/{SelectedYear}") ?? new();
+    }
 
     private async Task OnYearChanged(object value)
     {
@@ -142,6 +159,7 @@
             SelectedYear = year;
             await LoadWorkDays();
             await GetDaysOff();
+            await LoadHolidaysAndVacations();
             StateHasChanged();
         }
     }
@@ -160,10 +178,10 @@
             .ToList();
     }
 
-    private void GetDayOffs()
-    {
-        // Logica om verlofdagen op te halen en selectedDays bij te werken
-    }
+    // private void GetDayOffs()
+    // {
+    //     // Logica om verlofdagen op te halen en selectedDays bij te werken
+    // }
 
 
     private void OnDayClicked(WorkDay day)
@@ -208,5 +226,82 @@
             });
         }
     }
-    
+    public class PublicHolidayDto
+    {
+        public List<NameTranslation> Name { get; set; }
+        public DateTime StartDate { get; set; }
+        public DateTime EndDate { get; set; }
+        public string Type { get; set; }
+    }
+
+    public class SchoolHolidayDto
+    {
+        public List<NameTranslation> Name { get; set; }
+        public DateTime StartDate { get; set; }
+        public DateTime EndDate { get; set; }
+        public string Type { get; set; }
+    }
+
+    public class NameTranslation
+    {
+        public string Language { get; set; }
+        public string Text { get; set; }
+    }
+
+    public class HolidayGridRow
+    {
+        public string DateText { get; set; }
+        public string Name { get; set; }
+        public string Type { get; set; }
+        public DateTime? SortDate { get; set; } // Voor sortering
+    }
+
+    private List<HolidayGridRow> GetAllHolidaysForGrid()
+    {
+        var holidays = PublicHolidays
+            .Where(h => h.StartDate.Year == SelectedYear)
+            .GroupBy(h => new { 
+                Name = h.Name?.FirstOrDefault(n => n.Language == "NL")?.Text ?? h.Name?.FirstOrDefault()?.Text ?? "", 
+                h.StartDate 
+            })
+            .Select(g => new HolidayGridRow
+            {
+                DateText = g.Key.StartDate.ToString("dd-MM-yyyy"),
+                Name = g.Key.Name,
+                Type = "Feestdag",
+                SortDate = g.Key.StartDate
+            })
+            .OrderBy(r => r.SortDate)
+            .ToList();
+
+        var vacations = SchoolHolidays
+            .Where(h =>
+                (h.StartDate.Year == SelectedYear || h.EndDate.Year == SelectedYear)
+                && !string.IsNullOrWhiteSpace(h.Name?.FirstOrDefault(n => n.Language == "NL")?.Text ?? h.Name?.FirstOrDefault()?.Text)
+            )
+            .GroupBy(h => h.Name?.FirstOrDefault(n => n.Language == "NL")?.Text ?? h.Name?.FirstOrDefault()?.Text ?? "")
+            .Select(g =>
+            {
+                var minStart = g.Min(x => x.StartDate);
+                var maxEnd = g.Max(x => x.EndDate);
+                var name = g.Key;
+                if (name.StartsWith("Begin van de zomervakantie", StringComparison.OrdinalIgnoreCase) &&
+                    SchoolHolidays.Any(x =>
+                        (x.Name?.FirstOrDefault(n => n.Language == "NL")?.Text ?? x.Name?.FirstOrDefault()?.Text ?? "") == "Zomervakantie"
+                        && x.StartDate <= maxEnd && x.EndDate >= minStart))
+                    return null;
+                return new HolidayGridRow
+                {
+                    DateText = $"van {minStart:dd-MM-yyyy} tot {maxEnd:dd-MM-yyyy}",
+                    Name = name,
+                    Type = "Schoolvakantie",
+                    SortDate = minStart
+                };
+            })
+            .Where(x => x != null)
+            .OrderBy(r => r.SortDate)
+            .ToList();
+
+        return holidays.Concat(vacations).ToList();
+    }
 }
