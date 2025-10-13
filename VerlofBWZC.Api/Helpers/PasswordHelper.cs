@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Security.Cryptography;
 
-namespace VerlofBWZC.DataContracts.Helpers
+namespace VerlofBWZC.Api.Helpers
 {
     public static class PasswordHelper
     {

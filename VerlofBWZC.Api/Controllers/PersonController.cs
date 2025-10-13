@@ -4,8 +4,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 using VerlofBWZC.DataAccess.Entities;
+
+using VerlofBWZC.Api.Helpers;
 using VerlofBWZC.DataContracts.DTO;
-using VerlofBWZC.DataContracts.Helpers;
 
 
 namespace VerlofBWZC.Api.Controllers
@@ -19,7 +20,7 @@ namespace VerlofBWZC.Api.Controllers
         private readonly VerlofBWZC_DbContext _context;
         private readonly IMapper _mapper;
         private readonly IHttpContextFactory _httpContextFactory;
-        private readonly ConfigurationBuilder _configurationBuilder;
+        //private readonly ConfigurationBuilder _configurationBuilder;
         private readonly IConfiguration _configuration;
 
 
@@ -46,7 +47,7 @@ namespace VerlofBWZC.Api.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, "Er is een fout opgetreden bij het ophalen van een personen)");
+                return StatusCode(500, $"{ex} = Er is een fout opgetreden bij het ophalen van een personen)");
             }
         }
 
@@ -72,6 +73,7 @@ namespace VerlofBWZC.Api.Controllers
         [HttpPost]
         public async Task<ActionResult<PersonBaseDTO>> CreatePerson(PersonCreateDTO personDTO)
         {
+           
             PasswordHelper.CreatePasswordHash(personDTO.Password, out string hash, out string salt);
             personDTO.PasswordHash = hash;  
             personDTO.Salt = salt;

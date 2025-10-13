@@ -1,9 +1,13 @@
 ﻿@using System.Globalization
 @using Radzen
 @using Radzen.Blazor
-@using VerlofBWZC.Handler
+@using VerlofBWZC.DataContracts
 @using VerlofBWZC.DataContracts.DTO
+@using VerlofBWZC.DataContracts.DTO.Calendar
+@using VerlofBWZC.DataContracts.DTO.Holiday
+@using VerlofBWZC.Handler
 @using VerlofBWZC.Services
+
 
 @page "/workcalendar"
 @inject HttpClient Http
@@ -69,31 +73,10 @@
 </RadzenDataGrid>
 
 @code {
-
-
-
-    public class WorkDay
-    {
-        public DateTime Date { get; set; }
-        public string Shift { get; set; }
-    }
-
-    public class MonthGroup
-    {
-        public string MonthName { get; set; }
-        public List<WorkDay> WorkDays { get; set; } = new();
-    }
-
-    public class DayOffDTO{
-        public DateTime Date { get; set; }
-    }
-
-    // NOG IN DTO STEKEN
-    private List<DayOffDTO> personDaysOff = new();
+     private List<DayOffDTO> personDaysOff = new();
     private List<MonthGroup> monthGroups = new();
     private List<WorkDay> selectedDays = new();
-    // private WorkDay? selectedDay;
-    // private PersonBaseDTO? person;
+
 
     string userId;
     private int SelectedYear { get; set; } = DateTime.Now.Year+1;
@@ -101,9 +84,9 @@
     private int CurrentDayOffYear = DateTime.Now.AddYears(1).Year;
     private int SelectedYearDayOffCount => selectedDays.Count(d => d.Date.Year == SelectedYear);
 
-    private List<PublicHolidayDto> PublicHolidays { get; set; } = new();
-    private List<SchoolHolidayDto> SchoolHolidays { get; set; } = new();
-
+    private List<PublicHolidayDTO> PublicHolidays { get; set; } = new();
+    private List<SchoolHolidayDTO> SchoolHolidays { get; set; } = new();
+    
     protected override async Task OnInitializedAsync()
     {
         await LoadWorkDays();
@@ -148,8 +131,8 @@
     }
     private async Task LoadHolidaysAndVacations()
     {
-        PublicHolidays = await Http.GetFromJsonAsync<List<PublicHolidayDto>>($"api/holidays/public/{SelectedYear}") ?? new();
-        SchoolHolidays = await Http.GetFromJsonAsync<List<SchoolHolidayDto>>($"api/holidays/school/{SelectedYear}") ?? new();
+        PublicHolidays = await Http.GetFromJsonAsync<List<PublicHolidayDTO>>($"api/holidays/public/{SelectedYear}") ?? new();
+        SchoolHolidays = await Http.GetFromJsonAsync<List<SchoolHolidayDTO>>($"api/holidays/school/{SelectedYear}") ?? new();
     }
 
     private async Task OnYearChanged(object value)
@@ -177,11 +160,6 @@
             .OrderBy(g => g.WorkDays.First().Date.Month)
             .ToList();
     }
-
-    // private void GetDayOffs()
-    // {
-    //     // Logica om verlofdagen op te halen en selectedDays bij te werken
-    // }
 
 
     private void OnDayClicked(WorkDay day)
@@ -226,29 +204,9 @@
             });
         }
     }
-    public class PublicHolidayDto
-    {
-        public List<NameTranslation> Name { get; set; }
-        public DateTime StartDate { get; set; }
-        public DateTime EndDate { get; set; }
-        public string Type { get; set; }
-    }
 
-    public class SchoolHolidayDto
-    {
-        public List<NameTranslation> Name { get; set; }
-        public DateTime StartDate { get; set; }
-        public DateTime EndDate { get; set; }
-        public string Type { get; set; }
-    }
 
-    public class NameTranslation
-    {
-        public string Language { get; set; }
-        public string Text { get; set; }
-    }
-
-    public class HolidayGridRow
+    private class HolidayGridRow
     {
         public string DateText { get; set; }
         public string Name { get; set; }
@@ -260,9 +218,12 @@
     {
         var holidays = PublicHolidays
             .Where(h => h.StartDate.Year == SelectedYear)
-            .GroupBy(h => new { 
-                Name = h.Name?.FirstOrDefault(n => n.Language == "NL")?.Text ?? h.Name?.FirstOrDefault()?.Text ?? "", 
-                h.StartDate 
+            .GroupBy(h => new
+            {
+                Name = h.Name?.FirstOrDefault(n => n.Language == "NL")?.Text
+                    ?? h.Name?.FirstOrDefault()?.Text
+                    ?? "",
+                h.StartDate
             })
             .Select(g => new HolidayGridRow
             {
@@ -274,31 +235,60 @@
             .OrderBy(r => r.SortDate)
             .ToList();
 
-        var vacations = SchoolHolidays
-            .Where(h =>
-                (h.StartDate.Year == SelectedYear || h.EndDate.Year == SelectedYear)
-                && !string.IsNullOrWhiteSpace(h.Name?.FirstOrDefault(n => n.Language == "NL")?.Text ?? h.Name?.FirstOrDefault()?.Text)
-            )
-            .GroupBy(h => h.Name?.FirstOrDefault(n => n.Language == "NL")?.Text ?? h.Name?.FirstOrDefault()?.Text ?? "")
-            .Select(g =>
+        // Schoolvakanties groeperen op naam en overlappende periodes
+        var vacationGroups = new List<(string Name, DateTime Start, DateTime End)>();
+        var processed = new HashSet<int>();
+
+        for (int i = 0; i < SchoolHolidays.Count; i++)
+        {
+            if (processed.Contains(i)) continue;
+
+            var current = SchoolHolidays[i];
+            var name = current.Name?.FirstOrDefault(n => n.Language == "NL")?.Text
+                ?? current.Name?.FirstOrDefault()?.Text
+                ?? "";
+
+            // Vind alle overlappende vakanties met dezelfde naam
+            var group = new List<int> { i };
+            var minStart = current.StartDate;
+            var maxEnd = current.EndDate;
+
+            for (int j = 0; j < SchoolHolidays.Count; j++)
             {
-                var minStart = g.Min(x => x.StartDate);
-                var maxEnd = g.Max(x => x.EndDate);
-                var name = g.Key;
-                if (name.StartsWith("Begin van de zomervakantie", StringComparison.OrdinalIgnoreCase) &&
-                    SchoolHolidays.Any(x =>
-                        (x.Name?.FirstOrDefault(n => n.Language == "NL")?.Text ?? x.Name?.FirstOrDefault()?.Text ?? "") == "Zomervakantie"
-                        && x.StartDate <= maxEnd && x.EndDate >= minStart))
-                    return null;
-                return new HolidayGridRow
+                if (i == j || processed.Contains(j)) continue;
+
+                var other = SchoolHolidays[j];
+                var otherName = other.Name?.FirstOrDefault(n => n.Language == "NL")?.Text
+                    ?? other.Name?.FirstOrDefault()?.Text
+                    ?? "";
+
+                // Zelfde naam en overlappende periode
+                if (name == otherName &&
+                    other.StartDate <= maxEnd &&
+                    other.EndDate >= minStart)
                 {
-                    DateText = $"van {minStart:dd-MM-yyyy} tot {maxEnd:dd-MM-yyyy}",
-                    Name = name,
-                    Type = "Schoolvakantie",
-                    SortDate = minStart
-                };
+                    group.Add(j);
+                    minStart = minStart < other.StartDate ? minStart : other.StartDate;
+                    maxEnd = maxEnd > other.EndDate ? maxEnd : other.EndDate;
+                }
+            }
+
+            // Markeer alle als verwerkt
+            foreach (var idx in group)
+                processed.Add(idx);
+
+            vacationGroups.Add((name, minStart, maxEnd));
+        }
+
+        var vacations = vacationGroups
+            .Where(g => !string.IsNullOrWhiteSpace(g.Name))
+            .Select(g => new HolidayGridRow
+            {
+                DateText = $"van {g.Start:dd-MM-yyyy} tot {g.End:dd-MM-yyyy}",
+                Name = g.Name,
+                Type = "Schoolvakantie",
+                SortDate = g.Start
             })
-            .Where(x => x != null)
             .OrderBy(r => r.SortDate)
             .ToList();
 

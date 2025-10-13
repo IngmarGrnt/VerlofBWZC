@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using VerlofBWZC.DataAccess.Entities;
-using VerlofBWZC.DataContracts.DTO;
+using VerlofBWZC.DataContracts.DTO; 
 
 namespace VerlofBWZC.Business.Mappings
 {
@@ -13,11 +13,11 @@ namespace VerlofBWZC.Business.Mappings
     {
         public PersonMapper()
         {
-            //PERSON
-            CreateMap<Person, PersonBaseDTO>().ReverseMap();
+            CreateMap<Person, PersonBaseDTO>();
             CreateMap<PersonBaseDTO, Person>();
-            CreateMap<Person, PersonCreateDTO>().ReverseMap();
-            CreateMap<PersonCreateDTO, Person>();
+            CreateMap<Person, PersonCreateDTO>();
+            CreateMap<PersonCreateDTO, Person>(); 
+    
         }
     }
 }

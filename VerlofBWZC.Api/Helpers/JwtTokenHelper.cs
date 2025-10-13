@@ -8,7 +8,7 @@ using VerlofBWZC.DataAccess.Entities;
 
 
 
-namespace VerlofBWZC.DataContracts.Helpers
+namespace VerlofBWZC.Api.Helpers
 
 {
     public static class JwtTokenHelper
