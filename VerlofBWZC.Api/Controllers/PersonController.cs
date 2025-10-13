@@ -2,10 +2,9 @@
 using AutoMapper.QueryableExtensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-
-using VerlofBWZC.DataAccess.Entities;
-
 using VerlofBWZC.Api.Helpers;
+using VerlofBWZC.DataAccess.Entities;
+using VerlofBWZC.DataAccess.Enums;
 using VerlofBWZC.DataContracts.DTO;
 
 
@@ -101,6 +100,33 @@ namespace VerlofBWZC.Api.Controllers
             Console.WriteLine("token: " + token);
            //token= "testtoken123"; // tijdelijk voor testen
             return Ok(new { token });
+        }
+
+
+        [HttpGet("team/{teamName}")]
+        public async Task<ActionResult<IEnumerable<PersonBaseDTO>>> GetPersonsByTeam(TeamName teamName)
+        {
+            var persons = await _context.Persons
+                .Where(p => p.Team == teamName)
+                .ProjectTo<PersonBaseDTO>(_mapper.ConfigurationProvider)
+                .ToListAsync();
+            return Ok(persons);
+        }
+
+        [HttpGet("team-days-off/{teamName}/{year}")]
+        public async Task<IActionResult> GetDaysOffForTeam(TeamName teamName, int year)
+        {
+            var personIds = await _context.Persons
+                .Where(p => p.Team == teamName)
+                .Select(p => p.Id)
+                .ToListAsync();
+
+            var daysOff = await _context.DayOffs
+                .Where(d => personIds.Contains(d.PersonId) && d.Date.Year == year)
+                .Select(d => new { d.PersonId, d.Date })
+                .ToListAsync();
+
+            return Ok(daysOff);
         }
     }
 }

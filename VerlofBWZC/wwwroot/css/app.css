@@ -112,3 +112,16 @@ code {
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
 }
+.holiday-btn-vacation {
+    background-color: #bd79e6a4 !important; /* lichtpaars (lavender) */
+    color: #333 !important;
+}
+
+.holiday-btn-feestdag {
+    background-color: #ffdc0c91 !important; /* lichtgeel */
+    color: #333 !important;
+}
+.holiday-btn-weekend {
+    background-color: #f2f2f2 !important; /* lichtgrijs */
+    color: #333 !important;
+}

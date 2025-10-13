@@ -41,10 +41,14 @@ namespace VerlofBWZC.Api.Controllers
             var url = $"https://openholidaysapi.org/SchoolHolidays?countryIsoCode=BE&subdivisionCode=BE&languageIsoCode=NL&validFrom={year}-01-01&validTo={year}-12-31";
             var result = await _httpClient.GetStringAsync(url);
 
-            var holidays = System.Text.Json.JsonSerializer.Deserialize<List<SchoolHolidayDTO>>(result, new System.Text.Json.JsonSerializerOptions
+            var allHolidays = System.Text.Json.JsonSerializer.Deserialize<List<SchoolHolidayDTO>>(result, new System.Text.Json.JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
-            }) ?? new(); ;
+            }) ?? new();
+
+            var holidays = allHolidays
+                .Where(h => h.Subdivisions != null && h.Subdivisions.Any(s => s.ShortName == "NL"))
+                .ToList();
 
             // Corrigeer Kerstvakantie en Zomervakantie einddatums
             foreach (var holiday in holidays)

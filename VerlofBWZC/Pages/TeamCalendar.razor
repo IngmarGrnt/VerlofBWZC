@@ -1,0 +1,125 @@
+﻿@page "/teamcalendar"
+@using Radzen
+@using Radzen.Blazor
+@using VerlofBWZC.DataContracts.DTO
+@using VerlofBWZC.DataContracts.DTO.Calendar
+@using VerlofBWZC.Handler
+@using VerlofBWZC.Services
+@inject HttpClient Http
+@inject IJSRuntime JS
+@inject PersonApiService PersonApi
+
+<h3>Teamkalender</h3>
+
+<RadzenDropDown @bind-Value="SelectedYear"
+                Data="@Years"
+                Placeholder="Selecteer een jaar"
+                Style="width:200px; margin-bottom: 1rem;"
+                Change="OnYearChanged" />
+
+<RadzenDataGrid Data="@WorkDays" TItem="WorkDay" ShowPagingSummary="false" ShowPagination="false" ShowColumnPicker="false">
+    <Columns>
+        <RadzenDataGridColumn TItem="WorkDay" Property="Date" Title="Datum" Width="80px">
+            <Template Context="wd">
+                @wd.Date.ToString("dd-MM")
+            </Template>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn TItem="WorkDay" Property="Shift" Title="S" Width="40px">
+            <Template Context="wd">
+                @wd.Shift
+            </Template>
+        </RadzenDataGridColumn>
+        @foreach (var member in TeamMembers)
+        {
+            <RadzenDataGridColumn TItem="WorkDay" Title="@GetInitials(member)" Width="50px">
+                <Template Context="wd">
+                    @{
+                        var isDayOff = TeamDaysOff.Any(d => d.PersonId == member.Id && d.Date.Date == wd.Date.Date && d.Shift == wd.Shift);
+                    }
+                    <RadzenButton
+                        Size="ButtonSize.Small"
+                        Variant="@(isDayOff ? Variant.Filled : Variant.Outlined)"
+                        ButtonStyle="@(isDayOff ? ButtonStyle.Info : ButtonStyle.Warning)"
+                        Text=""
+                        Icon="@(isDayOff ? "check" : null)"
+                        Style="width:28px;height:28px;padding:0;"
+                        Click="@(args => OnDayClicked(member.Id, wd))" />
+                </Template>
+            </RadzenDataGridColumn>
+        }
+    </Columns>
+</RadzenDataGrid>
+
+@code {
+    private int SelectedYear { get; set; } = DateTime.Now.Year;
+    private List<int> Years { get; set; } = Enumerable.Range(DateTime.Now.Year - 1, 11).ToList();
+    private List<WorkDay> WorkDays = new();
+    private List<PersonBaseDTO> TeamMembers = new();
+    private List<TeamDayOffDTO> TeamDaysOff = new();
+
+    public class TeamDayOffDTO
+    {
+        public int PersonId { get; set; }
+        public DateTime Date { get; set; }
+        public string Shift { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTeamCalendar();
+    }
+
+    private async Task OnYearChanged(object value)
+    {
+        if (value is int year)
+        {
+            SelectedYear = year;
+            await LoadTeamCalendar();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadTeamCalendar()
+    {
+        // Haal de ingelogde gebruiker op
+        var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
+        var userId = JwtUtils.GetUserIdFromToken(token);
+        var person = await PersonApi.GetPersonByIdAsync(int.Parse(userId));
+        var teamName = person?.Team;
+
+        // Haal teamleden op
+        TeamMembers = await Http.GetFromJsonAsync<List<PersonBaseDTO>>($"api/person/team/{teamName}");
+
+        // Haal werkdagen op
+        WorkDays = await Http.GetFromJsonAsync<List<WorkDay>>($"api/calender?teamName={teamName}&year={SelectedYear}");
+
+        // Haal alle verlofdagen van het team op
+        TeamDaysOff = await Http.GetFromJsonAsync<List<TeamDayOffDTO>>($"api/person/team-days-off/{teamName}/{SelectedYear}");
+    }
+
+    private string GetInitials(PersonBaseDTO person)
+    {
+        if (string.IsNullOrWhiteSpace(person.FirstName) || string.IsNullOrWhiteSpace(person.LastName))
+            return "";
+        return $"{person.FirstName[0]}{person.LastName[0]}".ToUpper();
+    }
+
+    private async Task OnDayClicked(int personId, WorkDay wd)
+    {
+        var existing = TeamDaysOff.FirstOrDefault(d => d.PersonId == personId && d.Date.Date == wd.Date.Date && d.Shift == wd.Shift);
+        if (existing != null)
+        {
+            // Verwijder verlof (call API)
+            await Http.DeleteAsync($"api/calender/remove-dayoff?personId={personId}&date={wd.Date:yyyy-MM-dd}&shift={wd.Shift}");
+            TeamDaysOff.Remove(existing);
+        }
+        else
+        {
+            // Voeg verlof toe (call API)
+            var payload = new { PersonId = personId, Date = wd.Date, Shift = wd.Shift };
+            await Http.PostAsJsonAsync("api/calender/add-dayoff", payload);
+            TeamDaysOff.Add(new TeamDayOffDTO { PersonId = personId, Date = wd.Date, Shift = wd.Shift });
+        }
+        StateHasChanged();
+    }
+}

@@ -13,6 +13,7 @@ namespace VerlofBWZC.DataContracts.DTO.Holiday
         public DateTime StartDate { get; set; }
         public DateTime EndDate { get; set; }
         public string Type { get; set; }
+        public List<SubdivisionDTO> Subdivisions { get; set; }
     }
 
 }
