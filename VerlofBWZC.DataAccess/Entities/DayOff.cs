@@ -11,6 +11,7 @@ namespace VerlofBWZC.DataAccess.Entities
         public int PersonId { get; set; }   
         public string Description { get; set; }
         public DayOffstatus Status { get; set; }
+        public string? Shift { get; set; }
 
 
     }

@@ -3,6 +3,7 @@ using AutoMapper.QueryableExtensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VerlofBWZC.Api.Helpers;
+using VerlofBWZC.DataAccess;
 using VerlofBWZC.DataAccess.Entities;
 using VerlofBWZC.DataAccess.Enums;
 using VerlofBWZC.DataContracts.DTO;
@@ -103,27 +104,37 @@ namespace VerlofBWZC.Api.Controllers
         }
 
 
-        [HttpGet("team/{teamName}")]
-        public async Task<ActionResult<IEnumerable<PersonBaseDTO>>> GetPersonsByTeam(TeamName teamName)
+        [HttpGet("team/{teamName}/{speciality}")]
+        public async Task<ActionResult<IEnumerable<PersonBaseDTO>>> GetPersonsByTeam(TeamName teamName, Speciality speciality)
         {
             var persons = await _context.Persons
-                .Where(p => p.Team == teamName)
+                .Where(p => p.Team == teamName && p.Speciality == speciality)
                 .ProjectTo<PersonBaseDTO>(_mapper.ConfigurationProvider)
                 .ToListAsync();
             return Ok(persons);
         }
 
-        [HttpGet("team-days-off/{teamName}/{year}")]
-        public async Task<IActionResult> GetDaysOffForTeam(TeamName teamName, int year)
+        [HttpGet("team-days-off/{teamName}/{year}/{speciality?}")]
+        public async Task<IActionResult> GetDaysOffForTeam(TeamName teamName, int year, Speciality? speciality = null)
         {
-            var personIds = await _context.Persons
-                .Where(p => p.Team == teamName)
+            var personsQuery = _context.Persons.Where(p => p.Team == teamName);
+
+            if (speciality.HasValue)
+            {
+                personsQuery = personsQuery.Where(p => p.Speciality == speciality.Value);
+            }
+
+            var personIds = await personsQuery
                 .Select(p => p.Id)
                 .ToListAsync();
 
             var daysOff = await _context.DayOffs
                 .Where(d => personIds.Contains(d.PersonId) && d.Date.Year == year)
-                .Select(d => new { d.PersonId, d.Date })
+                .Select(d => new {
+                    d.PersonId,
+                    d.Date,
+                    d.Shift // <-- Shift wordt nu meegestuurd
+                })
                 .ToListAsync();
 
             return Ok(daysOff);

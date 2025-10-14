@@ -55,6 +55,10 @@ namespace VerlofBWZC.DataAccess.Extensions
             mb.Entity<DayOff>()
                 .Property(d => d.Status)
                 .IsRequired();
+
+            mb.Entity<DayOff>()
+                .Property(d => d.Shift)
+                .HasMaxLength(50);
         }
     }
 }

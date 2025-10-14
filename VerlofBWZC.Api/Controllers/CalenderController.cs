@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using VerlofBWZC.Api.Helpers;
 using VerlofBWZC.DataAccess.Entities;
 using VerlofBWZC.DataAccess.Enums;
+using VerlofBWZC.DataContracts.DTO.Calendar;
 
 namespace VerlofBWZC.Api.Controllers
 {
@@ -86,8 +87,12 @@ namespace VerlofBWZC.Api.Controllers
                 {
                     PersonId = request.PersoonId,
                     Date = day.Date,
+                    Shift = day.Shift,
                     Description = "", // Vul aan indien nodig
-                    Status = DayOffstatus.Approved // Of een andere default status
+                    Status = DayOffstatus.Approved,
+                    LastUpdate = DateTime.Now,
+                    IsDeleted = false,// Of een andere default status
+                  
                 };
 
                 _context.DayOffs.Add(dayOff);
@@ -126,15 +131,67 @@ namespace VerlofBWZC.Api.Controllers
             return Ok(daysOff);
         }
 
-        public class WorkDay
+        public class AddTeamDayOffsRequest
         {
-            public DateTime Date { get; set; }
+            public List<PersonDays> Persons { get; set; }
+            public class PersonDays
+            {
+                public int PersoonId { get; set; }
+                public List<WorkDay> Days { get; set; }
+            }
         }
+
+        [HttpPost("add-multiple-dayoff")]
+        public async Task<IActionResult> AddMultiplePersonsDayOffs([FromBody] AddTeamDayOffsRequest request)
+        {
+            foreach (var person in request.Persons)
+            {
+                var existingDayOffs = await _context.DayOffs
+                    .Where(d => d.PersonId == person.PersoonId)
+                    .ToListAsync();
+
+                var requestedDates = person.Days.Select(d => new { d.Date.Date, d.Shift }).ToHashSet();
+
+                // Verwijder oude DayOffs die niet meer geselecteerd zijn
+                var toRemove = existingDayOffs
+                    .Where(d => !requestedDates.Contains(new { d.Date.Date, d.Shift }))
+                    .ToList();
+                if (toRemove.Any())
+                    _context.DayOffs.RemoveRange(toRemove);
+
+                // Voeg nieuwe toe
+                foreach (var day in person.Days)
+                {
+                    bool alreadyExists = existingDayOffs.Any(d => d.Date.Date == day.Date.Date && d.Shift == day.Shift);
+                    if (!alreadyExists)
+                    {
+                        var dayOff = new DayOff
+                        {
+                            PersonId = person.PersoonId,
+                            Date = day.Date,
+                            Shift = day.Shift,
+                            Description = "",
+                            Status = DayOffstatus.Approved,
+                            LastUpdate = DateTime.Now,
+                            IsDeleted = false
+                        };
+                        _context.DayOffs.Add(dayOff);
+                    }
+                }
+            }
+            await _context.SaveChangesAsync();
+            return Ok();
+        }
+
+        //public class WorkDay
+        //{
+        //    public DateTime Date { get; set; }
+        //}
         // DTO voor de request body
-        public class AddMultipleDayOffsRequest
-        {
-            public int PersoonId { get; set; }
-            public List<WorkDay> Days { get; set; } = new();
-        }
+        //public class AddMultipleDayOffsRequest
+        //{
+        //    public int PersoonId { get; set; }
+        //    public List<WorkDay> Days { get; set; } = new();
+        //}
     }
 }
