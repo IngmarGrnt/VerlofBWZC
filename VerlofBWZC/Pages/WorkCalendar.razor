@@ -16,76 +16,86 @@
 @inject PersonApiService PersonApi
 
 <h3>WerkKalender</h3>
+@if(monthGroups == null || !monthGroups.Any())
+{
+    <h2><em>Loading...</em></h2>
+    return;
+}
+else
+{
+    <div style="display: flex; align-items: center; gap: 1.5rem; margin-bottom: 1.5rem;">
+        >
+        @if (SelectedYear == CurrentDayOffYear)
+        {
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem" Wrap="FlexWrap.Wrap" Style="margin-right: 1.5rem;">
+                <RadzenButton Text="Opslaan" ButtonStyle="ButtonStyle.Success" Click="@SaveSelectedDays" />
+            </RadzenStack>
+        }
+        <RadzenDropDown @bind-Value="SelectedYear"
+                        Data="@Years"
+                        Placeholder="Selecteer een jaar"
+                        Style="width:200px;"
+                        Change="OnYearChanged" />
+        <div class="rz-button rz-button-info rz-border-radius-6 rz-shadow-6" style="display: flex; align-items: center; padding: 0.5rem 1.2rem; border: none;">
+            <span style="color: white; font-size: 1.1rem;">
+                verlofdagen geselecteerd in @SelectedYear
+            </span>
 
-<div style="display: flex; align-items: center; margin-bottom: 1.5rem;">
-    <RadzenDropDown @bind-Value="SelectedYear"
-                    Data="@Years"
-                    Placeholder="Selecteer een jaar"
-                    Style="width:200px; margin-right: 1.5rem;"
-                    Change="OnYearChanged" />
-    <div class="rz-button rz-button-info rz-border-radius-6 rz-shadow-6" style="display: flex; align-items: center; padding: 0.5rem 1.2rem; border: none;">
-        <span style="color: white; font-size: 1.1rem;">
-            verlofdagen geselecteerd in @SelectedYear
-        </span>
-        <RadzenBadge Variant="Variant.Filled"
-                     BadgeStyle="BadgeStyle.Info"
-                     Text="@(SelectedYearDayOffCount.ToString())"
-                     Style="margin-left: 1rem; font-size: 2rem; font-weight: bold; background: transparent; color: white; box-shadow: none; border: none;" />
+            <RadzenBadge Variant="Variant.Filled"
+                         BadgeStyle="BadgeStyle.Info"
+                         Text="@(SelectedYearDayOffCount.ToString())"
+                         Style="margin-left: 1rem; font-size: 2rem; font-weight: bold; background: transparent; color: white; box-shadow: none; border: none;" />
+        </div>
     </div>
 
-   
-</div>
-
-<RadzenDataGrid Data="@monthGroups" TItem="MonthGroup" ShowPagingSummary="false" ShowPagination="false" ShowColumnPicker="false">
-    <Columns>
-        <RadzenDataGridColumn TItem="MonthGroup" Property="MonthName" Title="Maand" Width="90px" />
-        <RadzenDataGridColumn TItem="MonthGroup" Title="Werkdagen">
-            <Template Context="data">
-                <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-                    @foreach (var day in data.WorkDays)
-                    {
-                        var isSelected = selectedDays.Any(d => d.Date == day.Date && d.Shift == day.Shift);
-
-                        // Alleen als NIET geselecteerd: kleurklasse bepalen
-                        string holidayTypeClass = "";
-                        if (!isSelected)
+    <RadzenDataGrid Data="@monthGroups" TItem="MonthGroup" ShowPagingSummary="false" ShowPagination="false" ShowColumnPicker="false">
+        <Columns>
+            <RadzenDataGridColumn TItem="MonthGroup" Property="MonthName" Title="Maand" Width="90px" />
+            <RadzenDataGridColumn TItem="MonthGroup" Title="Werkdagen">
+                <Template Context="data">
+                    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                        @foreach (var day in data.WorkDays)
                         {
-                            if (PublicHolidays.Any(h => h.StartDate.Date == day.Date.Date))
-                                holidayTypeClass = "holiday-btn-feestdag";
-                            else if (SchoolHolidays.Any(h => h.StartDate.Date <= day.Date.Date && h.EndDate.Date >= day.Date.Date))
-                                holidayTypeClass = "holiday-btn-vacation";
-                            else if (day.Date.DayOfWeek == DayOfWeek.Saturday || day.Date.DayOfWeek == DayOfWeek.Sunday)
-                                holidayTypeClass = "holiday-btn-weekend";
-                        }
+                            var isSelected = selectedDays.Any(d => d.Date == day.Date && d.Shift == day.Shift);
 
-                        <RadzenButton Variant="@(isSelected? Variant.Filled: Variant.Outlined)"
-                                      ButtonStyle="@(isSelected
-                                                                      ? ButtonStyle.Info
-                                                                      : (day.Shift == "D" ? ButtonStyle.Primary : ButtonStyle.Secondary))"
+                            // Alleen als NIET geselecteerd: kleurklasse bepalen
+                            string holidayTypeClass = "";
+                            if (!isSelected)
+                            {
+                                if (PublicHolidays.Any(h => h.StartDate.Date == day.Date.Date))
+                                    holidayTypeClass = "holiday-btn-feestdag";
+                                else if (SchoolHolidays.Any(h => h.StartDate.Date <= day.Date.Date && h.EndDate.Date >= day.Date.Date))
+                                    holidayTypeClass = "holiday-btn-vacation";
+                                else if (day.Date.DayOfWeek == DayOfWeek.Saturday || day.Date.DayOfWeek == DayOfWeek.Sunday)
+                                    holidayTypeClass = "holiday-btn-weekend";
+                            }
+
+                            <RadzenButton Variant="@(isSelected? Variant.Filled: Variant.Outlined)"
+                                          ButtonStyle="@(isSelected
+                                                                                                                ? ButtonStyle.Info
+                                                                                                                : (day.Shift == "D" ? ButtonStyle.Primary : ButtonStyle.Secondary))"
                                   Text="@($"{day.Shift} {day.Date:ddd} {day.Date:dd}")"
                                   Click="@(args => OnDayClicked(day))"
                                   Style="margin-bottom: 2px;"
                                   class="@holidayTypeClass">
                     </RadzenButton>
                                         }
-                </div>
-            </Template>
-        </RadzenDataGridColumn>
-    </Columns>
-</RadzenDataGrid>
-@if (SelectedYear == CurrentDayOffYear)
-{<RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem" Wrap="FlexWrap.Wrap">
-        <RadzenButton Style="margin-top:2rem;" Text="Opslaan" ButtonStyle="ButtonStyle.Success" Click="@SaveSelectedDays" />
-    </RadzenStack>
+                    </div>
+                </Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+
+
+    <RadzenDataGrid Data="@(GetAllHolidaysForGrid())" TItem="HolidayGridRow" ShowPagingSummary="false" ShowPagination="false" Style="margin-top:2rem;">
+        <Columns>
+            <RadzenDataGridColumn TItem="HolidayGridRow" Property="DateText" Title="Datum" Width="220px" />
+            <RadzenDataGridColumn TItem="HolidayGridRow" Property="Name" Title="Naam" Width="300px" />
+            <RadzenDataGridColumn TItem="HolidayGridRow" Property="Type" Title="Type" Width="140px" />
+        </Columns>
+    </RadzenDataGrid>
 }
 
-<RadzenDataGrid Data="@(GetAllHolidaysForGrid())" TItem="HolidayGridRow" ShowPagingSummary="false" ShowPagination="false" Style="margin-top:2rem;">
-    <Columns>
-        <RadzenDataGridColumn TItem="HolidayGridRow" Property="DateText" Title="Datum" Width="220px" />
-        <RadzenDataGridColumn TItem="HolidayGridRow" Property="Name" Title="Naam" Width="300px" />
-        <RadzenDataGridColumn TItem="HolidayGridRow" Property="Type" Title="Type" Width="140px" />
-    </Columns>
-</RadzenDataGrid>
 
 @code {
      private List<DayOffDTO> personDaysOff = new();

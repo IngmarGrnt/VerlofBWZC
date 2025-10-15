@@ -80,4 +80,22 @@
         height: calc(100vh - 3.5rem);
         overflow-y: auto;
     }
+    .navbar-logo {
+        height: 50px;
+        margin-right: 1rem;
+    }
+
+}
+
+@media (max-width: 640px) {
+    .navbar-logo {
+        height: 60px;
+        margin-right: 0.5rem;
+    }
+}
+
+@media (max-width: 400px) {
+    .navbar-logo {
+        display: none;
+    }
 }

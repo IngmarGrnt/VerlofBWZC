@@ -1,14 +1,17 @@
-﻿@inject IJSRuntime JS
+﻿@using VerlofBWZC.Handler
+@inject IJSRuntime JS
 @inject NavigationManager Navigation
 
 <div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
-        <a class="navbar-brand" href="">Verlof IGS</a>
+        <img src="LogoBWZC.png" alt="BWZC" class="navbar-logo" />
+        <a class="navbar-brand" href="">Verlof BWZC</a>
         <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
             <span class="navbar-toggler-icon"></span>
         </button>
     </div>
 </div>
+
 
 @if (isLoggedIn)
 {
@@ -24,11 +27,16 @@
                     <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Werkkalender
                 </NavLink>
             </div>
-            <div class="nav-item px-3">
-                <NavLink class="nav-link" href="TeamCalendar">
-                    <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Teamkalender
-                </NavLink>
-            </div>
+            @if (userRole == "Admin")
+            {
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="TeamCalendar">
+                        <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Teamkalender
+                    </NavLink>
+                </div>
+            }
+           
+          
         </nav>
     </div>
 }
@@ -36,8 +44,10 @@
 @code {
     private bool collapseNavMenu = true;
     private bool isLoggedIn;
-
     private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+
+    string? userRole;
+    string? token;  
 
     private void ToggleNavMenu()
     {
@@ -57,10 +67,13 @@
 
     private async Task CheckLoginStatus()
     {
-        var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
+        token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
         isLoggedIn = !string.IsNullOrEmpty(token);
+        userRole = JwtUtils.GetUserRolFromToken(token);
+        //Console.WriteLine($"User Role: {userRole}");
         StateHasChanged();
     }
+
 
     public void Dispose()
     {

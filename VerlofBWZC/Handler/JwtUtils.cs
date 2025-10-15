@@ -27,5 +27,40 @@ namespace VerlofBWZC.Handler
 
             return null;
         }
+
+        public static string? GetUserRolFromToken(string? token)
+        {
+            if (string.IsNullOrEmpty(token)) return null;
+            var parts = token.Split('.');
+            if (parts.Length != 3) return null;
+            var payload = parts[1];
+            switch (payload.Length % 4)
+            {
+                case 2: payload += "=="; break;
+                case 3: payload += "="; break;
+            }
+            var json = Encoding.UTF8.GetString(Convert.FromBase64String(payload));
+            var doc = JsonDocument.Parse(json);
+
+            // Probeer de meest voorkomende rol-claims
+            if (doc.RootElement.TryGetProperty("role", out var role))
+            {
+                Console.WriteLine($"User Role: {role.GetString()}");
+                return role.GetString();
+            }
+
+            if (doc.RootElement.TryGetProperty("roles", out var roles))
+            {
+                // Kan een array zijn
+                if (roles.ValueKind == JsonValueKind.Array)
+                    return roles.EnumerateArray().FirstOrDefault().GetString();
+                return roles.GetString();
+            }
+
+            if (doc.RootElement.TryGetProperty("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", out var msRole))
+                return msRole.GetString();
+
+            return null;
+        }
     }
 }

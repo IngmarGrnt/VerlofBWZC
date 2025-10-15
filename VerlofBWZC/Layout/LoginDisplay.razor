@@ -5,15 +5,11 @@
 
 @if (isLoggedIn)
 {
-
-   @*  <button class="nav-link btn btn-link" @onclick="Logout">Log uit</button> *@
-
-            <RadzenButton 
-            ButtonStyle="ButtonStyle.Primary"
-            ButtonType="ButtonType.Button"
-            Text="Log Uit"
-            click="Logout">
-        </RadzenButton>
+    <RadzenButton ButtonStyle="ButtonStyle.Primary"
+                  ButtonType="ButtonType.Button"
+                  Text="Log Uit"
+                  Click="Logout"
+                  class="logout-fixed" />
 }
 
 
