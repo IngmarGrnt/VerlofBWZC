@@ -151,7 +151,7 @@ namespace VerlofBWZC.Api.Controllers
         // ... bestaande usings en namespace
 
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdatePerson(int id, [FromBody] PersonBaseDTO personDto)
+        public async Task<IActionResult> UpdatePerson(int id, [FromBody] PersonCreateDTO personDto)
         {
             var person = await _context.Persons.FindAsync(id);
             if (person == null)
@@ -165,6 +165,12 @@ namespace VerlofBWZC.Api.Controllers
             person.Grade = Enum.TryParse<Grade>(personDto.Grade, out var grade) ? grade : null;
             person.Role = Enum.TryParse<Role>(personDto.Role, out var role) ? role : null;
             person.LastUpdate = DateTime.Now;
+            if (!string.IsNullOrEmpty(personDto.Password))
+            {
+                PasswordHelper.CreatePasswordHash(personDto.Password, out string hash, out string salt);
+                person.PasswordHash = hash;
+                person.Salt = salt;
+            }
 
             await _context.SaveChangesAsync();
             return NoContent();

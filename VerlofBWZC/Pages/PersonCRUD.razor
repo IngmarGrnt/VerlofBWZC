@@ -2,6 +2,7 @@
 @using Radzen
 @using Radzen.Blazor
 @using System.Text.Json
+@using System.Linq.Expressions
 @using VerlofBWZC.DataContracts.DTO
 @using VerlofBWZC.Services
 @inject PersonApiService PersonApi
@@ -72,13 +73,16 @@
         <RadzenDataGridColumn TItem="PersonBaseDTO" Context="person">
             <Template Context="person">
                 <RadzenButton Icon="edit" Click="@(() => EditRow(person))" Style="margin-right: 5px" />
-                <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Click="@(() => DeletePerson(person))" />
+                <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Click="@(() => DeletePerson(person))" Style="margin-right: 5px" />
+                <RadzenButton Icon="lock" ButtonStyle="ButtonStyle.Info" Click="@(() => OpenPasswordDialog(person))" />
             </Template>
             <EditTemplate Context="person">
                 <RadzenButton Icon="save" ButtonStyle="ButtonStyle.Primary" Click="@(() => SaveRow(person))" Style="margin-right: 5px" />
                 <RadzenButton Icon="cancel" ButtonStyle="ButtonStyle.Light" Click="@(() => CancelEdit(person))" />
             </EditTemplate>
         </RadzenDataGridColumn>
+
+
     </Columns>
 </RadzenDataGrid>
 
@@ -126,8 +130,8 @@
                 Role = person.Role,
                 Password = "Root1234",
 
-               
-                
+
+
             };
             Console.WriteLine(JsonSerializer.Serialize(createDto)); ;
             await PersonApi.CreatePersonAsync(createDto);
@@ -144,8 +148,8 @@
                 Speciality = person.Speciality,
                 Grade = person.Grade,
                 Role = person.Role,
- 
-                
+
+
             };
             await PersonApi.UpdatePersonAsync(person.Id, updateDto);
             NotificationService.Notify(NotificationSeverity.Success, "Aangepast", "Persoon succesvol aangepast");
@@ -214,4 +218,46 @@
         new { Value = "1", Text = "User" },
         new { Value = "2", Text = "Manager" }
     };
+
+    private string newPassword = "";
+    private PersonBaseDTO? selectedPersonForPassword = null;
+
+    private async Task OpenPasswordDialog(PersonBaseDTO person)
+    {
+        await DialogService.OpenAsync<ChangePasswordDialog>(
+            "Wachtwoord wijzigen",
+            new Dictionary<string, object>
+            {
+            { "Person", person },
+            { "OnPasswordChanged", EventCallback.Factory.Create<string>(this, async (newPassword) => await ChangePassword(person, newPassword)) }
+            },
+            new DialogOptions() { Width = "400px", Height = "200px" }
+        );
+    }
+
+
+    private async Task ChangePassword(PersonBaseDTO person, string newPassword)
+    {
+        var updateDto = new PersonCreateDTO
+        {
+            FirstName = person.FirstName,
+            LastName = person.LastName,
+            Email = person.Email,
+            Team = person.Team,
+            Speciality = person.Speciality,
+            Grade = person.Grade,
+            Role = person.Role,
+            Password = newPassword
+        };
+        var result = await PersonApi.UpdatePersonAsync(person.Id, updateDto);
+        if (result)
+        {
+            NotificationService.Notify(NotificationSeverity.Success, "Wachtwoord gewijzigd", "Het wachtwoord is succesvol aangepast.");
+        }
+        else
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Fout", "Wachtwoord wijzigen is mislukt.");
+        }
+        await LoadPersons();
+    }
 }
