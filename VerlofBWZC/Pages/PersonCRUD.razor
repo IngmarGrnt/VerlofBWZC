@@ -1,0 +1,217 @@
+﻿@page "/person-crud"
+@using Radzen
+@using Radzen.Blazor
+@using System.Text.Json
+@using VerlofBWZC.DataContracts.DTO
+@using VerlofBWZC.Services
+@inject PersonApiService PersonApi
+@inject NotificationService NotificationService
+@inject DialogService DialogService
+
+<h3>Personenbeheer</h3>
+
+<RadzenButton Icon="add_circle" Text="Nieuwe persoon" Style="margin-bottom: 10px" Click="@AddPerson" />
+
+<RadzenDataGrid TItem="PersonBaseDTO" Data="@persons" @ref="grid" AllowFiltering="true" AllowPaging="true" AllowSorting="true" PageSize="10" EditMode="DataGridEditMode.Single">
+    <Columns>
+        <RadzenDataGridColumn TItem="PersonBaseDTO" Property="FirstName" Title="Voornaam">
+            <EditTemplate Context="person">
+                <RadzenTextBox @bind-Value="person.FirstName" Style="width:100%" Name="FirstName" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn TItem="PersonBaseDTO" Property="LastName" Title="Achternaam">
+            <EditTemplate Context="person">
+                <RadzenTextBox @bind-Value="person.LastName" Style="width:100%" Name="LastName" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn TItem="PersonBaseDTO" Property="Email" Title="Email">
+            <EditTemplate Context="person">
+                <RadzenTextBox @bind-Value="person.Email" Style="width:100%" Name="Email" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn TItem="PersonBaseDTO" Property="Team" Title="Team">
+            <EditTemplate Context="person">
+                <RadzenDropDown @bind-Value="person.Team"
+                                Data="@TeamOptions"
+                                TextProperty="Text"
+                                ValueProperty="Value"
+                                Name="Team"
+                                Style="width:100%" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn TItem="PersonBaseDTO" Property="Speciality" Title="Specialiteit">
+            <EditTemplate Context="person">
+                <RadzenDropDown @bind-Value="person.Speciality"
+                                Data="@SpecialityOptions"
+                                TextProperty="Text"
+                                ValueProperty="Value"
+                                Name="Speciality"
+                                Style="width:100%" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn TItem="PersonBaseDTO" Property="Grade" Title="Graad">
+            <EditTemplate Context="person">
+                <RadzenDropDown @bind-Value="person.Grade"
+                                Data="@GradeOptions"
+                                TextProperty="Text"
+                                ValueProperty="Value"
+                                Name="Grade"
+                                Style="width:100%" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn TItem="PersonBaseDTO" Property="Role" Title="Rol">
+            <EditTemplate Context="person">
+                <RadzenDropDown @bind-Value="person.Role"
+                                Data="@RoleOptions"
+                                TextProperty="Text"
+                                ValueProperty="Value"
+                                Name="Role"
+                                Style="width:100%" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn TItem="PersonBaseDTO" Context="person">
+            <Template Context="person">
+                <RadzenButton Icon="edit" Click="@(() => EditRow(person))" Style="margin-right: 5px" />
+                <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Click="@(() => DeletePerson(person))" />
+            </Template>
+            <EditTemplate Context="person">
+                <RadzenButton Icon="save" ButtonStyle="ButtonStyle.Primary" Click="@(() => SaveRow(person))" Style="margin-right: 5px" />
+                <RadzenButton Icon="cancel" ButtonStyle="ButtonStyle.Light" Click="@(() => CancelEdit(person))" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+    </Columns>
+</RadzenDataGrid>
+
+<RadzenDialog />
+
+@code {
+    private List<PersonBaseDTO> persons = new();
+    private PersonBaseDTO newPerson = new();
+    private RadzenDataGrid<PersonBaseDTO> grid;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPersons();
+    }
+
+    private async Task LoadPersons()
+    {
+        persons = await PersonApi.GetAllPersonsAsync();
+        StateHasChanged();
+    }
+
+    private async Task AddPerson()
+    {
+        newPerson = new PersonBaseDTO();
+        await grid.InsertRow(newPerson);
+    }
+
+    private async Task EditRow(PersonBaseDTO person)
+    {
+        await grid.EditRow(person);
+    }
+
+    private async Task SaveRow(PersonBaseDTO person)
+    {
+        if (person == newPerson)
+        {
+            var createDto = new PersonCreateDTO
+            {
+                FirstName = person.FirstName,
+                LastName = person.LastName,
+                Email = person.Email, // <-- Zorg dat dit niet leeg is!
+                Team = person.Team,
+                Speciality = person.Speciality,
+                Grade = person.Grade,
+                Role = person.Role,
+                Password = "Root1234",
+
+               
+                
+            };
+            Console.WriteLine(JsonSerializer.Serialize(createDto)); ;
+            await PersonApi.CreatePersonAsync(createDto);
+            NotificationService.Notify(NotificationSeverity.Success, "Toegevoegd", "Persoon succesvol toegevoegd");
+        }
+        else
+        {
+            var updateDto = new PersonCreateDTO
+            {
+                FirstName = person.FirstName,
+                LastName = person.LastName,
+                Email = person.Email, // <-- Zorg dat dit niet leeg is!
+                Team = person.Team,
+                Speciality = person.Speciality,
+                Grade = person.Grade,
+                Role = person.Role,
+ 
+                
+            };
+            await PersonApi.UpdatePersonAsync(person.Id, updateDto);
+            NotificationService.Notify(NotificationSeverity.Success, "Aangepast", "Persoon succesvol aangepast");
+        }
+        await grid.UpdateRow(person);
+        await LoadPersons();
+    }
+
+    private void CancelEdit(PersonBaseDTO person)
+    {
+        grid.CancelEditRow(person);
+        if (person == newPerson)
+        {
+            newPerson = null;
+        }
+    }
+
+    private async Task DeletePerson(PersonBaseDTO person)
+    {
+        bool? confirmed = await DialogService.Confirm("Weet je zeker dat je deze persoon wilt verwijderen?", "Bevestigen");
+        if (confirmed == true)
+        {
+            await PersonApi.DeletePersonAsync(person.Id);
+            NotificationService.Notify(NotificationSeverity.Success, "Verwijderd", "Persoon succesvol verwijderd");
+            await LoadPersons();
+        }
+    }
+
+    // Vaste lijsten voor dropdowns (int = enum waarde, string = label)
+    private List<object> TeamOptions = new()
+    {
+        new { Value = "0", Text = "Ploeg0" },
+        new { Value = "1", Text = "Ploeg1" },
+        new { Value = "2", Text = "Ploeg2" },
+        new { Value = "3", Text = "Ploeg3" },
+        new { Value = "4", Text = "Ploeg4" }
+    };
+
+    private List<object> SpecialityOptions = new()
+    {
+        new { Value = "0", Text = "IGS" },
+        new { Value = "1", Text = "RedTeam" },
+        new { Value = "2", Text = "Chauffeur" },
+        new { Value = "3", Text = "RVD" },
+        new { Value = "4", Text = "Duiker" },
+        new { Value = "5", Text = "Onderofficieren" },
+        new { Value = "6", Text = "Officieren" },
+        new { Value = "7", Text = "Dispatching" }
+    };
+
+    private List<object> GradeOptions = new()
+    {
+        new { Value = "0", Text = "Brandweerman" },
+        new { Value = "1", Text = "Korporaal" },
+        new { Value = "2", Text = "Sergeant" },
+        new { Value = "3", Text = "Adjudant" },
+        new { Value = "4", Text = "Luitenant" },
+        new { Value = "5", Text = "Kapitein" },
+        new { Value = "6", Text = "Majoor" },
+        new { Value = "7", Text = "Kolonenl" }
+    };
+
+    private List<object> RoleOptions = new()
+    {
+        new { Value = "0", Text = "Admin" },
+        new { Value = "1", Text = "User" },
+        new { Value = "2", Text = "Manager" }
+    };
+}

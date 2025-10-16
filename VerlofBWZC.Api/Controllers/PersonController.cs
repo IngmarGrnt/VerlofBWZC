@@ -2,6 +2,7 @@
 using AutoMapper.QueryableExtensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 using VerlofBWZC.Api.Helpers;
 using VerlofBWZC.DataAccess;
 using VerlofBWZC.DataAccess.Entities;
@@ -73,7 +74,14 @@ namespace VerlofBWZC.Api.Controllers
         [HttpPost]
         public async Task<ActionResult<PersonBaseDTO>> CreatePerson(PersonCreateDTO personDTO)
         {
-           
+            Console.WriteLine("Ontvangen PersonCreateDTO: " + JsonSerializer.Serialize(personDTO));
+
+            if (!ModelState.IsValid)
+            {
+                Console.WriteLine("ModelState errors: " + JsonSerializer.Serialize(ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage)));
+                return BadRequest(ModelState);
+            }
+
             PasswordHelper.CreatePasswordHash(personDTO.Password, out string hash, out string salt);
             personDTO.PasswordHash = hash;  
             personDTO.Salt = salt;
@@ -138,6 +146,40 @@ namespace VerlofBWZC.Api.Controllers
                 .ToListAsync();
 
             return Ok(daysOff);
+        }
+
+        // ... bestaande usings en namespace
+
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdatePerson(int id, [FromBody] PersonBaseDTO personDto)
+        {
+            var person = await _context.Persons.FindAsync(id);
+            if (person == null)
+                return NotFound();
+
+            // Update velden (pas aan indien nodig)
+            person.FirstName = personDto.FirstName;
+            person.LastName = personDto.LastName;
+            person.Team = Enum.TryParse<TeamName>(personDto.Team, out var team) ? team : null;
+            person.Speciality = Enum.TryParse<Speciality>(personDto.Speciality, out var spec) ? spec : null;
+            person.Grade = Enum.TryParse<Grade>(personDto.Grade, out var grade) ? grade : null;
+            person.Role = Enum.TryParse<Role>(personDto.Role, out var role) ? role : null;
+            person.LastUpdate = DateTime.Now;
+
+            await _context.SaveChangesAsync();
+            return NoContent();
+        }
+
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeletePerson(int id)
+        {
+            var person = await _context.Persons.FindAsync(id);
+            if (person == null)
+                return NotFound();
+
+            _context.Persons.Remove(person);
+            await _context.SaveChangesAsync();
+            return NoContent();
         }
     }
 }

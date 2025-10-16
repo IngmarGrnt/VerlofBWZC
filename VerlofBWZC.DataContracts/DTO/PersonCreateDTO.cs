@@ -18,8 +18,8 @@ namespace VerlofBWZC.DataContracts.DTO
         public string Grade { get; set; }
         public string Role { get; set; }
         public string Password { get; set; }
-        public string PasswordHash { get; set; }
-        public string Salt { get; set; }
+        public string PasswordHash { get; set; } = string.Empty;
+        public string Salt { get; set; }= string.Empty;
 
     }
 }
