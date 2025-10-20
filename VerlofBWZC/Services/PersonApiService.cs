@@ -45,8 +45,9 @@ namespace VerlofBWZC.Services
 
         public async Task<bool> UpdatePersonAsync(int id, PersonCreateDTO person)
         {
-            var response = await _http.PutAsJsonAsync($"api/person/{id}", person);
-            Debug.WriteLine("UpdatePersonAsync response: " + response);   
+            var response = await _http.PostAsJsonAsync($"api/person/update/{id}", person);
+            Console.WriteLine("UpdatePersonAsync Person Details: " + JsonSerializer.Serialize(person));
+            Console.WriteLine("UpdatePersonAsync response: " + response);
             return response.IsSuccessStatusCode;
         }
 

@@ -12,8 +12,8 @@ public class VerlofBWZC_DbContext : DbContext
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
-       
-            optionsBuilder.UseSqlServer("Data Source=.\\SQLEXPRESS;Initial Catalog=VerlofBWZC;Integrated Security=True; Trusted_Connection=True; TrustServerCertificate=True;");
+       if(!optionsBuilder.IsConfigured)
+            optionsBuilder.UseSqlServer("Server=mssql035.db.hosting;Database=ID458290_bwzc413;User Id=ID458290_bwzc413;Password=LilyLove250917;");
         
     }
 

@@ -28,6 +28,23 @@ builder.Services.AddAutoMapperConfiguration();
 builder.Services.AddDbContext<VerlofBWZC_DbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+builder.Services.AddCors(options =>
+{
+    //options.AddDefaultPolicy(policy =>
+    //{
+    //    policy.WithOrigins("https://localhost:7246")
+    //          .AllowAnyHeader()
+    //          .AllowAnyMethod();
+    //});
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.WithOrigins("https://verlof.gidco.be")
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
+
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -44,15 +61,6 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<CalendarHelper>();
-builder.Services.AddCors(options =>
-{
-    options.AddDefaultPolicy(policy =>
-    {
-        policy.WithOrigins("https://localhost:7246")
-              .AllowAnyHeader()
-              .AllowAnyMethod();
-    });
-});
 
 var app = builder.Build();
 app.UseCors();

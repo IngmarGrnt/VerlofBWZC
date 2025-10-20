@@ -19,7 +19,8 @@ builder.Services.AddScoped(sp =>
     handler.InnerHandler = new HttpClientHandler();
     return new HttpClient(handler)
     {
-        BaseAddress = new Uri("https://localhost:7080/")
+        //BaseAddress = new Uri("https://localhost:7080/")
+        BaseAddress = new Uri("https://api.gidco.be")
     };
 });
 

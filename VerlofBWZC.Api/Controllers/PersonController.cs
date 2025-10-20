@@ -150,8 +150,9 @@ namespace VerlofBWZC.Api.Controllers
 
         // ... bestaande usings en namespace
 
-        [HttpPut("{id}")]
-        public async Task<IActionResult> UpdatePerson(int id, [FromBody] PersonCreateDTO personDto)
+        //[HttpPut("{id}")]
+        [HttpPost("update/{id}")]
+        public async Task<IActionResult> UpdatePersonPost(int id, [FromBody] PersonCreateDTO personDto)
         {
             var person = await _context.Persons.FindAsync(id);
             if (person == null)
