@@ -9,7 +9,7 @@
 @inject NotificationService NotificationService
 @inject DialogService DialogService
 
-<h3>Personenbeheer</h3>
+<h1>Personenbeheer</h1>
 
 <RadzenButton Icon="add_circle" Text="Nieuwe persoon" Style="margin-bottom: 10px" Click="@AddPerson" />
 
@@ -143,7 +143,7 @@
             {
                 FirstName = person.FirstName,
                 LastName = person.LastName,
-                Email = person.Email, // <-- Zorg dat dit niet leeg is!
+                Email = person.Email,
                 Team = person.Team,
                 Speciality = person.Speciality,
                 Grade = person.Grade,

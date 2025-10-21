@@ -1,20 +1,23 @@
-﻿@using VerlofBWZC.Handler
+﻿@using Radzen
+@using Radzen.Blazor
+@using VerlofBWZC.Handler
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
 
-<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <img src="LogoBWZC.png" alt="BWZC" class="navbar-logo" />
-        <a class="navbar-brand" href="">Verlof BWZC</a>
-        <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-    </div>
-</div>
+
 
 
 @if (isLoggedIn)
 {
+    <div class="top-row ps-3 navbar navbar-dark">
+        <div class="container-fluid">
+            <img src="LogoBWZC.png" alt="BWZC" class="navbar-logo" />
+            <a class="navbar-brand" href="">Verlof BWZC</a>
+            <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+        </div>
+    </div>
     <div class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
         <nav class="nav flex-column">
             <div class="nav-item px-3">
@@ -27,7 +30,7 @@
                     <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Werkkalender
                 </NavLink>
             </div>
-            @if (userRole == "Admin")
+            @if (userRole == "Admin" || userRole == "Manager")
             {
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="TeamCalendar">
@@ -40,10 +43,19 @@
                     </NavLink>
                 </div>
             }
-           
-          
+            <div class="nav-item px-3">
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="20rem" Wrap="FlexWrap.Wrap">
+                <RadzenButton ButtonStyle="ButtonStyle.Primary"
+                              ButtonType="ButtonType.Button"
+                              Text="Log Uit"
+                              Icon="report"
+                              Click="Logout"
+                              class="logout-nav" />
+                </RadzenStack>
+            </div>
         </nav>
     </div>
+
 }
 
 @code {
@@ -84,4 +96,14 @@
     {
         Navigation.LocationChanged -= OnLocationChanged;
     }
+    private string? userName;
+    private async Task Logout()
+    {
+        await JS.InvokeVoidAsync("localStorage.removeItem", "authToken");
+        isLoggedIn = false;
+        userName = null;
+        StateHasChanged();
+        Navigation.NavigateTo("/login", true);
+    }
+}
 }

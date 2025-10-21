@@ -15,7 +15,7 @@
 @inject IJSRuntime JS
 @inject PersonApiService PersonApi
 
-<h3>WerkKalender</h3>
+<h1>WerkKalender</h1>
 @if(monthGroups == null || !monthGroups.Any())
 {
     <h2><em>Loading...</em></h2>
@@ -23,7 +23,7 @@
 }
 else
 {
-    <div style="display: flex; align-items: center; gap: 1.5rem; margin-bottom: 1.5rem;">
+@*     <div style="display: flex; align-items: center; gap: 1.5rem; margin-bottom: 1.5rem;">
         
         @if (SelectedYear == CurrentDayOffYear)
         {
@@ -46,6 +46,29 @@ else
                          Text="@(SelectedYearDayOffCount.ToString())"
                          Style="margin-left: 1rem; font-size: 2rem; font-weight: bold; background: transparent; color: white; box-shadow: none; border: none;" />
         </div>
+    </div> *@
+
+    <div class="workcalendar-header">
+        @if (SelectedYear == CurrentDayOffYear)
+        {
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem" Wrap="FlexWrap.Wrap">
+                <RadzenButton Text="Opslaan" ButtonStyle="ButtonStyle.Success" Click="@SaveSelectedDays" />
+            </RadzenStack>
+        }
+        <RadzenDropDown @bind-Value="SelectedYear"
+                        Data="@Years"
+                        Placeholder="Selecteer een jaar"
+                        Style="width:200px;"
+                        Change="OnYearChanged" />
+        <div class="rz-button rz-button-info rz-border-radius-6 rz-shadow-6">
+            <span style="color: white; font-size: 1.1rem;">
+                verlofdagen geselecteerd in @SelectedYear 
+            </span>
+            <RadzenBadge Variant="Variant.Filled"
+                         BadgeStyle="BadgeStyle.Info"
+                         Text="@(SelectedYearDayOffCount.ToString())"
+                         Class="rz-badge" />
+        </div>
     </div>
 
     <RadzenDataGrid Data="@monthGroups" TItem="MonthGroup" ShowPagingSummary="false" ShowPagination="false" ShowColumnPicker="false">
@@ -53,7 +76,7 @@ else
             <RadzenDataGridColumn TItem="MonthGroup" Property="MonthName" Title="Maand" Width="90px" />
             <RadzenDataGridColumn TItem="MonthGroup" Title="Werkdagen">
                 <Template Context="data">
-                    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                    <div style="display: flex; flex-wrap: wrap; gap: 6px; ">
                         @foreach (var day in data.WorkDays)
                         {
                             var isSelected = selectedDays.Any(d => d.Date == day.Date && d.Shift == day.Shift);
@@ -72,12 +95,12 @@ else
 
                             <RadzenButton Variant="@(isSelected? Variant.Filled: Variant.Outlined)"
                                           ButtonStyle="@(isSelected
-                                                                                                                ? ButtonStyle.Info
-                                                                                                                : (day.Shift == "D" ? ButtonStyle.Primary : ButtonStyle.Secondary))"
+                                                                          ? ButtonStyle.Info
+                                                                          : (day.Shift == "D" ? ButtonStyle.Primary : ButtonStyle.Secondary))"
                                   Text="@($"{day.Shift} {day.Date:ddd} {day.Date:dd}")"
                                   Click="@(args => OnDayClicked(day))"
-                                  Style="margin-bottom: 2px;"
-                                  class="@holidayTypeClass">
+                                  Style="margin-bottom: 1px"
+                                  class="@($"{holidayTypeClass} workcalendar-day-btn")">
                     </RadzenButton>
                                         }
                     </div>

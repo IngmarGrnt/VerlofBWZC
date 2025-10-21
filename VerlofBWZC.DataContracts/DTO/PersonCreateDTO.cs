@@ -17,7 +17,7 @@ namespace VerlofBWZC.DataContracts.DTO
         public string Speciality { get; set; }
         public string Grade { get; set; }
         public string Role { get; set; }
-        public string Password { get; set; }
+        public string? Password { get; set; }
         public string PasswordHash { get; set; } = string.Empty;
         public string Salt { get; set; }= string.Empty;
 

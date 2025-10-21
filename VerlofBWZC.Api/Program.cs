@@ -16,29 +16,28 @@ using VerlofBWZC.DataAccess.Entities;
 
 var builder = WebApplication.CreateBuilder(args);
 var config = builder.Configuration;
+
+// Get allowed origins from configuration based on environment
+var environment = builder.Environment.EnvironmentName;
+var originsSection = config.GetSection($"AllowOrigins:{environment}");
+var allowedOrigins = originsSection.Get<string[]>();
+
+
 // Add services to the container.
 builder.Services.AddControllers();
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
-
-// Add Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddAutoMapperConfiguration();
 builder.Services.AddDbContext<VerlofBWZC_DbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+// Use allowed origins from configuration
 builder.Services.AddCors(options =>
 {
-    //options.AddDefaultPolicy(policy =>
-    //{
-    //    policy.WithOrigins("https://localhost:7246")
-    //          .AllowAnyHeader()
-    //          .AllowAnyMethod();
-    //});
     options.AddDefaultPolicy(policy =>
     {
-        policy.WithOrigins("https://verlof.gidco.be")
+        policy.WithOrigins(allowedOrigins ?? Array.Empty<string>())
               .AllowAnyHeader()
               .AllowAnyMethod();
     });
@@ -63,6 +62,8 @@ builder.Services.AddHttpClient();
 builder.Services.AddScoped<CalendarHelper>();
 
 var app = builder.Build();
+
+
 app.UseCors();
 // Configure Swagger middleware
 if (app.Environment.IsDevelopment())

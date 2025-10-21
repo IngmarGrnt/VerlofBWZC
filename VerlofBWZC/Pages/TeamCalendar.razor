@@ -10,7 +10,7 @@
 @inject IJSRuntime JS
 @inject PersonApiService PersonApi
 @inject NotificationService NotificationService
-<h3>Teamkalender</h3>
+<h1>Teamkalender</h1>
 
 @if(!WorkDays.Any())
 {
@@ -64,18 +64,25 @@ else
 
             @foreach (var member in MemberColumns)
             {
-                <RadzenDataGridColumn TItem="WorkDay" Width="60px">
+<RadzenDataGridColumn TItem="WorkDay" Width="60px">
                     <HeaderTemplate>
                         @if (member != null)
                         {
-                            <div style="display: flex; flex-direction: column; align-items: center;">
-                                <span>@GetInitials(member)</span>
-                                <RadzenBadge Text="@GetSelectedDayCount(member.Id).ToString()"
-                                             BadgeStyle="BadgeStyle.Info"
-                                             Variant="Variant.Filled"
-                                             Class="oval-badge"
-                                             Style="margin-top:2px; font-size: 1rem;" />
-                            </div>
+                            <table class="header-table" style="width:100%;height:100%;">
+                                <tr>
+                                    <td style="text-align:center;vertical-align:bottom;">
+                                        <span class="header-initials">@GetInitials(member)</span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="text-align:center;vertical-align:top;">
+                                        <RadzenBadge Text="@GetSelectedDayCount(member.Id).ToString()"
+                                                     BadgeStyle="BadgeStyle.Info"
+                                                     Variant="Variant.Filled"
+                                                     Class="oval-badge header-badge" />
+                                    </td>
+                                </tr>
+                            </table>
                         }
                     </HeaderTemplate>
                     <Template Context="wd">
