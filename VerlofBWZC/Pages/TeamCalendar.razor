@@ -71,7 +71,10 @@ else
                             <table class="header-table" style="width:100%;height:100%;">
                                 <tr>
                                     <td style="text-align:center;vertical-align:bottom;">
-                                        <span class="header-initials">@GetInitials(member)</span>
+                                        <span class="header-initials"
+                                              title="@($"{member.FirstName} {member.LastName}")">
+                                            @GetInitials(member)
+                                        </span>
                                     </td>
                                 </tr>
                                 <tr>

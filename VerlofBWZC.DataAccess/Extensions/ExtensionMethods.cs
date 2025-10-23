@@ -34,13 +34,13 @@ namespace VerlofBWZC.DataAccess.Extensions
             mb.Entity<Person>()
                 .Property(p => p.PasswordHash)
                 .IsRequired()
-                .HasMaxLength(256); 
+                .HasMaxLength(256);
             mb.Entity<Person>()
                 .Property(p => p.Salt)
                 .IsRequired()
-                .HasMaxLength(128); 
+                .HasMaxLength(128);
         }
-        
+
         public static void DayOffConfig(this ModelBuilder mb)
         {
             mb.Entity<DayOff>()
@@ -59,6 +59,25 @@ namespace VerlofBWZC.DataAccess.Extensions
             mb.Entity<DayOff>()
                 .Property(d => d.Shift)
                 .HasMaxLength(50);
+        }
+
+        public static void LotteryDrawConfig(this ModelBuilder mb)
+        {
+            mb.Entity<LotteryDraw>()
+                .HasMany(d => d.Winners)
+                .WithOne(w => w.LotteryDraw!)
+                .HasForeignKey(w => w.LotteryDrawId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            mb.Entity<LotteryDraw>()
+                .HasMany(d => d.Losers)
+                .WithOne(l => l.LotteryDraw!)
+                .HasForeignKey(l => l.LotteryDrawId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            mb.Entity<LotteryDraw>()
+                .HasIndex(d => d.DrawNumber);
+
         }
     }
 }

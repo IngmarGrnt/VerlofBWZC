@@ -13,7 +13,6 @@ using VerlofBWZC.DataAccess.Entities;
 //JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
 //JwtSecurityTokenHandler.DefaultOutboundClaimTypeMap.Clear();
 
-
 var builder = WebApplication.CreateBuilder(args);
 var config = builder.Configuration;
 
@@ -63,6 +62,16 @@ builder.Services.AddScoped<CalendarHelper>();
 
 var app = builder.Build();
 
+// Log de environment en DB-connection en voer migraties uit (optioneel)
+using (var scope = app.Services.CreateScope())
+{
+    var env = scope.ServiceProvider.GetRequiredService<IWebHostEnvironment>();
+    var db = scope.ServiceProvider.GetRequiredService<VerlofBWZC_DbContext>();
+    var cs = db.Database.GetDbConnection().ConnectionString;
+    app.Logger.LogInformation("Environment: {env}", env.EnvironmentName);
+    app.Logger.LogInformation("EF Core gebruikt database: {cs}", cs);
+    // db.Database.Migrate(); // uncomment als je bij start automatisch wil migreren
+}
 
 app.UseCors();
 // Configure Swagger middleware
@@ -71,7 +80,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
-
+app.UseCors();
 app.UseHttpsRedirection();
 
 app.UseAuthentication();

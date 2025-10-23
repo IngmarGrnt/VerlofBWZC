@@ -13,9 +13,14 @@
 
 <RadzenButton Icon="add_circle" Text="Nieuwe persoon" Style="margin-bottom: 10px" Click="@AddPerson" />
 
-<RadzenDataGrid TItem="PersonBaseDTO" Data="@persons" @ref="grid" AllowFiltering="true" AllowPaging="true" AllowSorting="true" PageSize="10" EditMode="DataGridEditMode.Single">
-    <Columns>
-        <RadzenDataGridColumn TItem="PersonBaseDTO" Property="FirstName" Title="Voornaam">
+<div class="responsive-datagrid-container">
+    <RadzenDataGrid TItem="PersonBaseDTO" Data="@persons" @ref="grid"
+                    AllowFiltering="true" AllowPaging="true" AllowSorting="true" PageSize="10"
+                    EditMode="DataGridEditMode.Single"
+                    AllowColumnResize="true"
+                    class="responsive-datagrid">
+        <Columns>
+            <RadzenDataGridColumn TItem="PersonBaseDTO" Property="FirstName" Title="Voornaam">
             <EditTemplate Context="person">
                 <RadzenTextBox @bind-Value="person.FirstName" Style="width:100%" Name="FirstName" />
             </EditTemplate>
@@ -85,7 +90,7 @@
 
     </Columns>
 </RadzenDataGrid>
-
+</div>
 <RadzenDialog />
 
 @code {

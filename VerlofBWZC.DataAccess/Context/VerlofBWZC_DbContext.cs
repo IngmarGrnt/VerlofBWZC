@@ -10,6 +10,10 @@ public class VerlofBWZC_DbContext : DbContext
     public DbSet<DayOff> DayOffs { get; set; }
     public DbSet<Person> Persons { get; set; }
 
+    public DbSet<LotteryDraw> LotteryDraws => Set<LotteryDraw>();
+    public DbSet<LotteryWinner> LotteryWinners => Set<LotteryWinner>();
+    public DbSet<LotteryLoser> LotteryLosers => Set<LotteryLoser>();
+
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
        if(!optionsBuilder.IsConfigured)
@@ -21,6 +25,7 @@ public class VerlofBWZC_DbContext : DbContext
     {
         modelBuilder.PersonConfig();
         modelBuilder.DayOffConfig();
+        modelBuilder.LotteryDrawConfig();
         //base.OnModelCreating(modelBuilder);
     }
 }   
