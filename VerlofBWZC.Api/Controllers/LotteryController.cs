@@ -94,5 +94,22 @@ namespace VerlofBWZC.Api.Controllers
                 return StatusCode(500, "Er is iets misgelopen bij het bewaren van de loting.");
             }
         }
+
+        [HttpDelete("draw/{drawNumber}")]
+        public async Task<IActionResult> DeleteDraw(int drawNumber)
+        {
+            var draw = await _db.LotteryDraws
+                .Include(d => d.Winners)
+                .Include(d => d.Losers)
+                .FirstOrDefaultAsync(d => d.DrawNumber == drawNumber);
+
+            if (draw == null)
+                return NotFound();
+
+            _db.LotteryDraws.Remove(draw);
+            await _db.SaveChangesAsync();
+
+            return NoContent();
+        }
     }
 }

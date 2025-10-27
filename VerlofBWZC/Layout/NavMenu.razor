@@ -3,81 +3,67 @@
 @using VerlofBWZC.Handler
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
-
-
-
+@implements IDisposable
 
 @if (isLoggedIn)
 {
-    <div class="top-row ps-3 navbar navbar-dark">
-        <div class="container-fluid">
-            <img src="LogoBWZC.png" alt="BWZC" class="navbar-logo" />
-            <a class="navbar-brand" href="">Verlof BWZC</a>
-            <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-        </div>
-    </div>
-    <div class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
+    <div class="nav-scrollable">
         <nav class="nav flex-column">
             <div class="nav-item px-3">
                 <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                    <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
+                    <i class="bi bi-house-door-fill" aria-hidden="true"></i>
+                    <span class="menu-text">Home</span>
                 </NavLink>
             </div>
             <div class="nav-item px-3">
                 <NavLink class="nav-link" href="WorkCalendar">
-                    <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Werkkalender
+                    <i class="bi bi-calendar-event" aria-hidden="true"></i>
+                    <span class="menu-text">Werkkalender</span>
                 </NavLink>
             </div>
-            @if (userRole == "Admin"|| userRole == "Manager")
+            @if (userRole == "Admin" || userRole == "Manager")
             {
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="TeamCalendar">
-                        <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Teamkalender
+                        <i class="bi bi-people-fill" aria-hidden="true"></i>
+                        <span class="menu-text">Teamkalender</span>
                     </NavLink>
                 </div>
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="Random-picker">
-                        <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Naam Loterij
+                        <i class="bi bi-dice-5-fill" aria-hidden="true"></i>
+                        <span class="menu-text">Naam Loterij</span>
                     </NavLink>
                 </div>
             }
-            @if (userRole == "Admin") 
-            {  
+            @if (userRole == "Admin")
+            {
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="person-crud">
-                        <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Personen
+                        <i class="bi bi-person-lines-fill" aria-hidden="true"></i>
+                        <span class="menu-text">Personen</span>
                     </NavLink>
                 </div>
             }
             <div class="nav-item px-3">
                 <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="20rem" Wrap="FlexWrap.Wrap">
-                <RadzenButton ButtonStyle="ButtonStyle.Primary"
-                              ButtonType="ButtonType.Button"
-                              Text="Log Uit"
-                              Icon="report"
-                              Click="Logout"
-                              class="logout-nav" />
+                    <RadzenButton ButtonStyle="ButtonStyle.Primary"
+                                  ButtonType="ButtonType.Button"
+                                  Text="Log Uit"
+                                  Icon="report"
+                                  Click="Logout"
+                                  class="logout-nav" />
                 </RadzenStack>
             </div>
         </nav>
     </div>
-
 }
 
 @code {
-    private bool collapseNavMenu = true;
     private bool isLoggedIn;
-    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
-
     string? userRole;
-    string? token;  
-
-    private void ToggleNavMenu()
-    {
-        collapseNavMenu = !collapseNavMenu;
-    }
+    string? token;
+    private string? userName;
 
     protected override async Task OnInitializedAsync()
     {
@@ -95,16 +81,9 @@
         token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
         isLoggedIn = !string.IsNullOrEmpty(token);
         userRole = JwtUtils.GetUserRolFromToken(token);
-        //Console.WriteLine($"User Role: {userRole}");
         StateHasChanged();
     }
 
-
-    public void Dispose()
-    {
-        Navigation.LocationChanged -= OnLocationChanged;
-    }
-    private string? userName;
     private async Task Logout()
     {
         await JS.InvokeVoidAsync("localStorage.removeItem", "authToken");
@@ -113,5 +92,9 @@
         StateHasChanged();
         Navigation.NavigateTo("/login", true);
     }
-}
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+    }
 }

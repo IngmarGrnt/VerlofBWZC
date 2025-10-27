@@ -1,0 +1,27 @@
+﻿/* --- Oval buttons/badges --- */
+.oval-btn, .oval-badge, .oval-btn-count {
+    border-radius: 999px !important;
+    width: 24px !important;
+    height: 24px !important;
+    min-width: 24px !important;
+    min-height: 24px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 0.9rem !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+}
+
+.oval-badge {
+    padding: 0.2em 0.9em !important;
+    min-width: 2.2em;
+    display: inline-block;
+    text-align: center;
+}
+
+.oval-btn-count {
+    padding: 0.2em 1em !important;
+    min-width: 2.2em;
+    font-weight: bold;
+}

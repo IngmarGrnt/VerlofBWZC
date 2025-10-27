@@ -7,9 +7,11 @@
 @using VerlofBWZC.DataContracts.DTO.Lottery
 @using VerlofBWZC.Services
 @using VerlofBWZC.Handler
+
 @inject PersonApiService PersonApi
 @inject NotificationService NotificationService
 @inject HttpClient Http
+@inject DialogService DialogService
 @inject IJSRuntime JS
 
 
@@ -76,7 +78,7 @@ else
 
         <span style="margin-left:2rem;">Naam loting:</span>
         <RadzenTextBox @bind-Value="CurrentDrawName"
-                       Placeholder="@($"Loting {NextDrawNumber}")"
+                       Placeholder="@($"Loting {NextYearDrawIndex}")"
                        Style="width:200px" />
 
         <span class="rz-text-secondary" style="margin-left:auto;">Deelnemerslijst is automatisch gefilterd op deze waarden</span>
@@ -110,7 +112,7 @@ else
                        FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive">
             <Template Context="p">
                 <span>@p.FirstName @p.LastName</span>
-                <span class="rz-text-secondary">(@TeamLabel(p.Team) / @SpecialityLabel(p.Speciality))</span>
+                <span class="rz-text-secondary">(@p.Team) / @p.Speciality)</span>
             </Template>
         </RadzenListBox>
     </div>
@@ -131,7 +133,7 @@ else
             <div class="rz-mt-2 rz-mb-3 rz-p-2 rz-border-radius-6 rz-shadow-2" style="background: var(--rz-base-100);">
                 <div style="display:flex; align-items:center; gap:1rem; margin-bottom:.5rem;">
                     <!-- Enkel datum tonen (FromDate), correct geformatteerd -->
-                    <h4 style="margin:.2rem 0;">@draw.FromDate.ToString("dd-MM-yyyy")  t/m @draw.ToDate.ToString("dd-MM-yyyy")</h4>
+                    <h4 style="margin:.2rem 0;"> @draw.DrawName.ToString() - @draw.FromDate.ToString("dd-MM-yyyy")  t/m @draw.ToDate.ToString("dd-MM-yyyy")</h4>
                     <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small"
                                   Text="Wis loting"
                                   Click="@(()=>DeleteDraw(draw.DrawNumber))" style="margin-left:auto;" />
@@ -155,6 +157,8 @@ else
             </div>
         }
     }
+    <RadzenDialog />
+    <RadzenNotification />
 }
 
 
@@ -168,16 +172,22 @@ else
     // Lijsten met alle lotingen (elk met eigen rijen Winnaar/Verliezer)
     private List<DrawView> AllDraws = new();
 
-    // Optionele custom naam; default = "Loting {NextDrawNumber}"
+    // Optionele custom naam; default = "Loting {NextYearDrawIndex}"
     private string? CurrentDrawName;
+
+    // Globale (unieke) drawNumber voor API/DB
     private int NextDrawNumber => AllDraws.Count == 0 ? 1 : AllDraws.Max(d => d.DrawNumber) + 1;
+
+    // Jaar-gebonden teller voor de zichtbare naam ("Loting 1", "Loting 2", ...)
+    private int NextYearDrawIndex =>
+        AllDraws.Count(d => d.FromDate.Year == SelectedYear || d.ToDate.Year == SelectedYear) + 1;
 
     // Selection
     private List<PersonBaseDTO> SelectedAvailable = new();
     private List<PersonBaseDTO> SelectedParticipants = new();
 
     // Year / month / shifts
-    private int SelectedYear { get; set; } = DateTime.Now.Year;
+    private int SelectedYear { get; set; } = DateTime.Now.Year + 1;
     private List<int> Years { get; set; } = Enumerable.Range(DateTime.Now.Year - 1, 12).Reverse().ToList();
     private int SelectedMonth { get; set; } = DateTime.Now.Month;
 
@@ -507,8 +517,11 @@ else
         var winners = list.Take(count).ToList();
         var losers  = list.Skip(count).ToList();
 
+        // Globale unieke ID voor opslag
         var drawNumber = NextDrawNumber;
-        var drawName = string.IsNullOrWhiteSpace(CurrentDrawName) ? $"Loting {drawNumber}" : CurrentDrawName.Trim();
+
+        // Zichtbare naam reset per jaar
+        var drawName = string.IsNullOrWhiteSpace(CurrentDrawName) ? $"Loting {NextYearDrawIndex}" : CurrentDrawName.Trim();
 
         // API: bewaren
         var saved = await SaveDrawAsync(drawNumber, drawName, FromDate.Date, ToDate.Date, winners, losers);
@@ -596,8 +609,12 @@ else
     // DELETE naar api/lottery/draw/{drawNumber}
     private async Task DeleteDraw(int drawNumber)
     {
-        var confirm = await JS.InvokeAsync<bool>("confirm", $"Weet je zeker dat je loting {drawNumber} wil wissen?");
-        if (!confirm) return;
+        var confirmed = await DialogService.Confirm(
+            $"Weet je zeker dat je loting {drawNumber} wil wissen?",
+            "Bevestigen",
+            new ConfirmOptions { OkButtonText = "Ja", CancelButtonText = "Nee", CloseDialogOnEsc = true });
+
+        if (confirmed != true) return;
 
         try
         {
@@ -609,12 +626,13 @@ else
             }
             else
             {
-                NotificationService.Notify(NotificationSeverity.Error, "Fout", $"Wissen van loting {drawNumber} mislukt.");
+                var msg = await resp.Content.ReadAsStringAsync();
+                NotificationService.Notify(NotificationSeverity.Error, "Fout", $"Wissen mislukt ({(int)resp.StatusCode}). {msg}");
             }
         }
-        catch
+        catch (Exception ex)
         {
-            NotificationService.Notify(NotificationSeverity.Error, "Fout", $"Wissen van loting {drawNumber} mislukt.");
+            NotificationService.Notify(NotificationSeverity.Error, "Fout netwerk", ex.Message);
         }
     }
 

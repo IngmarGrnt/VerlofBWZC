@@ -8,15 +8,14 @@ main {
     flex: 1;
 }
 .sidebar {
-/*    background-image: linear-gradient(180deg, rgb(5, 39, 103) 0%, #3a0647 70%)*/;
-
+        background-image: linear-gradient(180deg, rgb(5, 39, 103) 0%, #3a0647 70%);
     background-image: linear-gradient(180deg, #2cc8c8 0%, #2f2f2f 100%);
     color: #333;
 }
 .top-row {
     background-color: #f7f7f7;
     border-bottom: 1px solid #d6d5d5;
-    /*    justify-content: flex-end;*/
+        justify-content: flex-end;
     justify-content: flex-start; /* Nu staat alles links */
     height: 3.5rem;
     display: flex;
@@ -82,4 +81,37 @@ main {
         padding-right: 1.5rem !important;
     }
 
+}
+/* Desktop defaults */
+.toggle-desktop { display: inline-flex; }
+.mobile-nav { display: none; }
+
+.navbar-logo {
+    height: 32px;
+    width: auto;
+    display: block;
+}
+
+/* Small screens */
+@media (max-width: 640px) {
+    /* Hide the header toggle and the sidebar entirely */
+    .toggle-desktop { display: none !important; }
+    :global(.rz-sidebar) { display: none !important; }
+    :global(.rz-sidebar-mask) { display: none !important; } /* prevent slide/overlay */
+    :global(.rz-body) { margin-left: 0 !important; }        /* remove left offset when sidebar is hidden */
+
+    /* Show the mobile menu under header, make it scroll vertically */
+    .mobile-nav {
+        display: block;
+        max-height: calc(100vh - 56px);
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        background: var(--rz-surface, #fff);
+        border-top: 1px solid var(--rz-border, #e0e0e0);
+    }
+    .navbar-logo {
+        height: 20px;
+        width: auto;
+        display: block;
+    }
 }

@@ -74,12 +74,15 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.UseCors();
-// Configure Swagger middleware
-if (app.Environment.IsDevelopment())
+//Configure Swagger middleware
+if (!app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+app.UseSwaggerUI();
 }
+
+
+
 app.UseCors();
 app.UseHttpsRedirection();
 

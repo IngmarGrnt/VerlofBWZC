@@ -23,6 +23,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="wwwroot\css\personCRUD.css" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\VerlofBWZC.DataContracts\VerlofBWZC.DataContracts.csproj" />
   </ItemGroup>
 

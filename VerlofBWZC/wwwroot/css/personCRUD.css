@@ -1,0 +1,31 @@
+﻿
+    /* --- PERSONCRUD (responsive voorbeeld) --- */
+    @media (max-width: 640px) {
+        .responsive-datagrid-container .rz-grid-table {
+            width: auto !important;
+            max-width: 100vw;
+            overflow-x: hidden; /* voorkom paginabrede horizontale scroll */
+            box-sizing: border-box;
+        }
+
+        .responsive-datagrid .rz-datatable-wrapper {
+            overflow-x: auto !important; /* horizontale scroll binnen grid */
+            overflow-y: hidden;
+            width: 100%;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .responsive-datagrid .rz-datatable-table {
+            min-width: 1000px;
+            width: auto;
+            table-layout: auto !important;
+        }
+
+            .responsive-datagrid .rz-datatable-table th,
+            .responsive-datagrid .rz-datatable-table td {
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+    }
+

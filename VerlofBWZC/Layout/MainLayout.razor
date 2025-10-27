@@ -1,29 +1,47 @@
 ﻿@inherits LayoutComponentBase
+@implements IDisposable
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
 @using Radzen
 @using Radzen.Blazor
 
-<div class="page">
+<RadzenLayout>
+    <RadzenHeader>
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0" Style="width:100%; padding:0 .75rem;">
+            @if (isLoggedIn)
+            {
+                <RadzenSidebarToggle class="toggle-desktop" Click="@(() => sidebarExpanded = !sidebarExpanded)" />
+            }
+            <img src="LogoBWZC.png" alt="BWZC" class="navbar-logo" />
+        </RadzenStack>
+    </RadzenHeader>
+
     @if (isLoggedIn)
     {
-        <div class="sidebar">
+        <!-- Mobile menu: zichtbaar onder header op small screens -->
+@*         <div class="mobile-nav">
             <NavMenu />
-        </div>
-    }
-    <main>
-@*         <div class="top-row px-4 auth">
-            <LoginDisplay />
         </div> *@
+
+        <!-- Desktop sidebar: verborgen op small screens via CSS -->
+        <RadzenSidebar @bind-Expanded="@sidebarExpanded">
+            <div class="rz-p-3">
+                <NavMenu />
+            </div>
+        </RadzenSidebar>
+    }
+
+    <RadzenBody>
         <article class="content px-4">
             <RadzenNotification />
             @Body
         </article>
-    </main>
-</div>
+    </RadzenBody>
+</RadzenLayout>
 
 @code {
     private bool isLoggedIn;
+    private bool sidebarExpanded = true;
 
     protected override async Task OnInitializedAsync()
     {
@@ -40,6 +58,7 @@
     {
         var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
         isLoggedIn = !string.IsNullOrEmpty(token);
+        if (!isLoggedIn) sidebarExpanded = false;
         StateHasChanged();
     }
 

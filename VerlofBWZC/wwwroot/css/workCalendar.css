@@ -1,0 +1,77 @@
+﻿/* --- Workcalendar header --- */
+.workcalendar-header {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+}
+
+    .workcalendar-header .rz-button,
+    .workcalendar-header .rz-button-info,
+    .workcalendar-header .rz-drop-down {
+        flex-shrink: 0;
+    }
+
+    .workcalendar-header .rz-button-info {
+        display: flex;
+        align-items: center;
+        padding: 0.5rem 1.2rem;
+        border: none;
+        min-width: 180px;
+    }
+
+    .workcalendar-header .rz-badge {
+        margin-left: 1rem;
+        font-size: 2rem;
+        font-weight: bold;
+        background: transparent !important;
+        color: white;
+        box-shadow: none;
+        border: none;
+    }
+
+@media (max-width: 700px) {
+    .workcalendar-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.75rem;
+    }
+
+        .workcalendar-header .rz-button-info {
+            min-width: unset;
+            font-size: 1rem;
+            padding: 0.5rem 0.5rem;
+        }
+
+        .workcalendar-header .rz-badge {
+            font-size: 1.3rem;
+            margin-left: 0.5rem;
+        }
+}
+
+/* --- Workcalendar day button --- */
+.workcalendar-day-btn {
+    width: 90px;
+    text-align: center;
+    justify-content: flex-start;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* --- Holiday buttons --- */
+.holiday-btn-vacation {
+    background-color: #bd79e6a4 !important;
+    color: #333 !important;
+}
+
+.holiday-btn-feestdag {
+    background-color: #ffdc0c91 !important;
+    color: #333 !important;
+}
+
+.holiday-btn-weekend {
+    background-color: #f2f2f2 !important;
+    color: #333 !important;
+}

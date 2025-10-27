@@ -12,113 +12,161 @@
 @inject NotificationService NotificationService
 <h1>Teamkalender</h1>
 
-@if(!WorkDays.Any())
+@if (!MonthGroups.Any())
 {
     <h2><em>Loading...</em></h2>
 }
 else
 {
     <div class="teamcalendar-toolbar">
-        @if (SelectedYear == CurrentDayOffYear)
-        {
-            <RadzenButton Text="Opslaan" Icon="save" Style="margin-top:1rem;" Click="@SaveTeamDaysOff" />
-        }
-        <RadzenButton Text="Exporteren naar CSV" Icon="download" Click="@ExportToCsv" Style="margin:1rem;" />
-        <RadzenDropDown @bind-Value="SelectedYear"
-                        Data="@Years"
-                        Placeholder="Selecteer een jaar"
-                        Style="width:200px; margin-bottom: 1rem;"
-                        Change="OnYearChanged" />
+        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" Gap="1rem" Style="width:100%; margin-bottom:1rem">
+            <!-- Left group -->
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
+                @if (SelectedYear == CurrentDayOffYear)
+                {
+                    <RadzenButton Text="Opslaan" Icon="save" Click="@SaveTeamDaysOff" />
+                }
+                <RadzenButton Text="Exporteren naar CSV" Icon="download" Click="@ExportToCsv" />
+                <RadzenDropDown @bind-Value="SelectedYear"
+                                Data="@Years"
+                                Placeholder="Selecteer een jaar"
+                                Style="width:200px"
+                                Change="OnYearChanged" />
+            </RadzenStack>
+
+            <!-- Right group -->
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                <RadzenButton Text="Alles uitklappen" Icon="unfold_more" Click="@ExpandAllMonths" ButtonStyle="ButtonStyle.Base" />
+                <RadzenButton Text="Alles inklappen" Icon="unfold_less" Click="@CollapseAllMonths" ButtonStyle="ButtonStyle.Base" />
+            </RadzenStack>
+        </RadzenStack>
     </div>
 
-    <RadzenDataGrid Data="@WorkDays" TItem="WorkDay" ShowPagingSummary="false" ShowPagination="false" ShowColumnPicker="false">
-        <Columns>
-            <RadzenDataGridColumn TItem="WorkDay" Property="Date" Title="Datum" Width="100px">
-                <Template Context="wd">
-                    @wd.Date.ToString("MMM-dd-MM")
-                </Template>
-            </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="WorkDay" Property="Shift" Title="Shift" Width="60px">
-                <Template Context="wd">
-                    <RadzenBadge Text="@wd.Shift"
-                                 BadgeStyle="@(wd.Shift == "D" ? BadgeStyle.Primary : BadgeStyle.Secondary)"
-                                 Variant="Variant.Filled"
-                                 Class="oval-badge"
-                                 Style="font-size:1rem;" />
-                </Template>
-            </RadzenDataGridColumn>
+    <!-- Bovenliggende grid: Maanden -->
+    <RadzenDataGrid @ref="monthsGrid"
+                    Data="@MonthGroups"
+                    TItem="MonthGroup"
+                    ShowPagingSummary="false"
+                    ShowPagination="false"
+                    ShowColumnPicker="false"
+                    AllowSorting="false"
+                    AllowFiltering="false"
+                    ExpandMode="DataGridExpandMode.Multiple">
+        <Template Context="mg">
+            <!-- Onderliggende grid: Werkdagen in de maand -->
+            <RadzenDataGrid Data="@mg.Days"
+                            TItem="WorkDay"
+                            ShowPagingSummary="false"
+                            ShowPagination="false"
+                            ShowColumnPicker="false"
+                            AllowSorting="false"
+                            AllowFiltering="false">
+                <Columns>
+                    <RadzenDataGridColumn TItem="WorkDay" Property="Date" Title="Datum" Width="110px" Frozen="true" FrozenPosition="FrozenColumnPosition.Left">
+                        <Template Context="wd">
+                            @wd.Date.ToString("ddd dd-MM")
+                        </Template>
+                    </RadzenDataGridColumn>
 
-            <RadzenDataGridColumn TItem="WorkDay" Title="Aantal" Width="60px">
-                <Template Context="wd">
-                    @{
-                        var count = @GetTotalSelectedDays(wd);
-                        var style = count >= 7
-                        ? "background: var(--rz-danger); color: white;"
-                        : count == 6
-                        ? "background: var(--rz-warning); color: black;"
-                        : "background: var(--rz-info); color: white;";
+                    <RadzenDataGridColumn TItem="WorkDay" Property="Shift" Title="Shift" Width="70px" Frozen="true" FrozenPosition="FrozenColumnPosition.Left">
+                        <Template Context="wd">
+                            <RadzenBadge Text="@wd.Shift"
+                                         BadgeStyle="@(wd.Shift == "D" ? BadgeStyle.Primary : BadgeStyle.Secondary)"
+                                         Variant="Variant.Filled"
+                                         Class="oval-badge"
+                                         Style="font-size:1rem;" />
+                        </Template>
+                    </RadzenDataGridColumn>
+
+                    <RadzenDataGridColumn TItem="WorkDay" Title="Aantal" Width="70px" Frozen="true" FrozenPosition="FrozenColumnPosition.Left">
+                        <Template Context="wd">
+                            @{
+                                var count = GetTotalSelectedDays(wd);
+                                var quota = Math.Max(1, TeamMembers.Count / 4); // 24 -> 6, 23/22 -> 5, ...
+                                var style = count > quota
+                                ? "background: var(--rz-danger); color: white;"
+                                : count == quota
+                                ? "background: var(--rz-warning); color: black;"
+                                : "background: var(--rz-info); color: white;";
+                            }
+                            <span class="oval-btn-count" style="@style">@count</span>
+                        </Template>
+                    </RadzenDataGridColumn>
+
+                    @foreach (var mc in MemberColumns.Select((member, idx) => new { member, idx }))
+                    {
+                        <RadzenDataGridColumn TItem="WorkDay"
+                                              Width="50px"
+                                              Frozen="@(mc.idx == -1)"
+                                              FrozenPosition="FrozenColumnPosition.Left">
+                            <HeaderTemplate>
+                                @if (mc.member != null)
+                                {
+                                    <table class="header-table" style="width:100%;height:100%;">
+                                        <tr>
+                                            <td style="text-align:center;vertical-align:bottom;">
+                                                <span class="header-initials"
+                                                      title="@($"{mc.member.FirstName} {mc.member.LastName}")">
+                                                    @GetInitials(mc.member)
+                                                </span>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td style="text-align:center;vertical-align:top;">
+                                                <RadzenBadge Text="@GetSelectedDayCount(mc.member.Id).ToString()"
+                                                             BadgeStyle="BadgeStyle.Info"
+                                                             Variant="Variant.Filled"
+                                                             Class="oval-badge header-badge" />
+                                            </td>
+                                        </tr>
+                                    </table>
+                                }
+                            </HeaderTemplate>
+                            <Template Context="wd">
+                                @if (mc.member != null)
+                                {
+                                    var isDayOff = selectedDays.Any(d => d.PersonId == mc.member.Id && d.Date.Date == wd.Date.Date && d.Shift == wd.Shift);
+                                    <RadzenButton Size="ButtonSize.Small"
+                                                  Variant="@(isDayOff ? Variant.Filled : Variant.Outlined)"
+                                                  ButtonStyle="@(isDayOff ? ButtonStyle.Info : ButtonStyle.Warning)"
+                                                  Text=""
+                                                  Icon="@(isDayOff ? "check" : null)"
+                                                  Class="oval-btn"
+                                                  Click="@(args => OnDayClicked(mc.member.Id, wd))" />
+                                }
+                            </Template>
+                        </RadzenDataGridColumn>
                     }
-                    <span class="oval-btn-count" style="@style">@count</span>
+                </Columns>
+            </RadzenDataGrid>
+        </Template>
+        <Columns>
+            <RadzenDataGridColumn TItem="MonthGroup" Title="Maand" Width="220px">
+                <Template Context="mg">
+                    @mg.MonthName
                 </Template>
             </RadzenDataGridColumn>
-
-            @foreach (var member in MemberColumns)
-            {
-<RadzenDataGridColumn TItem="WorkDay" Width="60px">
-                    <HeaderTemplate>
-                        @if (member != null)
-                        {
-                            <table class="header-table" style="width:100%;height:100%;">
-                                <tr>
-                                    <td style="text-align:center;vertical-align:bottom;">
-                                        <span class="header-initials"
-                                              title="@($"{member.FirstName} {member.LastName}")">
-                                            @GetInitials(member)
-                                        </span>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td style="text-align:center;vertical-align:top;">
-                                        <RadzenBadge Text="@GetSelectedDayCount(member.Id).ToString()"
-                                                     BadgeStyle="BadgeStyle.Info"
-                                                     Variant="Variant.Filled"
-                                                     Class="oval-badge header-badge" />
-                                    </td>
-                                </tr>
-                            </table>
-                        }
-                    </HeaderTemplate>
-                    <Template Context="wd">
-                        @if (member != null)
-                        {
-                            var isDayOff = selectedDays.Any(d => d.PersonId == member.Id && d.Date.Date == wd.Date.Date && d.Shift == wd.Shift);
-                            <RadzenButton Size="ButtonSize.Small"
-                                          Variant="@(isDayOff ? Variant.Filled : Variant.Outlined)"
-                                          ButtonStyle="@(isDayOff ? ButtonStyle.Info : ButtonStyle.Warning)"
-                                          Text=""
-                                          Icon="@(isDayOff ? "check" : null)"
-                                          Class="oval-btn"
-                                          Click="@(args => OnDayClicked(member.Id, wd))" />
-                        }
-                    </Template>
-                </RadzenDataGridColumn>
-            }
+            <RadzenDataGridColumn TItem="MonthGroup" Title="Werkdagen" Width="120px">
+                <Template Context="mg">
+                    @mg.Days.Count
+                </Template>
+            </RadzenDataGridColumn>
         </Columns>
     </RadzenDataGrid>
 }
 
-
-
-
-
 @code {
     private int SelectedYear { get; set; } = DateTime.Now.Year + 1;
     private List<int> Years { get; set; } = Enumerable.Range(DateTime.Now.Year - 1, 11).ToList();
+
     private List<WorkDay> WorkDays = new();
+    private List<MonthGroup> MonthGroups = new();
+
     private List<PersonBaseDTO> TeamMembers = new();
     private List<TeamDayOffDTO> TeamDaysOff = new();
     private int CurrentDayOffYear = DateTime.Now.AddYears(1).Year;
 
+    private RadzenDataGrid<MonthGroup>? monthsGrid;
 
     //Nog in DTO zetten--------------------------------------------
     public class TeamDayOffDTO
@@ -136,13 +184,21 @@ else
     }
     //-------------------------------------------------------------
 
+    public class MonthGroup
+    {
+        public int Year { get; set; }
+        public int Month { get; set; }
+        public string MonthName { get; set; } = "";
+        public List<WorkDay> Days { get; set; } = new();
+    }
+
     private List<SelectedDayOffDTO> selectedDays = new();
 
     private List<PersonBaseDTO?> MemberColumns =>
-    TeamMembers
-        .Concat(Enumerable.Repeat<PersonBaseDTO?>(null, Math.Max(0, 24 - TeamMembers.Count)))
-        .Take(24)
-        .ToList();
+        TeamMembers
+            .Concat(Enumerable.Repeat<PersonBaseDTO?>(null, Math.Max(0, 24 - TeamMembers.Count)))
+            .Take(24)
+            .ToList();
 
     protected override async Task OnInitializedAsync()
     {
@@ -168,19 +224,19 @@ else
     {
         int count = selectedDays.Count(d => d.Date.Date == wd.Date.Date && d.Shift == wd.Shift);
 
-        if(count > 6)
+        var quota = Math.Max(1, TeamMembers.Count / 4); // dynamic drempel op basis van teamgrootte
+
+        if (count > quota)
         {
             NotificationService.Notify(new NotificationMessage
             {
                 Severity = NotificationSeverity.Error,
                 Summary = "Fout",
-                Detail = $"Opgelet er zijn voor {wd.Date.ToShortDateString()} - {count} verlofdagen geselecteerd.",
+                Detail = $"Opgelet: {count} verlofdagen voor {wd.Date.ToShortDateString()} (quota: {quota}).",
                 Duration = 8000
             });
         }
         return count;
-
-
     }
 
     private async Task LoadTeamCalendar()
@@ -190,25 +246,34 @@ else
         var userId = JwtUtils.GetUserIdFromToken(token);
         var person = await PersonApi.GetPersonByIdAsync(int.Parse(userId));
         var teamName = person?.Team;
-        var speciality = person?.Speciality;    
+        var speciality = person?.Speciality;
 
-
-
-        //Nog in API Service toevoegen----------------------------
         // Haal teamleden op
         TeamMembers = await Http.GetFromJsonAsync<List<PersonBaseDTO>>($"api/person/team/{teamName}/{speciality}");
 
         // Haal werkdagen op
         WorkDays = await Http.GetFromJsonAsync<List<WorkDay>>($"api/calender?teamName={teamName}&year={SelectedYear}");
 
-        // Haal alle verlofdagen van het team op PER SPECIALITEIT///
-
+        // Haal alle verlofdagen van het team op PER SPECIALITEIT
         TeamDaysOff = await Http.GetFromJsonAsync<List<TeamDayOffDTO>>($"api/person/team-days-off/{teamName}/{SelectedYear}/{speciality}");
 
-        //------------------------------------------------------    
         // Synchroniseer selectie met bestaande verlofdagen
         selectedDays = TeamDaysOff
             .Select(d => new SelectedDayOffDTO { PersonId = d.PersonId, Date = d.Date, Shift = d.Shift })
+            .ToList();
+
+        // Bouw maand-groepen
+        MonthGroups = WorkDays
+            .GroupBy(w => new { w.Date.Year, w.Date.Month })
+            .OrderBy(g => g.Key.Year)
+            .ThenBy(g => g.Key.Month)
+            .Select(g => new MonthGroup
+            {
+                Year = g.Key.Year,
+                Month = g.Key.Month,
+                MonthName = new DateTime(g.Key.Year, g.Key.Month, 1).ToString("MMMM yyyy"),
+                Days = g.OrderBy(d => d.Date).ToList()
+            })
             .ToList();
 
         StateHasChanged();
@@ -216,12 +281,10 @@ else
 
     private string GetInitials(PersonBaseDTO person)
     {
-        if (string.IsNullOrWhiteSpace(person.FirstName) || string.IsNullOrWhiteSpace(person.LastName))
+        if (string.IsNullOrWhiteSpace(person.FirstName) || string.IsNullOrWhiteSpace(person.LastName) || person.LastName.Length < 2)
             return "";
         return $"{person.LastName[0]}{person.LastName[1]}{person.FirstName[0]}".ToUpper();
     }
-
-
 
     private void OnDayClicked(int personId, WorkDay day)
     {
@@ -327,6 +390,19 @@ else
         var base64 = Convert.ToBase64String(bytes);
 
         await JS.InvokeVoidAsync("downloadFileFromBase64", "teamkalender.csv", base64);
+    }
+
+    // Expand/collapse all using Radzen DataGrid API (matches the Radzen demo pattern)
+    private async Task ExpandAllMonths()
+    {
+        if (monthsGrid == null || MonthGroups.Count == 0) return;
+        await monthsGrid.ExpandRows(MonthGroups);
+    }
+
+    private async Task CollapseAllMonths()
+    {
+        if (monthsGrid == null || MonthGroups.Count == 0) return;
+        await monthsGrid.CollapseRows(MonthGroups);
     }
 }
 <script>

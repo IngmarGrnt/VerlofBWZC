@@ -1,0 +1,34 @@
+﻿/* --- Login --- */
+.login-container {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+    padding-top: 48px;
+    margin-top: 0;
+    background: transparent;
+}
+
+.login-card {
+    min-width: 320px;
+    max-width: 400px;
+    width: 100%;
+    padding: 2rem 1.5rem;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+    border-radius: 12px;
+    background: #fff;
+}
+
+@media (max-width: 500px) {
+    .login-card {
+        min-width: 0;
+        max-width: 100vw;
+        padding: 1rem 0.5rem;
+        border-radius: 0;
+        box-shadow: none;
+    }
+
+    .login-container {
+        padding-top: 16px;
+    }
+}
