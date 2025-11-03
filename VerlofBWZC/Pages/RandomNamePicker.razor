@@ -168,7 +168,7 @@ else
     private List<PersonBaseDTO> AllPersons = new();
     private List<PersonBaseDTO> AvailablePersons = new();
     private List<PersonBaseDTO> Participants = new();
-
+    private Dictionary<int, PersonBaseDTO> PersonIndex = new(); // add this
     // Lijsten met alle lotingen (elk met eigen rijen Winnaar/Verliezer)
     private List<DrawView> AllDraws = new();
 
@@ -180,8 +180,9 @@ else
 
     // Jaar-gebonden teller voor de zichtbare naam ("Loting 1", "Loting 2", ...)
     private int NextYearDrawIndex =>
-        AllDraws.Count(d => d.FromDate.Year == SelectedYear || d.ToDate.Year == SelectedYear) + 1;
-
+            AllDraws
+                .Where(d => d.FromDate.Year == SelectedYear || d.ToDate.Year == SelectedYear)
+                .Count(d => d.Rows.Any(r => PersonMatchesFilters(r.PersonId))) + 1;
     // Selection
     private List<PersonBaseDTO> SelectedAvailable = new();
     private List<PersonBaseDTO> SelectedParticipants = new();
@@ -253,6 +254,10 @@ else
         }
         ApplyFilters();
 
+        // Index met ALLE personen (nodig om team/speciality per DrawRow op te zoeken)
+        var allForIndex = await PersonApi.GetAllPersonsAsync();
+        PersonIndex = (allForIndex ?? new()).ToDictionary(p => p.Id);
+
         await LoadTeamWorkDays();
         RebuildMonthWorkingDays();
 
@@ -262,9 +267,31 @@ else
         isLoading = false;
     }
 
-    // Alleen lotingen tonen van het geselecteerde jaar
+    private bool PersonMatchesFilters(int personId)
+    {
+        if (!PersonIndex.TryGetValue(personId, out var p)) return false;
+
+        if (!string.IsNullOrEmpty(SelectedTeam) && !string.Equals(p.Team, SelectedTeam, StringComparison.Ordinal))
+            return false;
+
+        if (!string.IsNullOrEmpty(SelectedSpeciality) && !string.Equals(p.Speciality, SelectedSpeciality, StringComparison.Ordinal))
+            return false;
+
+        return true;
+    }
+  
+    // Alleen lotingen tonen van het geselecteerde jaar én gefilterd op team/specialiteit
     private IEnumerable<DrawView> FilteredDraws =>
         AllDraws
+            .Select(d => new DrawView
+            {
+                DrawNumber = d.DrawNumber,
+                DrawName = d.DrawName,
+                FromDate = d.FromDate,
+                ToDate = d.ToDate,
+                Rows = d.Rows.Where(r => PersonMatchesFilters(r.PersonId)).ToList()
+            })
+            .Where(d => d.Rows.Count > 0) // toon enkel draws met relevante deelnemers
             .Where(d => d.FromDate.Year == SelectedYear || d.ToDate.Year == SelectedYear)
             .OrderBy(d => d.DrawNumber);
 
@@ -610,7 +637,7 @@ else
     private async Task DeleteDraw(int drawNumber)
     {
         var confirmed = await DialogService.Confirm(
-            $"Weet je zeker dat je loting {drawNumber} wil wissen?",
+            $"Weet je zeker dat je loting wil wissen?",
             "Bevestigen",
             new ConfirmOptions { OkButtonText = "Ja", CancelButtonText = "Nee", CloseDialogOnEsc = true });
 
