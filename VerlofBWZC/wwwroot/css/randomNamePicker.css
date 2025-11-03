@@ -1,0 +1,61 @@
+﻿
+/* RandomNamePicker responsive tweaks for Radzen components */
+
+/* Make inputs fluid on small screens */
+@media (max-width: 768px) {
+  .rz-dropdown,
+  .rz-textbox,
+  .rz-numeric,
+  .rz-checkboxlist {
+    width: 100% !important;
+  }
+}
+
+/* Info bar: allow wrapping and hide long hint on very small screens */
+.rz-p-2.rz-border-radius-6.rz-shadow-2 {
+  flex-wrap: wrap;
+}
+@media (max-width: 640px) {
+  .rz-p-2.rz-border-radius-6.rz-shadow-2 .rz-text-secondary {
+    display: none;
+  }
+}
+
+/* Transfer layout (Available <-> Participants):
+   - Stack listboxes and show transfer buttons in a row on narrow screens */
+@media (max-width: 1024px) {
+  /* Each grid child spans full width when stacked */
+  .rz-listbox {
+    grid-column: 1 / -1 !important;
+  }
+
+  /* The transfer buttons container is the sibling between two listboxes */
+  .rz-listbox + div {
+    grid-column: 1 / -1 !important;
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: center;
+    gap: .5rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .rz-listbox + div .rz-button {
+    flex: 1 1 25%;
+    min-width: 60px;
+  }
+}
+
+/* Reduce ListBox height on very small screens */
+@media (max-width: 480px) {
+  .rz-listbox {
+    height: 260px !important;
+  }
+}
+
+/* Compact global spacing on small screens */
+@media (max-width: 768px) {
+  .rz-mb-3 { margin-bottom: .5rem !important; }
+  .rz-mt-3 { margin-top: .5rem !important; }
+  .rz-p-2  { padding: .5rem !important; }
+}

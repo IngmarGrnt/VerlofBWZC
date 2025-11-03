@@ -1,4 +1,11 @@
-﻿
+﻿/* --- PERSONCRUD (responsive voorbeeld) --- */
+@media (max-width: 640px) {
+    .responsive-datagrid-container .rz-grid-table {
+        width: auto !important;
+        max-width: 100vw;
+        overflow-x: hidden; /* voorkom paginabrede horizontale scroll */
+        box-sizing: border-box;
+    }
     /* --- PERSONCRUD (responsive voorbeeld) --- */
     @media (max-width: 640px) {
         .responsive-datagrid-container .rz-grid-table {
@@ -28,4 +35,73 @@
                 text-overflow: ellipsis;
             }
     }
+
+    /* --- Hide columns (Email, Team, Specialiteit, Graad, Rol) on small screens ---
+   Add these classes to your RadzenDataGridColumn:
+   - Email:        HeaderCssClass="col-email"        CssClass="col-email"
+   - Team:         HeaderCssClass="col-team"         CssClass="col-team"
+   - Specialiteit: HeaderCssClass="col-speciality"   CssClass="col-speciality"
+   - Graad:        HeaderCssClass="col-grade"        CssClass="col-grade"
+   - Rol:          HeaderCssClass="col-role"         CssClass="col-role"
+   Also add class="responsive-datagrid" to the RadzenDataGrid for scoping.
+*/
+
+    /* Example breakpoints:
+   - <= 1024px: hide Email
+   - <= 768px:  hide Team + Speciality as well
+   - <= 640px:  hide Grade + Role too
+*/
+    @media (max-width: 1024px) {
+        .responsive-datagrid th.col-email,
+        .responsive-datagrid td.col-email {
+            display: none !important;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .responsive-datagrid th.col-team,
+        .responsive-datagrid td.col-team,
+        .responsive-datagrid th.col-speciality,
+        .responsive-datagrid td.col-speciality {
+            display: none !important;
+        }
+    }
+
+    @media (max-width: 640px) {
+        .responsive-datagrid th.col-grade,
+        .responsive-datagrid td.col-grade,
+        .responsive-datagrid th.col-role,
+        .responsive-datagrid td.col-role {
+            display: none !important;
+        }
+    }
+
+
+    @media (max-width: 768px) {
+        .responsive-datagrid thead tr th:nth-child(3),
+        .responsive-datagrid tbody tr td:nth-child(3) {
+            display: none;
+        }
+
+        .responsive-datagrid thead tr th:nth-child(4),
+        .responsive-datagrid tbody tr td:nth-child(4) {
+            display: none;
+        }
+
+        .responsive-datagrid thead tr th:nth-child(5),
+        .responsive-datagrid tbody tr td:nth-child(5) {
+            display: none;
+        }
+
+        .responsive-datagrid thead tr th:nth-child(6),
+        .responsive-datagrid tbody tr td:nth-child(6) {
+            display: none;
+        }
+
+        .responsive-datagrid thead tr th:nth-child(7),
+        .responsive-datagrid tbody tr td:nth-child(7) {
+            display: none;
+        }
+    }
+
 

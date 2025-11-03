@@ -62,16 +62,62 @@
 
 /* --- Holiday buttons --- */
 .holiday-btn-vacation {
-    background-color: #bd79e6a4 !important;
+    background-color: rgba(189, 121, 230, 0.35) !important; /* was #bd79e6a4 */
     color: #333 !important;
 }
 
 .holiday-btn-feestdag {
-    background-color: #ffdc0c91 !important;
+    background-color: rgba(255, 220, 12, 0.35) !important; /* was #ffdc0c91 */
     color: #333 !important;
 }
 
 .holiday-btn-weekend {
-    background-color: #f2f2f2 !important;
+    background-color: rgba(128, 128, 128, 0.20) !important;
     color: #333 !important;
+}
+
+/* --- Legend next to buttons --- */
+.workcalendar-legend {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #333;
+    font-size: 0.9rem;
+}
+
+.legend-swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    border: 1px solid rgba(0,0,0,.08);
+    display: inline-block;
+}
+/* Swatch that matches Radzen ButtonStyle.Info (selected leave days) */
+.legend-swatch-info {
+    background-color: var(--rz-info, #17a2b8) !important; /* fallback just in case */
+    color: #fff;
+}
+
+/* Holiday grid row backgrounds */
+.rz-data-grid .rz-data-row.holiday-row-vacation > td {
+    background-color: rgba(189, 121, 230, 0.35) !important; /* Paars */
+    color: #333;
+}
+
+.rz-data-grid .rz-data-row.holiday-row-feestdag > td {
+    background-color: rgba(255, 220, 12, 0.35) !important; /* Geel */
+    color: #333;
+}
+
+/* Optional: keep hover readable */
+.rz-data-grid .rz-data-row.holiday-row-vacation:hover > td,
+.rz-data-grid .rz-data-row.holiday-row-feestdag:hover > td {
+    filter: brightness(0.98);
 }

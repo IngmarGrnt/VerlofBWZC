@@ -25,3 +25,166 @@
     min-width: 2.2em;
     font-weight: bold;
 }
+
+/* --- Accessibility/focus for day buttons --- */
+.oval-btn:focus {
+    outline: 2px solid var(--rz-primary);
+    outline-offset: 2px;
+}
+
+/* --- Toolbar responsiveness --- */
+.teamcalendar-toolbar .rz-stack {
+    flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+    /* Stack the two toolbar groups vertically */
+    .teamcalendar-toolbar .rz-stack {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: .75rem !important;
+    }
+
+    /* Make the year dropdown full width */
+    .teamcalendar-toolbar .rz-dropdown {
+        width: 100% !important;
+    }
+}
+
+/* Hide button text on extra small screens, keep icons */
+@media (max-width: 480px) {
+    .teamcalendar-toolbar .rz-button .rz-button-text {
+        display: none !important;
+    }
+    .teamcalendar-toolbar .rz-button {
+        min-width: 2.25rem;
+        justify-content: center;
+    }
+}
+
+/* --- DataGrid responsiveness (months grid + nested days grid) ---
+   Scope rules to the first DataGrid following the toolbar to avoid affecting other pages.
+*/
+.teamcalendar-toolbar ~ .rz-data-grid .rz-datatable-wrapper {
+    overflow-x: auto;
+    overflow-y: hidden;
+    width: 100%;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Outer months grid: allow some min width so columns don't collapse */
+.teamcalendar-toolbar ~ .rz-data-grid .rz-datatable-table {
+    min-width: 520px;
+    table-layout: auto;
+}
+
+/* Nested days grid inside month rows: lots of columns (date/shift/aantal + members) */
+.teamcalendar-toolbar ~ .rz-data-grid .rz-data-grid .rz-datatable-table {
+    /* wide min width to enable horizontal scrolling while keeping frozen columns useful */
+    min-width: 1200px;
+}
+
+/* Keep frozen columns above the scroller */
+.teamcalendar-toolbar ~ .rz-data-grid .rz-frozen-left,
+.teamcalendar-toolbar ~ .rz-data-grid .rz-frozen-right {
+    z-index: 5;
+}
+
+/* Compact cell padding for dense table on small devices */
+@media (max-width: 768px) {
+    .teamcalendar-toolbar ~ .rz-data-grid .rz-cell {
+        padding: .35rem .5rem !important;
+    }
+    .teamcalendar-toolbar ~ .rz-data-grid .rz-datatable-header .rz-cell {
+        padding: .4rem .5rem !important;
+    }
+}
+
+/* --- Header initials and badges (member columns) --- */
+.header-table {
+    width: 100%;
+    height: 100%;
+    border-collapse: collapse;
+}
+
+.header-initials {
+    font-weight: 600;
+    letter-spacing: .02em;
+    font-size: .95rem;
+    white-space: nowrap;
+}
+
+.header-badge {
+    transform: scale(.9);
+    transform-origin: center;
+}
+
+/* Tighter headers on tablets */
+@media (max-width: 1024px) {
+    .header-initials { font-size: .85rem; }
+    .header-badge { display: none; } /* hide per-member totals badge to free space */
+}
+
+/* --- Day buttons/badges sizing on small screens --- */
+@media (max-width: 1024px) {
+    .oval-btn, .oval-badge, .oval-btn-count {
+        width: 22px !important;
+        height: 22px !important;
+        min-width: 22px !important;
+        min-height: 22px !important;
+        font-size: .85rem !important;
+    }
+}
+
+@media (max-width: 640px) {
+    .oval-btn, .oval-badge, .oval-btn-count {
+        width: 20px !important;
+        height: 20px !important;
+        min-width: 20px !important;
+        min-height: 20px !important;
+        font-size: .8rem !important;
+    }
+}
+
+/* --- Hide Shift and Aantal columns on smaller screens ---
+   Order in nested days grid: 1=Datum, 2=Shift, 3=Aantal
+*/
+@media (max-width: 768px) {
+    /* Nested days grid only (child grid inside months grid rows) */
+    .teamcalendar-toolbar ~ .rz-data-grid .rz-data-grid thead tr th:nth-child(2),
+    .teamcalendar-toolbar ~ .rz-data-grid .rz-data-grid tbody tr td:nth-child(2), /* Shift */
+    .teamcalendar-toolbar ~ .rz-data-grid .rz-data-grid thead tr th:nth-child(3),
+    .teamcalendar-toolbar ~ .rz-data-grid .rz-data-grid tbody tr td:nth-child(3)  /* Aantal */ {
+        display: none !important;
+    }
+
+    /* With columns hidden, reduce min width to fit better */
+    .teamcalendar-toolbar ~ .rz-data-grid .rz-data-grid .rz-datatable-table {
+        min-width: 1000px;
+    }
+}
+
+@media (max-width: 640px) {
+    .teamcalendar-toolbar ~ .rz-data-grid .rz-data-grid .rz-datatable-table {
+        min-width: 900px;
+    }
+}
+
+/* --- Visual tweaks for the Aantal pill --- */
+.teamcalendar-toolbar ~ .rz-data-grid .oval-btn-count {
+    color: #fff;
+    line-height: 1;
+}
+
+/* --- Improve horizontal scroll usability on iOS --- */
+.teamcalendar-toolbar ~ .rz-data-grid .rz-datatable-wrapper::-webkit-scrollbar {
+    height: 10px;
+}
+.teamcalendar-toolbar ~ .rz-data-grid .rz-datatable-wrapper::-webkit-scrollbar-thumb {
+    background: var(--rz-base-400);
+    border-radius: 6px;
+}
+.teamcalendar-toolbar ~ .rz-data-grid .rz-datatable-wrapper::-webkit-scrollbar-track {
+    background: var(--rz-base-200);
+}
+

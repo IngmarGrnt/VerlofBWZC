@@ -21,6 +21,7 @@
                     <span class="menu-text">Werkkalender</span>
                 </NavLink>
             </div>
+@*             @if (userRole == "Admin" || userRole == "Manager" || (userRole=="User"&& viewDateBegin <= DateTime.Now && viewDateEnd >= DateTime.Now)) *@
             @if (userRole == "Admin" || userRole == "Manager")
             {
                 <div class="nav-item px-3">
@@ -29,6 +30,9 @@
                         <span class="menu-text">Teamkalender</span>
                     </NavLink>
                 </div>
+            }
+            @if (userRole == "Admin" || userRole == "Manager")
+            {
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="Random-picker">
                         <i class="bi bi-dice-5-fill" aria-hidden="true"></i>
@@ -64,7 +68,8 @@
     string? userRole;
     string? token;
     private string? userName;
-
+    private DateTime viewDateBegin = new DateTime(DateTime.Now.Year, 11, 23);
+    private DateTime viewDateEnd = new DateTime(DateTime.Now.Year, 12, 1);
     protected override async Task OnInitializedAsync()
     {
         Navigation.LocationChanged += OnLocationChanged;

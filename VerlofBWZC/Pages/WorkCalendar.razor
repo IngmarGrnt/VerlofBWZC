@@ -23,31 +23,6 @@
 }
 else
 {
-@*     <div style="display: flex; align-items: center; gap: 1.5rem; margin-bottom: 1.5rem;">
-        
-        @if (SelectedYear == CurrentDayOffYear)
-        {
-            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem" Wrap="FlexWrap.Wrap" Style="margin-right: 1.5rem;">
-                <RadzenButton Text="Opslaan" ButtonStyle="ButtonStyle.Success" Click="@SaveSelectedDays" />
-            </RadzenStack>
-        }
-        <RadzenDropDown @bind-Value="SelectedYear"
-                        Data="@Years"
-                        Placeholder="Selecteer een jaar"
-                        Style="width:200px;"
-                        Change="OnYearChanged" />
-        <div class="rz-button rz-button-info rz-border-radius-6 rz-shadow-6" style="display: flex; align-items: center; padding: 0.5rem 1.2rem; border: none;">
-            <span style="color: white; font-size: 1.1rem;">
-                verlofdagen geselecteerd in @SelectedYear
-            </span>
-
-            <RadzenBadge Variant="Variant.Filled"
-                         BadgeStyle="BadgeStyle.Info"
-                         Text="@(SelectedYearDayOffCount.ToString())"
-                         Style="margin-left: 1rem; font-size: 2rem; font-weight: bold; background: transparent; color: white; box-shadow: none; border: none;" />
-        </div>
-    </div> *@
-
     <div class="workcalendar-header">
         @if (SelectedYear == CurrentDayOffYear)
         {
@@ -68,6 +43,26 @@ else
                          BadgeStyle="BadgeStyle.Info"
                          Text="@(SelectedYearDayOffCount.ToString())"
                          Class="rz-badge" />
+        </div>
+
+        <!-- Single legend at the top, next to the selected-days info -->
+        <div class="workcalendar-legend">
+            <div class="legend-item">
+                <span class="legend-swatch holiday-btn-vacation"></span>
+                <span>Paars = Vakantie</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-swatch holiday-btn-feestdag"></span>
+                <span>Geel = Feestdagen</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-swatch holiday-btn-weekend"></span>
+                <span>Grijs = Weekend</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-swatch legend-swatch-info"></span>
+                <span>Cyan = Verlofdagen</span>
+            </div>
         </div>
     </div>
 
@@ -97,12 +92,12 @@ else
                                           ButtonStyle="@(isSelected
                                                                           ? ButtonStyle.Info
                                                                           : (day.Shift == "D" ? ButtonStyle.Primary : ButtonStyle.Secondary))"
-                                  Text="@($"{day.Shift} {day.Date:ddd} {day.Date:dd}")"
-                                  Click="@(args => OnDayClicked(day))"
-                                  Style="margin-bottom: 1px"
-                                  class="@($"{holidayTypeClass} workcalendar-day-btn")">
-                    </RadzenButton>
-                                        }
+                                          Text="@($"{day.Shift} {day.Date:ddd} {day.Date:dd}")"
+                                          Click="@(args => OnDayClicked(day))"
+                                          Style="margin-bottom: 1px"
+                                          class="@($"{holidayTypeClass} workcalendar-day-btn")">
+                            </RadzenButton>
+                        }
                     </div>
                 </Template>
             </RadzenDataGridColumn>
@@ -110,9 +105,14 @@ else
     </RadzenDataGrid>
 
 
-    <RadzenDataGrid Data="@(GetAllHolidaysForGrid())" TItem="HolidayGridRow" ShowPagingSummary="false" ShowPagination="false" Style="margin-top:2rem;">
+    <RadzenDataGrid Data="@(GetAllHolidaysForGrid())" 
+        TItem="HolidayGridRow" 
+        ShowPagingSummary="false" 
+        ShowPagination="false" 
+        Style="margin-top:2rem;" >
+   
         <Columns>
-            <RadzenDataGridColumn TItem="HolidayGridRow" Property="DateText" Title="Datum" Width="220px" />
+            <RadzenDataGridColumn TItem="HolidayGridRow" Property="DateText" Title="Datum" Width="220px"/>
             <RadzenDataGridColumn TItem="HolidayGridRow" Property="Name" Title="Naam" Width="300px" />
             <RadzenDataGridColumn TItem="HolidayGridRow" Property="Type" Title="Type" Width="140px" />
         </Columns>
@@ -182,6 +182,8 @@ else
         PublicHolidays = await Http.GetFromJsonAsync<List<PublicHolidayDTO>>($"api/holidays/public/{SelectedYear}") ?? new();
         SchoolHolidays = await Http.GetFromJsonAsync<List<SchoolHolidayDTO>>($"api/holidays/school/{SelectedYear}") ?? new();
     }
+
+
 
     private async Task OnYearChanged(object value)
     {

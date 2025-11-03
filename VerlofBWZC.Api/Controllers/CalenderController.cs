@@ -133,6 +133,7 @@ namespace VerlofBWZC.Api.Controllers
 
         public class AddTeamDayOffsRequest
         {
+            public int Year { get; set; }
             public List<PersonDays> Persons { get; set; }
             public class PersonDays
             {
@@ -146,26 +147,29 @@ namespace VerlofBWZC.Api.Controllers
         {
             foreach (var person in request.Persons)
             {
+                // Beperk tot het jaar dat bewerkt wordt
                 var existingDayOffs = await _context.DayOffs
-                    .Where(d => d.PersonId == person.PersoonId)
+                    .Where(d => d.PersonId == person.PersoonId && d.Date.Year == request.Year)
                     .ToListAsync();
 
-                var requestedDates = person.Days.Select(d => new { d.Date.Date, d.Shift }).ToHashSet();
+                // Vergelijk (Date, Shift)
+                var requested = person.Days
+                    .Select(d => (d.Date.Date, d.Shift))
+                    .ToHashSet();
 
-                // Verwijder oude DayOffs die niet meer geselecteerd zijn
                 var toRemove = existingDayOffs
-                    .Where(d => !requestedDates.Contains(new { d.Date.Date, d.Shift }))
+                    .Where(d => !requested.Contains((d.Date.Date, d.Shift)))
                     .ToList();
-                if (toRemove.Any())
+
+                if (toRemove.Count > 0)
                     _context.DayOffs.RemoveRange(toRemove);
 
-                // Voeg nieuwe toe
                 foreach (var day in person.Days)
                 {
-                    bool alreadyExists = existingDayOffs.Any(d => d.Date.Date == day.Date.Date && d.Shift == day.Shift);
-                    if (!alreadyExists)
+                    bool exists = existingDayOffs.Any(d => d.Date.Date == day.Date.Date && d.Shift == day.Shift);
+                    if (!exists)
                     {
-                        var dayOff = new DayOff
+                        _context.DayOffs.Add(new DayOff
                         {
                             PersonId = person.PersoonId,
                             Date = day.Date,
@@ -174,15 +178,14 @@ namespace VerlofBWZC.Api.Controllers
                             Status = DayOffstatus.Approved,
                             LastUpdate = DateTime.Now,
                             IsDeleted = false
-                        };
-                        _context.DayOffs.Add(dayOff);
+                        });
                     }
                 }
             }
+
             await _context.SaveChangesAsync();
             return Ok();
         }
-
         //public class WorkDay
         //{
         //    public DateTime Date { get; set; }

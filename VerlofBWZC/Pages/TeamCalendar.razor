@@ -22,11 +22,14 @@ else
         <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" Gap="1rem" Style="width:100%; margin-bottom:1rem">
             <!-- Left group -->
             <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
-                @if (SelectedYear == CurrentDayOffYear)
+                @if (CanSave)
                 {
                     <RadzenButton Text="Opslaan" Icon="save" Click="@SaveTeamDaysOff" />
                 }
-                <RadzenButton Text="Exporteren naar CSV" Icon="download" Click="@ExportToCsv" />
+                @if (CanExport)
+                {
+                    <RadzenButton Text="Exporteren naar CSV" Icon="download" Click="@ExportToCsv" />
+                }
                 <RadzenDropDown @bind-Value="SelectedYear"
                                 Data="@Years"
                                 Placeholder="Selecteer een jaar"
@@ -126,13 +129,29 @@ else
                                 @if (mc.member != null)
                                 {
                                     var isDayOff = selectedDays.Any(d => d.PersonId == mc.member.Id && d.Date.Date == wd.Date.Date && d.Shift == wd.Shift);
-                                    <RadzenButton Size="ButtonSize.Small"
-                                                  Variant="@(isDayOff ? Variant.Filled : Variant.Outlined)"
-                                                  ButtonStyle="@(isDayOff ? ButtonStyle.Info : ButtonStyle.Warning)"
-                                                  Text=""
-                                                  Icon="@(isDayOff ? "check" : null)"
-                                                  Class="oval-btn"
-                                                  Click="@(args => OnDayClicked(mc.member.Id, wd))" />
+                                    
+                                    @if(CanSave)
+                                    {
+                                        <RadzenButton Size="ButtonSize.Small"
+                                                      Variant="@(isDayOff ? Variant.Filled : Variant.Outlined)"
+                                                      ButtonStyle="@(isDayOff ? ButtonStyle.Info : ButtonStyle.Warning)"
+                                                      Text=""
+                                                      Icon="@(isDayOff ? "check" : null)"
+                                                      Class="oval-btn"
+                                        Click="@(args => OnDayClicked(mc.member.Id, wd))" />
+                                    }
+                                    else
+                                    {
+                                        <RadzenButton Size="ButtonSize.Small"
+                                                      Variant="@(isDayOff ? Variant.Filled : Variant.Outlined)"
+                                                      ButtonStyle="@(isDayOff ? ButtonStyle.Info : ButtonStyle.Warning)"
+                                                      Text=""
+                                                      Icon="@(isDayOff ? "check" : null)"
+                                                      Class="oval-btn"
+                                                      />
+                                    }
+
+
                                 }
                             </Template>
                         </RadzenDataGridColumn>
@@ -167,6 +186,15 @@ else
     private int CurrentDayOffYear = DateTime.Now.AddYears(1).Year;
 
     private RadzenDataGrid<MonthGroup>? monthsGrid;
+
+    // Authorization (simple role-based gating)
+    private string? CurrentUserRole;
+    private bool CanManageCalendar =>
+        string.Equals(CurrentUserRole, "Admin", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(CurrentUserRole, "Manager", StringComparison.OrdinalIgnoreCase);
+
+    private bool CanSave => SelectedYear == CurrentDayOffYear && CanManageCalendar;
+    private bool CanExport => CanManageCalendar;
 
     //Nog in DTO zetten--------------------------------------------
     public class TeamDayOffDTO
@@ -210,6 +238,7 @@ else
         if (value is int year)
         {
             SelectedYear = year;
+            StateHasChanged(); // updates CanSave
             await LoadTeamCalendar();
             StateHasChanged();
         }
@@ -220,24 +249,39 @@ else
         return selectedDays.Count(d => d.PersonId == personId);
     }
 
-    private int GetTotalSelectedDays(WorkDay wd)
+private int GetTotalSelectedDays(WorkDay wd)
+{
+    // Pure function: only compute and return the count (no notifications here)
+    return selectedDays.Count(d => d.Date.Date == wd.Date.Date && d.Shift == wd.Shift);
+}
+
+private void OnDayClicked(int personId, WorkDay day)
+{
+    var existing = selectedDays.FirstOrDefault(d =>
+        d.PersonId == personId &&
+        d.Date.Date == day.Date.Date &&
+        d.Shift == day.Shift);
+
+    if (existing == null)
+        selectedDays.Add(new SelectedDayOffDTO { PersonId = personId, Date = day.Date, Shift = day.Shift });
+    else
+        selectedDays.Remove(existing);
+
+    // Only notify for the row the user just edited
+    var count = selectedDays.Count(d => d.Date.Date == day.Date.Date && d.Shift == day.Shift);
+    var quota = Math.Max(1, TeamMembers.Count / 4);
+
+    if (count > quota)
     {
-        int count = selectedDays.Count(d => d.Date.Date == wd.Date.Date && d.Shift == wd.Shift);
-
-        var quota = Math.Max(1, TeamMembers.Count / 4); // dynamic drempel op basis van teamgrootte
-
-        if (count > quota)
+        NotificationService.Notify(new NotificationMessage
         {
-            NotificationService.Notify(new NotificationMessage
-            {
-                Severity = NotificationSeverity.Error,
-                Summary = "Fout",
-                Detail = $"Opgelet: {count} verlofdagen voor {wd.Date.ToShortDateString()} (quota: {quota}).",
-                Duration = 8000
-            });
-        }
-        return count;
+            Severity = NotificationSeverity.Error,
+            Summary = "Fout",
+            Detail = $"Opgelet: {count} verlofdagen voor {day.Date:dd/MM/yyyy} (quota: {quota}).",
+            Duration = 5000
+        });
     }
+}
 
     private async Task LoadTeamCalendar()
     {
@@ -247,6 +291,7 @@ else
         var person = await PersonApi.GetPersonByIdAsync(int.Parse(userId));
         var teamName = person?.Team;
         var speciality = person?.Speciality;
+        CurrentUserRole = person?.Role; // capture role for authorization
 
         // Haal teamleden op
         TeamMembers = await Http.GetFromJsonAsync<List<PersonBaseDTO>>($"api/person/team/{teamName}/{speciality}");
@@ -283,36 +328,53 @@ else
     {
         if (string.IsNullOrWhiteSpace(person.FirstName) || string.IsNullOrWhiteSpace(person.LastName) || person.LastName.Length < 2)
             return "";
-        return $"{person.LastName[0]}{person.LastName[1]}{person.FirstName[0]}".ToUpper();
+        return $"{person.FirstName[0]}{person.FirstName[1]}{person.LastName[0]}".ToUpper();
     }
 
-    private void OnDayClicked(int personId, WorkDay day)
-    {
-        var existing = selectedDays.FirstOrDefault(d =>
-            d.PersonId == personId &&
-            d.Date.Date == day.Date.Date &&
-            d.Shift == day.Shift);
+    // private void OnDayClicked(int personId, WorkDay day)
+    // {
+    //     var existing = selectedDays.FirstOrDefault(d =>
+    //         d.PersonId == personId &&
+    //         d.Date.Date == day.Date.Date &&
+    //         d.Shift == day.Shift);
 
-        if (existing == null)
-            selectedDays.Add(new SelectedDayOffDTO { PersonId = personId, Date = day.Date, Shift = day.Shift });
-        else
-            selectedDays.Remove(existing);
-    }
+    //     if (existing == null)
+    //         selectedDays.Add(new SelectedDayOffDTO { PersonId = personId, Date = day.Date, Shift = day.Shift });
+    //     else
+    //         selectedDays.Remove(existing);
+    // }
 
     private async Task SaveTeamDaysOff()
     {
-        // Groepeer geselecteerde dagen per persoon
-        var persons = selectedDays
-            .GroupBy(d => d.PersonId)
-            .Select(g => new
+        if (!CanManageCalendar)
+        {
+            NotificationService.Notify(new NotificationMessage
             {
-                persoonId = g.Key,
-                days = g.Select(d => new { date = d.Date, shift = d.Shift }).ToList()
+                Severity = NotificationSeverity.Warning,
+                Summary = "Geen toegang",
+                Detail = "Je hebt geen toestemming om te bewaren.",
+                Duration = 3000
+            });
+            return;
+        }
+
+        // Stuur ALLE teamleden mee, ook met lege 'Days' (maakt verwijderen mogelijk)
+        var persons = TeamMembers
+            .Select(m => new
+            {
+                PersoonId = m.Id,
+                Days = selectedDays
+                    .Where(d => d.PersonId == m.Id && d.Date.Year == SelectedYear)
+                    .Select(d => new { Date = d.Date, Shift = d.Shift })
+                    .ToList()
             })
             .ToList();
 
-        // Payload als object met property 'persons'
-        var payload = new { persons };
+        var payload = new
+        {
+            Year = SelectedYear,
+            Persons = persons
+        };
 
         var response = await Http.PostAsJsonAsync("api/calender/add-multiple-dayoff", payload);
 
