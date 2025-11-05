@@ -1,0 +1,475 @@
+@page "/ManagerPanel"
+@attribute [Authorize(Roles = "Admin,Manager")]
+@using Microsoft.AspNetCore.Authorization
+@using Radzen
+@using Radzen.Blazor
+@using VerlofBWZC.DataContracts.DTO.Access
+@using System.Net.Http.Json
+@inject HttpClient Http
+@inject NotificationService Notifications
+
+<div class="manager-panel">
+    <h3>Managerpaneel - Kalendertoegang</h3>
+
+    <!-- Filters -->
+    <RadzenFieldset Text="Filters" Toggleable="true" Collapsed="false">
+        <RadzenStack Orientation="Orientation.Horizontal" Wrap="FlexWrap.Wrap" Gap="0.5rem">
+            <div style="min-width:220px;flex:1">
+                <label>Team</label>
+                <RadzenDropDown TValue="string"
+                                Data="@teams"
+                                @bind-Value="teamFilter"
+                                AllowFiltering="true"
+                                AllowClear="true"
+                                FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
+                                Style="width:100%" />
+            </div>
+
+            <div style="min-width:220px;flex:1">
+                <label>Specialiteit</label>
+                <RadzenDropDown TValue="string"
+                                Data="@specialities"
+                                @bind-Value="specialityFilter"
+                                AllowFiltering="true"
+                                AllowClear="true"
+                                FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
+                                Style="width:100%" />
+            </div>
+
+            <div style="min-width:180px;flex:1">
+                <label>Jaar (optioneel)</label>
+                <RadzenDropDown TValue="int?"
+                                Data="@years"
+                                @bind-Value="yearFilter"
+                                AllowClear="true"
+                                Placeholder="Alle"
+                                Style="width:100%" />
+            </div>
+
+            <div style="min-width:160px;flex:1">
+                <label>Kan teamkalender zien</label>
+                <RadzenDropDown TValue="bool?"
+                                Data="@(new[] {
+                                    new { Text = "Alle", Value = (bool?)null },
+                                    new { Text = "Ja",   Value = (bool?)true },
+                                    new { Text = "Nee",  Value = (bool?)false }
+                                })"
+                                TextProperty="Text"
+                                ValueProperty="Value"
+                                @bind-Value="canSeeFilter"
+                                Style="width:100%" />
+            </div>
+
+            <div style="min-width:160px;flex:1">
+                <label>Kan werkkalender opslaan</label>
+                <RadzenDropDown TValue="bool?"
+                                Data="@(new[] {
+                                    new { Text = "Alle", Value = (bool?)null },
+                                    new { Text = "Ja",   Value = (bool?)true },
+                                    new { Text = "Nee",  Value = (bool?)false }
+                                })"
+                                TextProperty="Text"
+                                ValueProperty="Value"
+                                @bind-Value="canSaveWorkFilter"
+                                Style="width:100%" />
+            </div>
+
+            <div style="min-width:180px;flex:1">
+                <label>Kan teamkalender opslaan</label>
+                <RadzenDropDown TValue="bool?"
+                                Data="@(new[] {
+                                    new { Text = "Alle", Value = (bool?)null },
+                                    new { Text = "Ja",   Value = (bool?)true },
+                                    new { Text = "Nee",  Value = (bool?)false }
+                                })"
+                                TextProperty="Text"
+                                ValueProperty="Value"
+                                @bind-Value="canSaveTeamFilter"
+                                Style="width:100%" />
+            </div>
+        </RadzenStack>
+
+        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Style="margin-top:0.75rem">
+            <RadzenButton Icon="refresh" Text="Filters resetten" Click="@ResetFilters" ButtonStyle="ButtonStyle.Light" />
+            <RadzenButton Icon="add" Text="Regel toevoegen" Click="@StartCreate" Disabled="@IsEditing" />
+            <RadzenBadge Style="margin-left:auto">@FilteredRules.Count() van @rules.Count</RadzenBadge>
+        </RadzenStack>
+    </RadzenFieldset>
+
+    <!-- Create or Edit Card -->
+    @if (editingModel is not null && editingTarget is null)
+    {
+        <RadzenCard Style="margin-top:1rem">
+            <div class="rz-form">
+                <div class="rz-form-field">
+                    <label>Team</label>
+                    <RadzenDropDown TValue="string"
+                                    Data="@teams"
+                                    @bind-Value="editingModel.Team"
+                                    AllowFiltering="true"
+                                    FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
+                                    Style="width:300px" />
+                </div>
+                <div class="rz-form-field">
+                    <label>Specialiteit</label>
+                    <RadzenDropDown TValue="string"
+                                    Data="@specialities"
+                                    @bind-Value="editingModel.Speciality"
+                                    AllowFiltering="true"
+                                    FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
+                                    Style="width:300px" />
+                </div>
+                <div class="rz-form-field">
+                    <label>Jaar (optioneel)</label>
+                    <RadzenDropDown TValue="int?"
+                                    Data="@years"
+                                    @bind-Value="editingModel.Year"
+                                    AllowClear="true"
+                                    Placeholder="Geen"
+                                    Style="width:200px" />
+                </div>
+                <div class="rz-form-field">
+                    <label>Kan teamkalender zien</label>
+                    <RadzenDropDown TValue="bool"
+                                    Data="@(new[] { new { Text = "Ja", Value = true }, new { Text = "Nee", Value = false } })"
+                                    TextProperty="Text"
+                                    ValueProperty="Value"
+                                    @bind-Value="editingModel.CanSeeTeamCalendar"
+                                    Style="width:200px" />
+                </div>
+                <div class="rz-form-field">
+                    <label>Kan werkkalender opslaan</label>
+                    <RadzenDropDown TValue="bool"
+                                    Data="@(new[] { new { Text = "Ja", Value = true }, new { Text = "Nee", Value = false } })"
+                                    TextProperty="Text"
+                                    ValueProperty="Value"
+                                    @bind-Value="editingModel.CanSaveWorkCalendar"
+                                    Style="width:200px" />
+                </div>
+                <div class="rz-form-field">
+                    <label>Kan teamkalender opslaan</label>
+                    <RadzenDropDown TValue="bool"
+                                    Data="@(new[] { new { Text = "Ja", Value = true }, new { Text = "Nee", Value = false } })"
+                                    TextProperty="Text"
+                                    ValueProperty="Value"
+                                    @bind-Value="editingModel.CanSaveTeamCalendar"
+                                    Style="width:200px" />
+                </div>
+            </div>
+
+            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+                <RadzenButton ButtonStyle="ButtonStyle.Success" Icon="save" Text="Opslaan" Click="@SaveAsync" Disabled="@isSaving" />
+                <RadzenButton ButtonStyle="ButtonStyle.Secondary" Icon="cancel" Text="Annuleren" Click="@CancelEdit" Disabled="@isSaving" />
+            </RadzenStack>
+        </RadzenCard>
+    }
+
+    <!-- Rules List -->
+    @if (!FilteredRules.Any() && (editingModel is null || editingTarget is not null))
+    {
+        <RadzenAlert Severity="AlertSeverity.Info" Style="margin-top:1rem">
+            Geen regels voldoen aan de huidige filters.
+        </RadzenAlert>
+    }
+
+    @foreach (var rule in FilteredRules)
+    {
+        var isEditingThis = editingModel is not null && editingTarget == rule;
+
+        <RadzenCard Style="margin-top:1rem" @key="rule.Id">
+            @if (!isEditingThis)
+            {
+                <div class="rz-form">
+                    <div class="rz-form-field">
+                        <label>Team</label>
+                        <div>@rule.Team</div>
+                    </div>
+                    <div class="rz-form-field">
+                        <label>Specialiteit</label>
+                        <div>@rule.Speciality</div>
+                    </div>
+                    <div class="rz-form-field">
+                        <label>Jaar (optioneel)</label>
+                        <div>@(rule.Year?.ToString() ?? "-")</div>
+                    </div>
+                    <div class="rz-form-field">
+                        <label>Kan teamkalender zien</label>
+                        <div>
+                            @(rule.CanSeeTeamCalendar
+                                ? (MarkupString)"<span class='rz-badge rz-badge-success'>Ja</span>"
+                                : (MarkupString)"<span class='rz-badge rz-badge-secondary'>Nee</span>")
+                        </div>
+                    </div>
+                    <div class="rz-form-field">
+                        <label>Kan werkkalender opslaan</label>
+                        <div>
+                            @(rule.CanSaveWorkCalendar
+                                ? (MarkupString)"<span class='rz-badge rz-badge-success'>Ja</span>"
+                                : (MarkupString)"<span class='rz-badge rz-badge-secondary'>Nee</span>")
+                        </div>
+                    </div>
+                    <div class="rz-form-field">
+                        <label>Kan teamkalender opslaan</label>
+                        <div>
+                            @(rule.CanSaveTeamCalendar
+                                ? (MarkupString)"<span class='rz-badge rz-badge-success'>Ja</span>"
+                                : (MarkupString)"<span class='rz-badge rz-badge-secondary'>Nee</span>")
+                        </div>
+                    </div>
+                </div>
+
+                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+                    <RadzenButton ButtonStyle="ButtonStyle.Primary" Icon="edit" Text="Bewerken" Click="@(() => StartEdit(rule))" Disabled="@IsEditing" />
+                    <RadzenButton ButtonStyle="ButtonStyle.Danger" Icon="delete" Text="Verwijderen" Click="@(() => DeleteAsync(rule))" Disabled="@(IsEditing || isSaving)" />
+                </RadzenStack>
+            }
+            else
+            {
+                <div class="rz-form">
+                    <div class="rz-form-field">
+                        <label>Team</label>
+                        <RadzenDropDown TValue="string"
+                                        Data="@teams"
+                                        @bind-Value="editingModel!.Team"
+                                        AllowFiltering="true"
+                                        FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
+                                        Style="width:300px" />
+                    </div>
+                    <div class="rz-form-field">
+                        <label>Specialiteit</label>
+                        <RadzenDropDown TValue="string"
+                                        Data="@specialities"
+                                        @bind-Value="editingModel!.Speciality"
+                                        AllowFiltering="true"
+                                        FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
+                                        Style="width:300px" />
+                    </div>
+                    <div class="rz-form-field">
+                        <label>Jaar (optioneel)</label>
+                        <RadzenDropDown TValue="int?"
+                                        Data="@years"
+                                        @bind-Value="editingModel!.Year"
+                                        AllowClear="true"
+                                        Placeholder="Geen"
+                                        Style="width:200px" />
+                    </div>
+                    <div class="rz-form-field">
+                        <label>Kan teamkalender zien</label>
+                        <RadzenDropDown TValue="bool"
+                                        Data="@(new[] { new { Text = "Ja", Value = true }, new { Text = "Nee", Value = false } })"
+                                        TextProperty="Text"
+                                        ValueProperty="Value"
+                                        @bind-Value="editingModel!.CanSeeTeamCalendar"
+                                        Style="width:200px" />
+                    </div>
+                    <div class="rz-form-field">
+                        <label>Kan werkkalender opslaan</label>
+                        <RadzenDropDown TValue="bool"
+                                        Data="@(new[] { new { Text = "Ja", Value = true }, new { Text = "Nee", Value = false } })"
+                                        TextProperty="Text"
+                                        ValueProperty="Value"
+                                        @bind-Value="editingModel!.CanSaveWorkCalendar"
+                                        Style="width:200px" />
+                    </div>
+                    <div class="rz-form-field">
+                        <label>Kan teamkalender opslaan</label>
+                        <RadzenDropDown TValue="bool"
+                                        Data="@(new[] { new { Text = "Ja", Value = true }, new { Text = "Nee", Value = false } })"
+                                        TextProperty="Text"
+                                        ValueProperty="Value"
+                                        @bind-Value="editingModel!.CanSaveTeamCalendar"
+                                        Style="width:200px" />
+                    </div>
+                </div>
+
+                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+                    <RadzenButton ButtonStyle="ButtonStyle.Success" Icon="save" Text="Opslaan" Click="@SaveAsync" Disabled="@isSaving" />
+                    <RadzenButton ButtonStyle="ButtonStyle.Secondary" Icon="cancel" Text="Annuleren" Click="@CancelEdit" Disabled="@isSaving" />
+                </RadzenStack>
+            }
+        </RadzenCard>
+    }
+</div>
+
+@code {
+    // Data
+    private List<CalendarAccessRuleDTO> rules = new();
+
+    // Meta data
+    private List<string> teams = new();
+    private List<string> specialities = new();
+    private List<int> years = new();
+
+    // Filters
+    private string? teamFilter;
+    private string? specialityFilter;
+    private int? yearFilter;
+    private bool? canSeeFilter;
+    private bool? canSaveWorkFilter;
+    private bool? canSaveTeamFilter;
+
+    // Editing state (single edit session at a time)
+    private CalendarAccessRuleDTO? editingModel;
+    private CalendarAccessRuleDTO? editingTarget;
+    private bool isSaving;
+
+    private bool IsEditing => editingModel is not null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadMetaAsync();
+        InitYears();
+        await LoadAsync();
+    }
+
+    private void InitYears()
+    {
+        var start = DateTime.Now.Year + 1;
+        years = Enumerable.Range(start, 10).ToList();
+    }
+
+    private async Task LoadMetaAsync()
+    {
+        teams = await Http.GetFromJsonAsync<List<string>>("api/meta/teams") ?? new();
+        specialities = await Http.GetFromJsonAsync<List<string>>("api/meta/specialities") ?? new();
+    }
+
+    private async Task LoadAsync()
+    {
+        rules = await Http.GetFromJsonAsync<List<CalendarAccessRuleDTO>>("api/access/calendar-rules") ?? new();
+        StateHasChanged();
+    }
+
+    private IEnumerable<CalendarAccessRuleDTO> FilteredRules =>
+        rules
+            .Where(r => string.IsNullOrEmpty(teamFilter) || r.Team == teamFilter)
+            .Where(r => string.IsNullOrEmpty(specialityFilter) || r.Speciality == specialityFilter)
+            .Where(r => yearFilter == null || r.Year == yearFilter)
+            .Where(r => canSeeFilter == null || r.CanSeeTeamCalendar == canSeeFilter)
+            .Where(r => canSaveWorkFilter == null || r.CanSaveWorkCalendar == canSaveWorkFilter)
+            .Where(r => canSaveTeamFilter == null || r.CanSaveTeamCalendar == canSaveTeamFilter)
+            .OrderBy(r => r.Team)
+            .ThenBy(r => r.Speciality)
+            .ThenBy(r => r.Year ?? int.MaxValue);
+
+    private Task ResetFilters()
+    {
+        teamFilter = null;
+        specialityFilter = null;
+        yearFilter = null;
+        canSeeFilter = null;
+        canSaveWorkFilter = null;
+        canSaveTeamFilter = null;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    // Create
+    private void StartCreate()
+    {
+        if (IsEditing) return;
+
+        editingTarget = null;
+        editingModel = new CalendarAccessRuleDTO
+        {
+            Team = teamFilter ?? (teams.FirstOrDefault() ?? string.Empty),
+            Speciality = specialityFilter ?? (specialities.FirstOrDefault() ?? string.Empty),
+            Year = yearFilter,
+            CanSeeTeamCalendar = false,
+            CanSaveWorkCalendar = false,
+            CanSaveTeamCalendar = false
+        };
+    }
+
+    // Edit
+    private void StartEdit(CalendarAccessRuleDTO item)
+    {
+        if (IsEditing) return;
+
+        editingTarget = item;
+        editingModel = new CalendarAccessRuleDTO
+        {
+            Id = item.Id,
+            Team = item.Team,
+            Speciality = item.Speciality,
+            Year = item.Year,
+            CanSeeTeamCalendar = item.CanSeeTeamCalendar,
+            CanSaveWorkCalendar = item.CanSaveWorkCalendar,
+            CanSaveTeamCalendar = item.CanSaveTeamCalendar
+        };
+    }
+
+    private void CancelEdit()
+    {
+        editingModel = null;
+        editingTarget = null;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (editingModel is null) return;
+
+        isSaving = true;
+        try
+        {
+            if (editingTarget is null)
+            {
+                // Create
+                var resp = await Http.PostAsJsonAsync("api/access/calendar-rules", editingModel);
+                if (resp.IsSuccessStatusCode)
+                {
+                    // Option 1: Reload all (simplest, consistent)
+                    await LoadAsync();
+                    Notifications.Notify(new NotificationMessage { Severity = NotificationSeverity.Success, Summary = "Aangemaakt", Detail = "Regel aangemaakt" });
+                    CancelEdit();
+                }
+                else
+                {
+                    Notifications.Notify(new NotificationMessage { Severity = NotificationSeverity.Error, Summary = "Fout", Detail = "Aanmaken mislukt" });
+                }
+            }
+            else
+            {
+                // Update
+                var resp = await Http.PutAsJsonAsync($"api/access/calendar-rules/{editingModel.Id}", editingModel);
+                if (resp.IsSuccessStatusCode)
+                {
+                    // Apply changes locally
+                    editingTarget.Team = editingModel.Team;
+                    editingTarget.Speciality = editingModel.Speciality;
+                    editingTarget.Year = editingModel.Year;
+                    editingTarget.CanSeeTeamCalendar = editingModel.CanSeeTeamCalendar;
+                    editingTarget.CanSaveWorkCalendar = editingModel.CanSaveWorkCalendar;
+                    editingTarget.CanSaveTeamCalendar = editingModel.CanSaveTeamCalendar;
+
+                    Notifications.Notify(new NotificationMessage { Severity = NotificationSeverity.Success, Summary = "Bijgewerkt", Detail = "Regel bijgewerkt" });
+                    CancelEdit();
+                    StateHasChanged();
+                }
+                else
+                {
+                    Notifications.Notify(new NotificationMessage { Severity = NotificationSeverity.Error, Summary = "Fout", Detail = "Bijwerken mislukt" });
+                }
+            }
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task DeleteAsync(CalendarAccessRuleDTO item)
+    {
+        var resp = await Http.DeleteAsync($"api/access/calendar-rules/{item.Id}");
+        if (resp.IsSuccessStatusCode)
+        {
+            rules.Remove(item);
+            StateHasChanged();
+            Notifications.Notify(new NotificationMessage { Severity = NotificationSeverity.Success, Summary = "Verwijderd", Detail = "Regel verwijderd" });
+        }
+        else
+        {
+            Notifications.Notify(new NotificationMessage { Severity = NotificationSeverity.Error, Summary = "Fout", Detail = "Verwijderen mislukt" });
+        }
+    }
+}

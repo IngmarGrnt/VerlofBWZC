@@ -79,5 +79,19 @@ namespace VerlofBWZC.DataAccess.Extensions
                 .HasIndex(d => d.DrawNumber);
 
         }
+
+        public static void CalendarAccessRuleConfig(this ModelBuilder mb)
+        {
+            mb.Entity<CalendarAccessRule>()
+                .Property(c => c.Team)
+                .IsRequired();
+
+            mb.Entity<CalendarAccessRule>()
+                .Property(c => c.Speciality)
+                .IsRequired();
+
+            mb.Entity<CalendarAccessRule>()
+                .Property(c => c.Year);
+        }
     }
 }

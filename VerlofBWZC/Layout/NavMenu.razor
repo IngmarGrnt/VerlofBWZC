@@ -1,8 +1,13 @@
 ﻿@using Radzen
 @using Radzen.Blazor
 @using VerlofBWZC.Handler
+@using VerlofBWZC.DataContracts.DTO.Access
+@using System.Net.Http
+@using System.Net.Http.Headers
+@using System.Net.Http.Json
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
+@inject HttpClient Http
 @implements IDisposable
 
 @if (isLoggedIn)
@@ -21,8 +26,9 @@
                     <span class="menu-text">Werkkalender</span>
                 </NavLink>
             </div>
-@*             @if (userRole == "Admin" || userRole == "Manager" || (userRole=="User"&& viewDateBegin <= DateTime.Now && viewDateEnd >= DateTime.Now)) *@
-            @if (userRole == "Admin" || userRole == "Manager")
+
+            @* Toon Teamkalender als Admin/Manager of als permissie CanSeeTeamCalendar = true *@
+            @if ((userRole == "Admin" || userRole == "Manager") || canSeeTeamCalendar)
             {
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="TeamCalendar">
@@ -31,12 +37,19 @@
                     </NavLink>
                 </div>
             }
+
             @if (userRole == "Admin" || userRole == "Manager")
             {
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="Random-picker">
                         <i class="bi bi-dice-5-fill" aria-hidden="true"></i>
                         <span class="menu-text">Naam Loterij</span>
+                    </NavLink>
+                </div>                
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="ManagerPanel">
+                        <i class="bi bi-person-slash" aria-hidden="true"></i>
+                        <span class="menu-text">Manager Paneel</span>
                     </NavLink>
                 </div>
             }
@@ -65,11 +78,12 @@
 
 @code {
     private bool isLoggedIn;
-    string? userRole;
-    string? token;
+    private string? userRole;
+    private string? token;
     private string? userName;
-    private DateTime viewDateBegin = new DateTime(DateTime.Now.Year, 11, 23);
-    private DateTime viewDateEnd = new DateTime(DateTime.Now.Year, 12, 1);
+    private bool canSeeTeamCalendar; // permissie-flag uit ManagerPanel regels
+    private CalendarPermissionsDTO? _perms;
+
     protected override async Task OnInitializedAsync()
     {
         Navigation.LocationChanged += OnLocationChanged;
@@ -86,7 +100,46 @@
         token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
         isLoggedIn = !string.IsNullOrEmpty(token);
         userRole = JwtUtils.GetUserRolFromToken(token);
+
+        if (isLoggedIn)
+        {
+            await LoadPermissions(); // laad CanSeeTeamCalendar
+        }
+        else
+        {
+            _perms = null;
+            canSeeTeamCalendar = false;
+        }
+
         StateHasChanged();
+    }
+
+    private async Task LoadPermissions()
+    {
+        try
+        {
+            var year = DateTime.Now.AddYears(1).Year; // zelfde “open jaar” als in de kalenders
+            using var req = new HttpRequestMessage(HttpMethod.Get, $"api/access/calendar-permissions?year={year}");
+            if (!string.IsNullOrEmpty(token))
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+            var resp = await Http.SendAsync(req);
+            if (resp.IsSuccessStatusCode)
+            {
+                _perms = await resp.Content.ReadFromJsonAsync<CalendarPermissionsDTO>();
+                canSeeTeamCalendar = _perms?.CanSeeTeamCalendar ?? false;
+            }
+            else
+            {
+                _perms = null;
+                canSeeTeamCalendar = false;
+            }
+        }
+        catch
+        {
+            _perms = null;
+            canSeeTeamCalendar = false;
+        }
     }
 
     private async Task Logout()
@@ -94,6 +147,8 @@
         await JS.InvokeVoidAsync("localStorage.removeItem", "authToken");
         isLoggedIn = false;
         userName = null;
+        _perms = null;
+        canSeeTeamCalendar = false;
         StateHasChanged();
         Navigation.NavigateTo("/login", true);
     }

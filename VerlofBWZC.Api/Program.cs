@@ -1,14 +1,12 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Builder;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using System;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
+using Microsoft.OpenApi.Models;
 using System.Text;
 using VerlofBWZC.Api.Extensions;
 using VerlofBWZC.Api.Helpers;
-using VerlofBWZC.DataAccess.Entities;
+using VerlofBWZC.Api.Services;
 
 //JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
 //JwtSecurityTokenHandler.DefaultOutboundClaimTypeMap.Clear();
@@ -30,6 +28,8 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddAutoMapperConfiguration();
 builder.Services.AddDbContext<VerlofBWZC_DbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+builder.Services.AddScoped<CalendarAccessService>();
+
 
 // Use allowed origins from configuration
 builder.Services.AddCors(options =>
@@ -41,6 +41,35 @@ builder.Services.AddCors(options =>
               .AllowAnyMethod();
     });
 });
+
+// Swagger + JWT Bearer auth in Swagger
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new OpenApiInfo { Title = "VerlofBWZC API", Version = "v1" });
+
+    var securityScheme = new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Description = "Bearer token invoeren. Voorbeeld: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        Reference = new OpenApiReference
+        {
+            Type = ReferenceType.SecurityScheme,
+            Id = "Bearer"
+        }
+    };
+
+    options.AddSecurityDefinition("Bearer", securityScheme);
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        { securityScheme, Array.Empty<string>() }
+    });
+});
+
+
 
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -62,6 +91,10 @@ builder.Services.AddScoped<CalendarHelper>();
 
 var app = builder.Build();
 
+
+
+
+
 // Log de environment en DB-connection en voer migraties uit (optioneel)
 using (var scope = app.Services.CreateScope())
 {
@@ -75,16 +108,17 @@ using (var scope = app.Services.CreateScope())
 
 app.UseCors();
 //Configure Swagger middleware
-if (!app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment())
 {
+    app.UseDeveloperExceptionPage();
     app.UseSwagger();
-app.UseSwaggerUI();
+    app.UseSwaggerUI();
 }
 
-
+app.UseHttpsRedirection();
 
 app.UseCors();
-app.UseHttpsRedirection();
+
 
 app.UseAuthentication();
 app.UseAuthorization();

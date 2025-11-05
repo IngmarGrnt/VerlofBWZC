@@ -5,7 +5,7 @@
 namespace VerlofBWZC.DataAccess.Migrations
 {
     /// <inheritdoc />
-    public partial class dbmigration : Migration
+    public partial class Db : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)

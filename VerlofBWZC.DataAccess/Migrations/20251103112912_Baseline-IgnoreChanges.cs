@@ -5,7 +5,7 @@
 namespace VerlofBWZC.DataAccess.Migrations
 {
     /// <inheritdoc />
-    public partial class Lottery : Migration
+    public partial class BaselineIgnoreChanges : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)

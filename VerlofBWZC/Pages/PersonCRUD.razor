@@ -3,8 +3,10 @@
 @using Radzen.Blazor
 @using System.Text.Json
 @using System.Linq.Expressions
+@using System.Net.Http.Json
 @using VerlofBWZC.DataContracts.DTO
 @using VerlofBWZC.Services
+@inject HttpClient Http
 @inject PersonApiService PersonApi
 @inject NotificationService NotificationService
 @inject DialogService DialogService
@@ -21,86 +23,106 @@
                     class="responsive-datagrid">
         <Columns>
             <RadzenDataGridColumn TItem="PersonBaseDTO" Property="FirstName" Title="Voornaam">
-            <EditTemplate Context="person">
-                <RadzenTextBox @bind-Value="person.FirstName" Style="width:100%" Name="FirstName" />
-            </EditTemplate>
-        </RadzenDataGridColumn>
-        <RadzenDataGridColumn TItem="PersonBaseDTO" Property="LastName" Title="Achternaam">
-            <EditTemplate Context="person">
-                <RadzenTextBox @bind-Value="person.LastName" Style="width:100%" Name="LastName" />
-            </EditTemplate>
-        </RadzenDataGridColumn>
-        <RadzenDataGridColumn TItem="PersonBaseDTO" Property="Email" Title="Email">
-            <EditTemplate Context="person">
-                <RadzenTextBox @bind-Value="person.Email" Style="width:100%" Name="Email" />
-            </EditTemplate>
-        </RadzenDataGridColumn>
-        <RadzenDataGridColumn TItem="PersonBaseDTO" Property="Team" Title="Team">
-            <EditTemplate Context="person">
-                <RadzenDropDown @bind-Value="person.Team"
-                                Data="@TeamOptions"
-                                TextProperty="Text"
-                                ValueProperty="Value"
-                                Name="Team"
-                                Style="width:100%" />
-            </EditTemplate>
-        </RadzenDataGridColumn>
-        <RadzenDataGridColumn TItem="PersonBaseDTO" Property="Speciality" Title="Specialiteit">
-            <EditTemplate Context="person">
-                <RadzenDropDown @bind-Value="person.Speciality"
-                                Data="@SpecialityOptions"
-                                TextProperty="Text"
-                                ValueProperty="Value"
-                                Name="Speciality"
-                                Style="width:100%" />
-            </EditTemplate>
-        </RadzenDataGridColumn>
-        <RadzenDataGridColumn TItem="PersonBaseDTO" Property="Grade" Title="Graad">
-            <EditTemplate Context="person">
-                <RadzenDropDown @bind-Value="person.Grade"
-                                Data="@GradeOptions"
-                                TextProperty="Text"
-                                ValueProperty="Value"
-                                Name="Grade"
-                                Style="width:100%" />
-            </EditTemplate>
-        </RadzenDataGridColumn>
-        <RadzenDataGridColumn TItem="PersonBaseDTO" Property="Role" Title="Rol">
-            <EditTemplate Context="person">
-                <RadzenDropDown @bind-Value="person.Role"
-                                Data="@RoleOptions"
-                                TextProperty="Text"
-                                ValueProperty="Value"
-                                Name="Role"
-                                Style="width:100%" />
-            </EditTemplate>
-        </RadzenDataGridColumn>
-        <RadzenDataGridColumn TItem="PersonBaseDTO" Context="person">
-            <Template Context="person">
-                <RadzenButton Icon="edit" Click="@(() => EditRow(person))" Style="margin-right: 5px" />
-                <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Click="@(() => DeletePerson(person))" Style="margin-right: 5px" />
-                <RadzenButton Icon="lock" ButtonStyle="ButtonStyle.Info" Click="@(() => OpenPasswordDialog(person))" />
-            </Template>
-            <EditTemplate Context="person">
-                <RadzenButton Icon="save" ButtonStyle="ButtonStyle.Primary" Click="@(() => SaveRow(person))" Style="margin-right: 5px" />
-                <RadzenButton Icon="cancel" ButtonStyle="ButtonStyle.Light" Click="@(() => CancelEdit(person))" />
-            </EditTemplate>
-        </RadzenDataGridColumn>
+                <EditTemplate Context="person">
+                    <RadzenTextBox @bind-Value="person.FirstName" Style="width:100%" Name="FirstName" />
+                </EditTemplate>
+            </RadzenDataGridColumn>
 
+            <RadzenDataGridColumn TItem="PersonBaseDTO" Property="LastName" Title="Achternaam">
+                <EditTemplate Context="person">
+                    <RadzenTextBox @bind-Value="person.LastName" Style="width:100%" Name="LastName" />
+                </EditTemplate>
+            </RadzenDataGridColumn>
 
-    </Columns>
-</RadzenDataGrid>
+            <RadzenDataGridColumn TItem="PersonBaseDTO" Property="Email" Title="Email">
+                <EditTemplate Context="person">
+                    <RadzenTextBox @bind-Value="person.Email" Style="width:100%" Name="Email" />
+                </EditTemplate>
+            </RadzenDataGridColumn>
+
+            <RadzenDataGridColumn TItem="PersonBaseDTO" Property="Team" Title="Team">
+                <Template Context="person">@person.Team</Template>
+                <EditTemplate Context="person">
+                    <RadzenDropDown Data="@TeamOptions"
+                                    @bind-Value="person.Team"
+                                    AllowFiltering="true"
+                                    FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
+                                    Style="width:100%" />
+                </EditTemplate>
+            </RadzenDataGridColumn>
+
+            <RadzenDataGridColumn TItem="PersonBaseDTO" Property="Speciality" Title="Specialiteit">
+                <Template Context="person">@person.Speciality</Template>
+                <EditTemplate Context="person">
+                    <RadzenDropDown Data="@SpecialityOptions"
+                                    @bind-Value="person.Speciality"
+                                    AllowFiltering="true"
+                                    FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
+                                    Style="width:100%" />
+                </EditTemplate>
+            </RadzenDataGridColumn>
+
+            <RadzenDataGridColumn TItem="PersonBaseDTO" Property="Grade" Title="Graad">
+                <Template Context="person">@person.Grade</Template>
+                <EditTemplate Context="person">
+                    <RadzenDropDown Data="@GradeOptions"
+                                    @bind-Value="person.Grade"
+                                    AllowFiltering="true"
+                                    FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
+                                    Style="width:100%" />
+                </EditTemplate>
+            </RadzenDataGridColumn>
+
+            <RadzenDataGridColumn TItem="PersonBaseDTO" Property="Role" Title="Rol">
+                <Template Context="person">@person.Role</Template>
+                <EditTemplate Context="person">
+                    <RadzenDropDown Data="@RoleOptions"
+                                    @bind-Value="person.Role"
+                                    AllowFiltering="true"
+                                    FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
+                                    Style="width:100%" />
+                </EditTemplate>
+            </RadzenDataGridColumn>
+
+            <RadzenDataGridColumn TItem="PersonBaseDTO" Context="person">
+                <Template Context="person">
+                    <RadzenButton Icon="edit" Click="@(() => EditRow(person))" Style="margin-right: 5px" />
+                    <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Click="@(() => DeletePerson(person))" Style="margin-right: 5px" />
+                    <RadzenButton Icon="lock" ButtonStyle="ButtonStyle.Info" Click="@(() => OpenPasswordDialog(person))" />
+                </Template>
+                <EditTemplate Context="person">
+                    <RadzenButton Icon="save" ButtonStyle="ButtonStyle.Primary" Click="@(() => SaveRow(person))" Style="margin-right: 5px" />
+                    <RadzenButton Icon="cancel" ButtonStyle="ButtonStyle.Light" Click="@(() => CancelEdit(person))" />
+                </EditTemplate>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
 </div>
-<RadzenDialog />
+
 
 @code {
     private List<PersonBaseDTO> persons = new();
     private PersonBaseDTO newPerson = new();
     private RadzenDataGrid<PersonBaseDTO> grid;
 
+    // Opties vanuit MetaController
+    private List<string> TeamOptions = new();
+    private List<string> SpecialityOptions = new();
+    private List<string> GradeOptions = new();
+    private List<string> RoleOptions = new();
+
     protected override async Task OnInitializedAsync()
     {
+        await LoadMetaAsync();
         await LoadPersons();
+    }
+
+    private async Task LoadMetaAsync()
+    {
+        TeamOptions = await Http.GetFromJsonAsync<List<string>>("api/meta/teams") ?? new();
+        SpecialityOptions = await Http.GetFromJsonAsync<List<string>>("api/meta/specialities") ?? new();
+        GradeOptions = await Http.GetFromJsonAsync<List<string>>("api/meta/grades") ?? new();
+        RoleOptions = await Http.GetFromJsonAsync<List<string>>("api/meta/roles") ?? new();
     }
 
     private async Task LoadPersons()
@@ -111,7 +133,13 @@
 
     private async Task AddPerson()
     {
-        newPerson = new PersonBaseDTO();
+        newPerson = new PersonBaseDTO
+        {
+            Team = TeamOptions.FirstOrDefault() ?? "",
+            Speciality = SpecialityOptions.FirstOrDefault() ?? "",
+            Grade = GradeOptions.FirstOrDefault() ?? "",
+            Role = RoleOptions.FirstOrDefault() ?? ""
+        };
         await grid.InsertRow(newPerson);
     }
 
@@ -128,17 +156,14 @@
             {
                 FirstName = person.FirstName,
                 LastName = person.LastName,
-                Email = person.Email, // <-- Zorg dat dit niet leeg is!
+                Email = person.Email,
                 Team = person.Team,
                 Speciality = person.Speciality,
                 Grade = person.Grade,
                 Role = person.Role,
                 Password = "Root1234",
-
-
-
             };
-            Console.WriteLine(JsonSerializer.Serialize(createDto)); ;
+            Console.WriteLine(JsonSerializer.Serialize(createDto));
             await PersonApi.CreatePersonAsync(createDto);
             NotificationService.Notify(NotificationSeverity.Success, "Toegevoegd", "Persoon succesvol toegevoegd");
         }
@@ -153,8 +178,6 @@
                 Speciality = person.Speciality,
                 Grade = person.Grade,
                 Role = person.Role,
-
-
             };
             await PersonApi.UpdatePersonAsync(person.Id, updateDto);
             NotificationService.Notify(NotificationSeverity.Success, "Aangepast", "Persoon succesvol aangepast");
@@ -183,63 +206,18 @@
         }
     }
 
-    // Vaste lijsten voor dropdowns (int = enum waarde, string = label)
-    private List<object> TeamOptions = new()
-    {
-        new { Value = "0", Text = "Ploeg0" },
-        new { Value = "1", Text = "Ploeg1" },
-        new { Value = "2", Text = "Ploeg2" },
-        new { Value = "3", Text = "Ploeg3" },
-        new { Value = "4", Text = "Ploeg4" }
-    };
-
-    private List<object> SpecialityOptions = new()
-    {
-        new { Value = "0", Text = "IGS" },
-        new { Value = "1", Text = "RedTeam" },
-        new { Value = "2", Text = "Chauffeur" },
-        new { Value = "3", Text = "RVD" },
-        new { Value = "4", Text = "Duiker" },
-        new { Value = "5", Text = "Onderofficieren" },
-        new { Value = "6", Text = "Officieren" },
-        new { Value = "7", Text = "Dispatching" }
-    };
-
-    private List<object> GradeOptions = new()
-    {
-        new { Value = "0", Text = "Brandweerman" },
-        new { Value = "1", Text = "Korporaal" },
-        new { Value = "2", Text = "Sergeant" },
-        new { Value = "3", Text = "Adjudant" },
-        new { Value = "4", Text = "Luitenant" },
-        new { Value = "5", Text = "Kapitein" },
-        new { Value = "6", Text = "Majoor" },
-        new { Value = "7", Text = "Kolonenl" }
-    };
-
-    private List<object> RoleOptions = new()
-    {
-        new { Value = "0", Text = "Admin" },
-        new { Value = "1", Text = "User" },
-        new { Value = "2", Text = "Manager" }
-    };
-
-    private string newPassword = "";
-    private PersonBaseDTO? selectedPersonForPassword = null;
-
     private async Task OpenPasswordDialog(PersonBaseDTO person)
     {
         await DialogService.OpenAsync<ChangePasswordDialog>(
             "Wachtwoord wijzigen",
             new Dictionary<string, object>
             {
-            { "Person", person },
-            { "OnPasswordChanged", EventCallback.Factory.Create<string>(this, async (newPassword) => await ChangePassword(person, newPassword)) }
-            },
-            new DialogOptions() { Width = "400px", Height = "200px" }
+                { "Person", person },
+                { "OnPasswordChanged", EventCallback.Factory.Create<string>(this, async (newPassword) => await ChangePassword(person, newPassword)) }
+            }
+            
         );
     }
-
 
     private async Task ChangePassword(PersonBaseDTO person, string newPassword)
     {

@@ -1,10 +1,12 @@
 ﻿@using System.Globalization
 @using Radzen
 @using Radzen.Blazor
+@using System.Net.Http.Headers
 @using VerlofBWZC.DataContracts
 @using VerlofBWZC.DataContracts.DTO
 @using VerlofBWZC.DataContracts.DTO.Calendar
 @using VerlofBWZC.DataContracts.DTO.Holiday
+@using VerlofBWZC.DataContracts.DTO.Access
 @using VerlofBWZC.Handler
 @using VerlofBWZC.Services
 
@@ -24,7 +26,7 @@
 else
 {
     <div class="workcalendar-header">
-        @if (SelectedYear == CurrentDayOffYear)
+        @if (CanSaveWork)
         {
             <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem" Wrap="FlexWrap.Wrap">
                 <RadzenButton Text="Opslaan" ButtonStyle="ButtonStyle.Success" Click="@SaveSelectedDays" />
@@ -121,10 +123,14 @@ else
 
 
 @code {
-     private List<DayOffDTO> personDaysOff = new();
+    private List<DayOffDTO> personDaysOff = new();
     private List<MonthGroup> monthGroups = new();
     private List<WorkDay> selectedDays = new();
 
+    // Permissions from ManagerPanel rules
+    private CalendarPermissionsDTO? _perms;
+    // private bool CanSaveWork => SelectedYear == CurrentDayOffYear && (_perms?.CanSaveWorkCalendar ?? true);
+    private bool CanSaveWork => (_perms?.CanSaveWorkCalendar ?? true);
 
     string userId;
     private int SelectedYear { get; set; } = DateTime.Now.Year+1;
@@ -143,16 +149,57 @@ else
         var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
         userId = JwtUtils.GetUserIdFromToken(token);
 
+        // Permissions ophalen op basis van claims (team/speciality) en huidig jaar
+        await LoadPermissions();
 
         await LoadHolidaysAndVacations();
-       // Verlofdagen ophalen
+        // Verlofdagen ophalen
         await GetDaysOff();
 
         //Jarenlijst vullen
         int startYear = DateTime.Now.Year-1;
         int endYear = DateTime.Now.Year + 10;
         Years = Enumerable.Range(startYear, endYear - startYear + 1).Reverse().ToList();
+    }
 
+    private async Task LoadPermissions()
+    {
+        try
+        {
+            var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
+
+            using var req = new HttpRequestMessage(HttpMethod.Get, $"api/access/calendar-permissions?year={SelectedYear}");
+            if (!string.IsNullOrEmpty(token))
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+            var resp = await Http.SendAsync(req);
+            if (resp.IsSuccessStatusCode)
+            {
+                _perms = await resp.Content.ReadFromJsonAsync<CalendarPermissionsDTO>();
+            }
+            else
+            {
+                _perms = null;
+                NotificationService.Notify(new NotificationMessage
+                {
+                    Severity = NotificationSeverity.Warning,
+                    Summary = "Permissies",
+                    Detail = $"Permissies laden mislukt ({(int)resp.StatusCode}).",
+                    Duration = 4000
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            _perms = null;
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Error,
+                Summary = "Permissies",
+                Detail = ex.Message,
+                Duration = 4000
+            });
+        }
     }
 
     private async Task GetDaysOff()
@@ -183,8 +230,6 @@ else
         SchoolHolidays = await Http.GetFromJsonAsync<List<SchoolHolidayDTO>>($"api/holidays/school/{SelectedYear}") ?? new();
     }
 
-
-
     private async Task OnYearChanged(object value)
     {
         if (value is int year)
@@ -193,6 +238,7 @@ else
             await LoadWorkDays();
             await GetDaysOff();
             await LoadHolidaysAndVacations();
+            await LoadPermissions();
             StateHasChanged();
         }
     }
@@ -211,17 +257,14 @@ else
             .ToList();
     }
 
-
     private void OnDayClicked(WorkDay day)
     {
-
         var existing = selectedDays.FirstOrDefault(d => d.Date == day.Date && d.Shift == day.Shift);
         if (existing == null)
             selectedDays.Add(day);
         else
             selectedDays.Remove(existing);
     }
-
 
     private async Task SaveSelectedDays()
     {
@@ -254,7 +297,6 @@ else
             });
         }
     }
-
 
     private class HolidayGridRow
     {

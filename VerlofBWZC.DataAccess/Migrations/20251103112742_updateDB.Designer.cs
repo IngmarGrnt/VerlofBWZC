@@ -11,8 +11,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace VerlofBWZC.DataAccess.Migrations
 {
     [DbContext(typeof(VerlofBWZC_DbContext))]
-    [Migration("20251023182619_Lottery")]
-    partial class Lottery
+    [Migration("20251103112742_updateDB")]
+    partial class updateDB
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -23,6 +23,43 @@ namespace VerlofBWZC.DataAccess.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
+
+            modelBuilder.Entity("VerlofBWZC.DataAccess.Entities.CalendarAccessRule", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("CanSaveTeamCalendar")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("CanSaveWorkCalendar")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("CanSeeTeamCalendar")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("LastUpdate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Speciality")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Team")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("Year")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("CalendarAccessRule");
+                });
 
             modelBuilder.Entity("VerlofBWZC.DataAccess.Entities.DayOff", b =>
                 {
