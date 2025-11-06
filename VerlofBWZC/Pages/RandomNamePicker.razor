@@ -157,7 +157,7 @@ else
             </div>
         }
     }
-    <RadzenDialog />
+    @* <RadzenDialog /> *@
     <RadzenNotification />
 }
 
@@ -183,6 +183,7 @@ else
             AllDraws
                 .Where(d => d.FromDate.Year == SelectedYear || d.ToDate.Year == SelectedYear)
                 .Count(d => d.Rows.Any(r => PersonMatchesFilters(r.PersonId))) + 1;
+
     // Selection
     private List<PersonBaseDTO> SelectedAvailable = new();
     private List<PersonBaseDTO> SelectedParticipants = new();
@@ -211,19 +212,21 @@ else
     private DateTime? SelectedFrom { get; set; }
     private DateTime? SelectedTo { get; set; }
 
-    // Team/Speciality
+    // Meta options (loaded from API)
+    private List<string> TeamOptions = new();
+    private List<string> SpecialityOptions = new();
+    private List<string> GradeOptions = new();
+    private List<string> RoleOptions = new();
+
+    // Team/Speciality (selected)
     private string? SelectedTeam { get; set; }
     private string? SelectedSpeciality { get; set; }
 
     private string DisplayTeam =>
-        string.IsNullOrWhiteSpace(SelectedTeam)
-            ? "Onbekend"
-            : (SelectedTeam.StartsWith("Ploeg", StringComparison.OrdinalIgnoreCase) ? SelectedTeam : TeamLabel(SelectedTeam));
+        string.IsNullOrWhiteSpace(SelectedTeam) ? "Onbekend" : SelectedTeam;
 
     private string DisplaySpeciality =>
-        string.IsNullOrWhiteSpace(SelectedSpeciality)
-            ? "Onbekend"
-            : (char.IsDigit(SelectedSpeciality[0]) ? SpecialityLabel(SelectedSpeciality) : SelectedSpeciality);
+        string.IsNullOrWhiteSpace(SelectedSpeciality) ? "Onbekend" : SelectedSpeciality;
 
     // Workdays
     private List<WorkDay> TeamWorkDays = new();
@@ -232,14 +235,17 @@ else
     {
         InitRangeToMonth(SelectedYear, SelectedMonth);
 
+        // Load meta for normalization/mapping
+        await LoadMetaAsync();
+
         // Resolve team/specialiteit van ingelogde user
         var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
         var userId = JwtUtils.GetUserIdFromToken(token);
         if (int.TryParse(userId, out var id))
         {
             var person = await PersonApi.GetPersonByIdAsync(id);
-            SelectedTeam = person?.Team;
-            SelectedSpeciality = person?.Speciality;
+            SelectedTeam = NormalizeTeam(person?.Team);
+            SelectedSpeciality = NormalizeSpeciality(person?.Speciality);
         }
 
         // Personen voor dit team/specialiteit
@@ -252,10 +258,14 @@ else
         {
             AllPersons = await PersonApi.GetAllPersonsAsync();
         }
+
+        // Normalize people so filtering and UI show labels instead of numeric codes
+        NormalizePeople(AllPersons);
         ApplyFilters();
 
         // Index met ALLE personen (nodig om team/speciality per DrawRow op te zoeken)
         var allForIndex = await PersonApi.GetAllPersonsAsync();
+        NormalizePeople(allForIndex);
         PersonIndex = (allForIndex ?? new()).ToDictionary(p => p.Id);
 
         await LoadTeamWorkDays();
@@ -265,6 +275,53 @@ else
         await LoadExistingDraws();
 
         isLoading = false;
+    }
+
+    private async Task LoadMetaAsync()
+    {
+        try
+        {
+            TeamOptions = await Http.GetFromJsonAsync<List<string>>("api/meta/teams") ?? new();
+            SpecialityOptions = await Http.GetFromJsonAsync<List<string>>("api/meta/specialities") ?? new();
+            GradeOptions = await Http.GetFromJsonAsync<List<string>>("api/meta/grades") ?? new();
+            RoleOptions = await Http.GetFromJsonAsync<List<string>>("api/meta/roles") ?? new();
+        }
+        catch
+        {
+            TeamOptions ??= new();
+            SpecialityOptions ??= new();
+            GradeOptions ??= new();
+            RoleOptions ??= new();
+        }
+    }
+
+    private static bool IsDigits(string? s) => !string.IsNullOrWhiteSpace(s) && s.All(char.IsDigit);
+
+    private string NormalizeTeam(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "";
+        if (value.StartsWith("Ploeg", StringComparison.OrdinalIgnoreCase)) return value;
+        if (IsDigits(value) && int.TryParse(value, out var idx) && idx >= 0 && idx < TeamOptions.Count)
+            return TeamOptions[idx];
+        return value;
+    }
+
+    private string NormalizeSpeciality(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "";
+        if (IsDigits(value) && int.TryParse(value, out var idx) && idx >= 0 && idx < SpecialityOptions.Count)
+            return SpecialityOptions[idx];
+        return value;
+    }
+
+    private void NormalizePeople(List<PersonBaseDTO>? people)
+    {
+        if (people == null) return;
+        foreach (var p in people)
+        {
+            p.Team = NormalizeTeam(p.Team);
+            p.Speciality = NormalizeSpeciality(p.Speciality);
+        }
     }
 
     private bool PersonMatchesFilters(int personId)
@@ -279,7 +336,7 @@ else
 
         return true;
     }
-  
+
     // Alleen lotingen tonen van het geselecteerde jaar én gefilterd op team/specialiteit
     private IEnumerable<DrawView> FilteredDraws =>
         AllDraws
@@ -662,31 +719,6 @@ else
             NotificationService.Notify(NotificationSeverity.Error, "Fout netwerk", ex.Message);
         }
     }
-
-    private static string TeamLabel(string? value)
-        => value switch
-        {
-            "0" => "Ploeg0",
-            "1" => "Ploeg1",
-            "2" => "Ploeg2",
-            "3" => "Ploeg3",
-            "4" => "Ploeg4",
-            _ => "Onbekend"
-        };
-
-    private static string SpecialityLabel(string? value)
-        => value switch
-        {
-            "0" => "IGS",
-            "1" => "RedTeam",
-            "2" => "Chauffeur",
-            "3" => "RVD",
-            "4" => "Duiker",
-            "5" => "Onderofficieren",
-            "6" => "Officieren",
-            "7" => "Dispatching",
-            _ => "Onbekend"
-        };
 
     // Winners count input
     private int WinnersCount { get; set; } = 1;

@@ -17,30 +17,47 @@
 
 <div class="responsive-datagrid-container">
     <RadzenDataGrid TItem="PersonBaseDTO" Data="@persons" @ref="grid"
-                    AllowFiltering="true" AllowPaging="true" AllowSorting="true" PageSize="10"
+                    AllowFiltering="true"
+                    FilterMode="FilterMode.Simple"
+                    AllowSorting="true"
+                    AllowMultiColumnSorting="true"
+                    PageSize="10"
                     EditMode="DataGridEditMode.Single"
                     AllowColumnResize="true"
                     class="responsive-datagrid">
         <Columns>
-            <RadzenDataGridColumn TItem="PersonBaseDTO" Property="FirstName" Title="Voornaam">
+            <RadzenDataGridColumn TItem="PersonBaseDTO" Property="FirstName" Title="Voornaam"
+                                  FilterOperator="FilterOperator.Contains">
                 <EditTemplate Context="person">
                     <RadzenTextBox @bind-Value="person.FirstName" Style="width:100%" Name="FirstName" />
                 </EditTemplate>
             </RadzenDataGridColumn>
 
-            <RadzenDataGridColumn TItem="PersonBaseDTO" Property="LastName" Title="Achternaam">
+            <RadzenDataGridColumn TItem="PersonBaseDTO" Property="LastName" Title="Achternaam"
+                                  FilterOperator="FilterOperator.Contains">
                 <EditTemplate Context="person">
                     <RadzenTextBox @bind-Value="person.LastName" Style="width:100%" Name="LastName" />
                 </EditTemplate>
             </RadzenDataGridColumn>
 
-            <RadzenDataGridColumn TItem="PersonBaseDTO" Property="Email" Title="Email">
+            <RadzenDataGridColumn TItem="PersonBaseDTO" Property="Email" Title="Email"
+                                  FilterOperator="FilterOperator.Contains">
                 <EditTemplate Context="person">
                     <RadzenTextBox @bind-Value="person.Email" Style="width:100%" Name="Email" />
                 </EditTemplate>
             </RadzenDataGridColumn>
 
-            <RadzenDataGridColumn TItem="PersonBaseDTO" Property="Team" Title="Team">
+            <RadzenDataGridColumn TItem="PersonBaseDTO" Property="Team" Title="Team"
+                                  FilterValue="@filterTeam" FilterOperator="FilterOperator.Equals">
+                <FilterTemplate>
+                    <RadzenDropDown Data="@TeamOptions"
+                                    @bind-Value="@filterTeam"
+                                    AllowClear="true"
+                                    AllowFiltering="true"
+                                    Placeholder="Alle teams"
+                                    Style="width:100%"
+                                    Change="@(args => grid.Reload())" />
+                </FilterTemplate>
                 <Template Context="person">@person.Team</Template>
                 <EditTemplate Context="person">
                     <RadzenDropDown Data="@TeamOptions"
@@ -51,7 +68,17 @@
                 </EditTemplate>
             </RadzenDataGridColumn>
 
-            <RadzenDataGridColumn TItem="PersonBaseDTO" Property="Speciality" Title="Specialiteit">
+            <RadzenDataGridColumn TItem="PersonBaseDTO" Property="Speciality" Title="Specialiteit"
+                                  FilterValue="@filterSpeciality" FilterOperator="FilterOperator.Equals">
+                <FilterTemplate>
+                    <RadzenDropDown Data="@SpecialityOptions"
+                                    @bind-Value="@filterSpeciality"
+                                    AllowClear="true"
+                                    AllowFiltering="true"
+                                    Placeholder="Alle specialiteiten"
+                                    Style="width:100%"
+                                    Change="@(args => grid.Reload())" />
+                </FilterTemplate>
                 <Template Context="person">@person.Speciality</Template>
                 <EditTemplate Context="person">
                     <RadzenDropDown Data="@SpecialityOptions"
@@ -62,7 +89,17 @@
                 </EditTemplate>
             </RadzenDataGridColumn>
 
-            <RadzenDataGridColumn TItem="PersonBaseDTO" Property="Grade" Title="Graad">
+            <RadzenDataGridColumn TItem="PersonBaseDTO" Property="Grade" Title="Graad"
+                                  FilterValue="@filterGrade" FilterOperator="FilterOperator.Equals">
+                <FilterTemplate>
+                    <RadzenDropDown Data="@GradeOptions"
+                                    @bind-Value="@filterGrade"
+                                    AllowClear="true"
+                                    AllowFiltering="true"
+                                    Placeholder="Alle graden"
+                                    Style="width:100%"
+                                    Change="@(args => grid.Reload())" />
+                </FilterTemplate>
                 <Template Context="person">@person.Grade</Template>
                 <EditTemplate Context="person">
                     <RadzenDropDown Data="@GradeOptions"
@@ -73,7 +110,17 @@
                 </EditTemplate>
             </RadzenDataGridColumn>
 
-            <RadzenDataGridColumn TItem="PersonBaseDTO" Property="Role" Title="Rol">
+            <RadzenDataGridColumn TItem="PersonBaseDTO" Property="Role" Title="Rol"
+                                  FilterValue="@filterRole" FilterOperator="FilterOperator.Equals">
+                <FilterTemplate>
+                    <RadzenDropDown Data="@RoleOptions"
+                                    @bind-Value="@filterRole"
+                                    AllowClear="true"
+                                    AllowFiltering="true"
+                                    Placeholder="Alle rollen"
+                                    Style="width:100%"
+                                    Change="@(args => grid.Reload())" />
+                </FilterTemplate>
                 <Template Context="person">@person.Role</Template>
                 <EditTemplate Context="person">
                     <RadzenDropDown Data="@RoleOptions"
@@ -105,11 +152,15 @@
     private PersonBaseDTO newPerson = new();
     private RadzenDataGrid<PersonBaseDTO> grid;
 
-    // Opties vanuit MetaController
     private List<string> TeamOptions = new();
     private List<string> SpecialityOptions = new();
     private List<string> GradeOptions = new();
     private List<string> RoleOptions = new();
+
+    private string? filterTeam;
+    private string? filterSpeciality;
+    private string? filterGrade;
+    private string? filterRole;
 
     protected override async Task OnInitializedAsync()
     {
@@ -215,7 +266,6 @@
                 { "Person", person },
                 { "OnPasswordChanged", EventCallback.Factory.Create<string>(this, async (newPassword) => await ChangePassword(person, newPassword)) }
             }
-            
         );
     }
 

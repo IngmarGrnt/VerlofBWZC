@@ -23,7 +23,7 @@
     <link href="_content/Radzen.Blazor/css/humanistic.css" rel="stylesheet" />
 
     <!-- Place custom overrides last -->
-    <link rel="stylesheet" href="css/changePasswordDialog.css?v=3" />
+    <link rel="stylesheet" href="css/changePasswordDialog.css" />
 </head>
 
 <body>
@@ -46,6 +46,14 @@
     <script src="/_framework/aspnetcore-browser-refresh.js"></script>
     <script src="_content/Radzen.Blazor/Radzen.Blazor.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+
+    <!-- html2pdf (bundles html2canvas + jsPDF) -->
+    <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js" defer></script>
+    <!-- robust: ensure jsPDF global exists -->
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js" defer></script>
+    <!-- your helper -->
+    <script src="js/export.js" defer></script>
+
 </body>
 
 </html>

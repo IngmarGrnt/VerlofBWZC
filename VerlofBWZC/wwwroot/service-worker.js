@@ -13,3 +13,12 @@ self.addEventListener('fetch', () => { });
 
 //    // ... keep the rest of your existing asset caching strategy here ...
 //});
+//// Minimal, pass-through service worker (no caching)
+//self.addEventListener('install', () => self.skipWaiting());
+//self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
+
+//// Explicitly accept the event argument
+//self.addEventListener('fetch', (event) => {
+//    // No interception; let the browser handle requests
+//    // If you later add caching, use: event.respondWith(fetch(event.request));
+//});

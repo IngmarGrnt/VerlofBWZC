@@ -15,6 +15,8 @@
 @if (!MonthGroups.Any())
 {
     <h2><em>Loading...</em></h2>
+    return;
+
 }
 else
 {
@@ -36,6 +38,18 @@ else
                                 Style="width:200px"
                                 Change="OnYearChanged" />
             </RadzenStack>
+
+            <!-- Samenvatting rechts onderaan -->
+            <div class="rz-mt-2" style="display:flex; justify-content:flex-end; align-items:center; gap:.5rem;">
+                <span class="rz-text-secondary">Totaal werkdagen (jaar):</span>
+                <RadzenBadge Text="@YearTotalWorkDays.ToString()" BadgeStyle="BadgeStyle.Primary" Variant="Variant.Filled" />
+
+                <span class="rz-text-secondary" style="margin-left:1rem;">Quota per shift:</span>
+                <RadzenBadge Text="@DailyQuota.ToString()" BadgeStyle="BadgeStyle.Info" Variant="Variant.Filled" />
+
+                <span class="rz-text-secondary" style="margin-left:1rem;">Min. verlof per persoon:</span>
+                <RadzenBadge Text="@MinimumLeavePerPersonText" BadgeStyle="BadgeStyle.Success" Variant="Variant.Filled" />
+            </div>
 
             <!-- Right group -->
             <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
@@ -117,7 +131,7 @@ else
                                         <tr>
                                             <td style="text-align:center;vertical-align:top;">
                                                 <RadzenBadge Text="@GetSelectedDayCount(mc.member.Id).ToString()"
-                                                             BadgeStyle="BadgeStyle.Info"
+                                                             BadgeStyle="@GetMemberBadgeStyle(mc.member.Id)"
                                                              Variant="Variant.Filled"
                                                              Class="oval-badge header-badge" />
                                             </td>
@@ -167,7 +181,7 @@ else
             </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="MonthGroup" Title="Werkdagen" Width="120px">
                 <Template Context="mg">
-                    @mg.Days.Count
+                    @mg.Days.Count 
                 </Template>
             </RadzenDataGridColumn>
         </Columns>
@@ -212,6 +226,20 @@ else
     }
     //-------------------------------------------------------------
 
+    // Total workdays in the selected year (same unit as mg.Days.Count: date+shift rows)
+    private int YearTotalWorkDays => WorkDays?.Count ?? 0;
+
+
+
+    // Quota per dag (zelfde logica als in de cel-weergave)
+    private int DailyQuota => Math.Max(1, TeamMembers.Count / 4);
+
+    // Minimum verlof per persoon = totaal werkdagen * quota / aantal personen
+    private double MinimumLeavePerPerson => TeamMembers.Count == 0
+        ? 0
+        : (double)YearTotalWorkDays * DailyQuota / TeamMembers.Count;
+
+    private string MinimumLeavePerPersonText => MinimumLeavePerPerson.ToString("0.##");
     public class MonthGroup
     {
         public int Year { get; set; }
@@ -242,6 +270,19 @@ else
             await LoadTeamCalendar();
             StateHasChanged();
         }
+    }
+    private BadgeStyle GetMemberBadgeStyle(int personId)
+    {
+        var count = GetSelectedDayCount(personId);
+
+        // Hard cap threshold
+        if (count > 44) return BadgeStyle.Danger;   // red
+
+        // Over personal minimum leave
+        if (count > MinimumLeavePerPerson - 1) return BadgeStyle.Warning; // orange
+
+        // Default
+        return BadgeStyle.Info; // blue
     }
 
     private int GetSelectedDayCount(int personId)

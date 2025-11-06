@@ -9,7 +9,7 @@
 @using VerlofBWZC.DataContracts.DTO.Access
 @using VerlofBWZC.Handler
 @using VerlofBWZC.Services
-
+@using System.Text
 
 @page "/workcalendar"
 @inject HttpClient Http
@@ -37,6 +37,13 @@ else
                         Placeholder="Selecteer een jaar"
                         Style="width:200px;"
                         Change="OnYearChanged" />
+
+        <!-- Export actions -->
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+            <RadzenButton Text="Export PDF" ButtonStyle="ButtonStyle.Light" Click="@ExportToPdfAsync" />
+            <RadzenButton Text="Export .ics (Agenda)" ButtonStyle="ButtonStyle.Light" Click="@ExportIcsAsync" />
+        </RadzenStack>
+
         <div class="rz-button rz-button-info rz-border-radius-6 rz-shadow-6">
             <span style="color: white; font-size: 1.1rem;">
                 verlofdagen geselecteerd in @SelectedYear 
@@ -68,57 +75,59 @@ else
         </div>
     </div>
 
-    <RadzenDataGrid Data="@monthGroups" TItem="MonthGroup" ShowPagingSummary="false" ShowPagination="false" ShowColumnPicker="false">
-        <Columns>
-            <RadzenDataGridColumn TItem="MonthGroup" Property="MonthName" Title="Maand" Width="90px" />
-            <RadzenDataGridColumn TItem="MonthGroup" Title="Werkdagen">
-                <Template Context="data">
-                    <div style="display: flex; flex-wrap: wrap; gap: 6px; ">
-                        @foreach (var day in data.WorkDays)
-                        {
-                            var isSelected = selectedDays.Any(d => d.Date == day.Date && d.Shift == day.Shift);
-
-                            // Alleen als NIET geselecteerd: kleurklasse bepalen
-                            string holidayTypeClass = "";
-                            if (!isSelected)
+    <!-- Wrap the area we want to export to PDF -->
+    <div id="workcalendar-export">
+        <RadzenDataGrid Data="@monthGroups" TItem="MonthGroup" ShowPagingSummary="false" ShowPagination="false" ShowColumnPicker="false">
+            <Columns>
+                <RadzenDataGridColumn TItem="MonthGroup" Property="MonthName" Title="Maand" Width="90px" />
+                <RadzenDataGridColumn TItem="MonthGroup" Title="Werkdagen">
+                    <Template Context="data">
+                        <div style="display: flex; flex-wrap: wrap; gap: 6px; ">
+                            @foreach (var day in data.WorkDays)
                             {
-                                if (PublicHolidays.Any(h => h.StartDate.Date == day.Date.Date))
-                                    holidayTypeClass = "holiday-btn-feestdag";
-                                else if (SchoolHolidays.Any(h => h.StartDate.Date <= day.Date.Date && h.EndDate.Date >= day.Date.Date))
-                                    holidayTypeClass = "holiday-btn-vacation";
-                                else if (day.Date.DayOfWeek == DayOfWeek.Saturday || day.Date.DayOfWeek == DayOfWeek.Sunday)
-                                    holidayTypeClass = "holiday-btn-weekend";
+                                var isSelected = selectedDays.Any(d => d.Date == day.Date && d.Shift == day.Shift);
+
+                                // Alleen als NIET geselecteerd: kleurklasse bepalen
+                                string holidayTypeClass = "";
+                                if (!isSelected)
+                                {
+                                    if (PublicHolidays.Any(h => h.StartDate.Date == day.Date.Date))
+                                        holidayTypeClass = "holiday-btn-feestdag";
+                                    else if (SchoolHolidays.Any(h => h.StartDate.Date <= day.Date.Date && h.EndDate.Date >= day.Date.Date))
+                                        holidayTypeClass = "holiday-btn-vacation";
+                                    else if (day.Date.DayOfWeek == DayOfWeek.Saturday || day.Date.DayOfWeek == DayOfWeek.Sunday)
+                                        holidayTypeClass = "holiday-btn-weekend";
+                                }
+
+                                <RadzenButton Variant="@(isSelected? Variant.Filled: Variant.Outlined)"
+                                              ButtonStyle="@(isSelected ? ButtonStyle.Info : (day.Shift == "D" ? ButtonStyle.Primary : ButtonStyle.Secondary))"
+                                              Text="@($"{day.Shift} {day.Date:ddd} {day.Date:dd}")"
+                                              Click="@(args => OnDayClicked(day))"
+                                              Style="margin-bottom: 1px"
+                                              class="@($"{holidayTypeClass} workcalendar-day-btn")">
+                                </RadzenButton>
                             }
+                        </div>
+                    </Template>
+                </RadzenDataGridColumn>
+            </Columns>
+        </RadzenDataGrid>
 
-                            <RadzenButton Variant="@(isSelected? Variant.Filled: Variant.Outlined)"
-                                          ButtonStyle="@(isSelected
-                                                                          ? ButtonStyle.Info
-                                                                          : (day.Shift == "D" ? ButtonStyle.Primary : ButtonStyle.Secondary))"
-                                          Text="@($"{day.Shift} {day.Date:ddd} {day.Date:dd}")"
-                                          Click="@(args => OnDayClicked(day))"
-                                          Style="margin-bottom: 1px"
-                                          class="@($"{holidayTypeClass} workcalendar-day-btn")">
-                            </RadzenButton>
-                        }
-                    </div>
-                </Template>
-            </RadzenDataGridColumn>
-        </Columns>
-    </RadzenDataGrid>
-
-
-    <RadzenDataGrid Data="@(GetAllHolidaysForGrid())" 
-        TItem="HolidayGridRow" 
-        ShowPagingSummary="false" 
-        ShowPagination="false" 
-        Style="margin-top:2rem;" >
-   
-        <Columns>
-            <RadzenDataGridColumn TItem="HolidayGridRow" Property="DateText" Title="Datum" Width="220px"/>
-            <RadzenDataGridColumn TItem="HolidayGridRow" Property="Name" Title="Naam" Width="300px" />
-            <RadzenDataGridColumn TItem="HolidayGridRow" Property="Type" Title="Type" Width="140px" />
-        </Columns>
-    </RadzenDataGrid>
+        <!-- Holidays grid (hidden when exporting one-page) -->
+        <div id="holidays-grid">
+            <RadzenDataGrid Data="@(GetAllHolidaysForGrid())" 
+                            TItem="HolidayGridRow" 
+                            ShowPagingSummary="false" 
+                            ShowPagination="false" 
+                            Style="margin-top:2rem;">
+                <Columns>
+                    <RadzenDataGridColumn TItem="HolidayGridRow" Property="DateText" Title="Datum" Width="220px" />
+                    <RadzenDataGridColumn TItem="HolidayGridRow" Property="Name" Title="Naam" Width="300px" />
+                    <RadzenDataGridColumn TItem="HolidayGridRow" Property="Type" Title="Type" Width="140px" />
+                </Columns>
+            </RadzenDataGrid>
+        </div>
+    </div>
 }
 
 
@@ -148,6 +157,9 @@ else
         //Haal token op
         var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
         userId = JwtUtils.GetUserIdFromToken(token);
+
+        // Haal de weergavenaam op
+        await ResolvePersonNameAsync();
 
         // Permissions ophalen op basis van claims (team/speciality) en huidig jaar
         await LoadPermissions();
@@ -296,6 +308,132 @@ else
                 Duration = 2000
             });
         }
+    }
+
+    // Export the visible calendar + tables as PDF
+    private async Task<bool> EnsureExportJsAsync()
+    {
+        try
+        {
+            var ok = await JS.InvokeAsync<bool>("hasExportFns");
+            if (!ok)
+            {
+                NotificationService.Notify(new NotificationMessage
+                {
+                    Severity = NotificationSeverity.Warning,
+                    Summary = "Export",
+                    Detail = "Export scripts not loaded. Refresh the page (Ctrl+F5) and try again.",
+                    Duration = 3000
+                });
+            }
+            return ok;
+        }
+        catch
+        {
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Warning,
+                Summary = "Export",
+                Detail = "Export scripts unavailable. Refresh the page (Ctrl+F5) and try again.",
+                Duration = 3000
+            });
+            return false;
+        }
+    }
+
+    // Export the visible calendar + tables as PDF
+    private string? PersonName;
+
+    private async Task ExportToPdfAsync()
+    {
+        if (!await EnsureExportJsAsync()) return;
+
+        var displayName = string.IsNullOrWhiteSpace(PersonName) ? "Gebruiker" : PersonName;
+        var title = $"{displayName} - {SelectedYear}";
+
+        await JS.InvokeVoidAsync(
+            "exportElementToPdf",
+            "workcalendar-export",
+            $"WerkKalender-{SelectedYear}.pdf",
+            title,            // titleText (was missing)
+            "landscape",      // orientation must be "landscape" or "portrait"
+            true,             // fitOnePage
+            true,             // compress
+            "#holidays-grid", // hideSelector
+            6                 // marginMm
+        );
+    }
+    private async Task ResolvePersonNameAsync()
+    {
+        try
+        {
+            if (int.TryParse(userId, out var id))
+            {
+                var person = await PersonApi.GetPersonByIdAsync(id);
+                if (person != null)
+                {
+                    var first = person.FirstName?.Trim() ?? "";
+                    var last = person.LastName?.Trim() ?? "";
+                    PersonName = string.Join(" ", new[] { first, last }.Where(s => !string.IsNullOrWhiteSpace(s)));
+                }
+            }
+        }
+        catch
+        {
+            // Laat PersonName fallbacken in ExportToPdfAsync ("Gebruiker")
+        }
+    }
+
+
+    // Export selected days as an .ics calendar (double-click to import)
+    private async Task ExportIcsAsync()
+    {
+        if (!await EnsureExportJsAsync()) return;
+
+        var days = selectedDays
+            .Where(d => d.Date.Year == SelectedYear)
+            .OrderBy(d => d.Date)
+            .ToList();
+
+        if (days.Count == 0)
+        {
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Info,
+                Summary = "Geen data",
+                Detail = $"Geen geselecteerde verlofdagen in {SelectedYear}.",
+                Duration = 2500
+            });
+            return;
+        }
+
+        var utcNow = DateTime.UtcNow.ToString("yyyyMMdd'T'HHmmss'Z'");
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("BEGIN:VCALENDAR");
+        sb.AppendLine("VERSION:2.0");
+        sb.AppendLine("PRODID:-//VerlofBWZC//WerkKalender//NL");
+        sb.AppendLine("CALSCALE:GREGORIAN");
+        sb.AppendLine("METHOD:PUBLISH");
+
+        foreach (var d in days)
+        {
+            var start = d.Date.Date;
+            var end = start.AddDays(1);
+            var uid = $"{Guid.NewGuid()}@verlofbwzc";
+            var summary = $"Verlof ({d.Shift})";
+
+            sb.AppendLine("BEGIN:VEVENT");
+            sb.AppendLine($"UID:{uid}");
+            sb.AppendLine($"DTSTAMP:{utcNow}");
+            sb.AppendLine($"DTSTART;VALUE=DATE:{start:yyyyMMdd}");
+            sb.AppendLine($"DTEND;VALUE=DATE:{end:yyyyMMdd}");
+            sb.AppendLine($"SUMMARY:{summary}");
+            sb.AppendLine("END:VEVENT");
+        }
+
+        sb.AppendLine("END:VCALENDAR");
+
+        await JS.InvokeVoidAsync("downloadFile", $"Verlof-{SelectedYear}.ics", "text/calendar", sb.ToString());
     }
 
     private class HolidayGridRow
