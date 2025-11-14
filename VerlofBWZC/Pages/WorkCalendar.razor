@@ -150,6 +150,14 @@ else
     private List<PublicHolidayDTO> PublicHolidays { get; set; } = new();
     private List<SchoolHolidayDTO> SchoolHolidays { get; set; } = new();
     
+    private class HolidayGridRow
+    {
+        public string DateText { get; set; }
+        public string Name { get; set; }
+        public string Type { get; set; }
+        public DateTime? SortDate { get; set; } // Voor sortering
+    }
+
     protected override async Task OnInitializedAsync()
     {
         await LoadWorkDays();
@@ -436,13 +444,7 @@ else
         await JS.InvokeVoidAsync("downloadFile", $"Verlof-{SelectedYear}.ics", "text/calendar", sb.ToString());
     }
 
-    private class HolidayGridRow
-    {
-        public string DateText { get; set; }
-        public string Name { get; set; }
-        public string Type { get; set; }
-        public DateTime? SortDate { get; set; } // Voor sortering
-    }
+
 
     private List<HolidayGridRow> GetAllHolidaysForGrid()
     {

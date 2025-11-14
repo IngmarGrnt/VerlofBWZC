@@ -18,12 +18,6 @@
 
     @if (isLoggedIn)
     {
-        <!-- Mobile menu: zichtbaar onder header op small screens -->
-@*         <div class="mobile-nav">
-            <NavMenu />
-        </div> *@
-
-        <!-- Desktop sidebar: verborgen op small screens via CSS -->
         <RadzenSidebar @bind-Expanded="@sidebarExpanded">
             <div class="rz-p-3">
                 <NavMenu />
