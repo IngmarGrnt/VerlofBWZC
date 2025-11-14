@@ -38,7 +38,10 @@ namespace VerlofBWZC.Api.Controllers
         [HttpGet("school/{year}")]
         public async Task<IActionResult> GetSchoolHolidays(int year)
         {
-            var url = $"https://openholidaysapi.org/SchoolHolidays?countryIsoCode=BE&subdivisionCode=BE&languageIsoCode=NL&validFrom={year}-01-01&validTo={year}-12-31";
+            //var url = $"https://openholidaysapi.org/SchoolHolidays?countryIsoCode=BE&subdivisionCode=BE&languageIsoCode=NL&validFrom={year}-01-01&validTo={year}-12-31";
+            //https://openholidaysapi.org/SchoolHolidays?countryIsoCode=BE&languageIsoCode=NL&validFrom=
+            var url = $"https://openholidaysapi.org/SchoolHolidays?countryIsoCode=BE&languageIsoCode=NL&validFrom={year}-01-01&validTo={year}-12-31";
+
             var result = await _httpClient.GetStringAsync(url);
 
             var allHolidays = System.Text.Json.JsonSerializer.Deserialize<List<SchoolHolidayDTO>>(result, new System.Text.Json.JsonSerializerOptions
@@ -46,9 +49,7 @@ namespace VerlofBWZC.Api.Controllers
                 PropertyNameCaseInsensitive = true
             }) ?? new();
 
-            var holidays = allHolidays
-                .Where(h => h.Subdivisions != null && h.Subdivisions.Any(s => s.ShortName == "NL"))
-                .ToList();
+            var holidays = allHolidays.ToList();
 
             // Corrigeer Kerstvakantie en Zomervakantie einddatums
             foreach (var holiday in holidays)
