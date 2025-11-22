@@ -11,6 +11,9 @@
 @inject NotificationService NotificationService
 @inject DialogService DialogService
 
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
+
 <h1>Personenbeheer</h1>
 
 <RadzenButton Icon="add_circle" Text="Nieuwe persoon" Style="margin-bottom: 10px" Click="@AddPerson" />

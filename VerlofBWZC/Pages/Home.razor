@@ -1,24 +1,44 @@
 ﻿@page "/"
 @using Radzen.Blazor
 @using VerlofBWZC.DataContracts.DTO
-@using VerlofBWZC.Handler
 @using VerlofBWZC.Services
 @using Radzen
-@inject IJSRuntime JS
+@using System.Security.Claims
 @inject PersonApiService PersonApi
 @inject DialogService DialogService
 @inject NotificationService NotificationService
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
 
 <PageTitle>Home</PageTitle>
 
 <h1 class="mb-4">Persoonsgegevens</h1>
 
-@if (person != null)
+@if (loading)
+{
+    <p>Loading...</p>
+}
+else if (!string.IsNullOrEmpty(errorMessage))
+{
+    <RadzenAlert Severity="AlertSeverity.Error" Style="max-width:400px">
+        <b>Fout:</b> @errorMessage
+    </RadzenAlert>
+}
+else if (person is null)
+{
+    <p>Geen gegevens gevonden.</p>
+}
+else
 {
     <div class="card shadow-sm" style="max-width: 400px;">
         <div class="card-body">
             <div class="d-flex align-items-center mb-3">
-                <div class="rounded-circle bg-primary text-white d-flex justify-content-center align-items-center" style="width:64px; height:64px; font-size:2rem;">
+                <div class="rounded-circle bg-primary text-white d-flex justify-content-center align-items-center"
+                     style="width:64px; height:64px; font-size:2rem;">
                     @person.FirstName.Substring(0,1)@person.LastName.Substring(0,1)
                 </div>
                 <div class="ms-3">
@@ -31,30 +51,108 @@
                 <li class="list-group-item"><b>Specialiteit:</b> @person.Speciality</li>
                 <li class="list-group-item"><b>Graad:</b> @person.Grade</li>
             </ul>
-
             <div class="mt-3">
                 <RadzenButton Icon="lock" Text="Wachtwoord wijzigen" ButtonStyle="ButtonStyle.Info" Click="OpenPasswordDialog" />
             </div>
         </div>
     </div>
 }
-else
-{
-    <p>Loading...</p>
-}
-
-@* <RadzenDialog /> *@
 
 @code {
     private PersonBaseDTO? person;
+    private bool loading = true;
+    private string? errorMessage;
 
     protected override async Task OnInitializedAsync()
     {
-        var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
-        var userId = JwtUtils.GetUserIdFromToken(token);
-        if (int.TryParse(userId, out var id))
+        await LoadAsync();
+        AuthStateProvider.AuthenticationStateChanged += OnAuthStateChanged;
+    }
+
+    private async void OnAuthStateChanged(Task<AuthenticationState> task)
+    {
+        loading = true;
+        errorMessage = null;
+        person = null;
+        StateHasChanged();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
         {
+            // Lees token (voor expiratie-check); AuthenticationState geeft aan of user nog authenticated is
+            var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
+            if (string.IsNullOrWhiteSpace(token) || IsExpired(token))
+            {
+                // Token weg of vervallen: opschonen en naar login sturen
+                await JS.InvokeVoidAsync("localStorage.removeItem", "authToken");
+                Navigation.NavigateTo("/login", true);
+                return;
+            }
+
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+            if (!user.Identity?.IsAuthenticated ?? true)
+            {
+                Navigation.NavigateTo("/login", true);
+                return;
+            }
+
+            var idClaim =
+                user.FindFirst(ClaimTypes.NameIdentifier)?.Value ??
+                user.FindFirst("sub")?.Value;
+
+            if (!int.TryParse(idClaim, out var id))
+            {
+                errorMessage = "UserId claim ontbreekt of is ongeldig.";
+                return;
+            }
+
             person = await PersonApi.GetPersonByIdAsync(id);
+            if (person is null)
+            {
+                errorMessage = "Persoon niet gevonden.";
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            errorMessage = $"HTTP fout: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private static bool IsExpired(string jwt)
+    {
+        try
+        {
+            var parts = jwt.Split('.');
+            if (parts.Length != 3) return true;
+            var payload = parts[1];
+            switch (payload.Length % 4)
+            {
+                case 2: payload += "=="; break;
+                case 3: payload += "="; break;
+            }
+            var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(payload));
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("exp", out var expProp)) return true;
+            var exp = expProp.GetInt64();
+            var expiry = DateTimeOffset.FromUnixTimeSeconds(exp);
+            return DateTimeOffset.UtcNow >= expiry.AddSeconds(-30); // kleine marge
+        }
+        catch
+        {
+            return true;
         }
     }
 
@@ -69,7 +167,6 @@ else
                 { "Person", person },
                 { "OnPasswordChanged", EventCallback.Factory.Create<string>(this, async (newPassword) => await ChangePassword(newPassword)) }
             }
-           
         );
     }
 
@@ -90,24 +187,17 @@ else
         };
 
         var ok = await PersonApi.UpdatePersonAsync(person.Id, updateDto);
-        if (ok)
+        NotificationService.Notify(new NotificationMessage
         {
-            NotificationService.Notify(new NotificationMessage
-            {
-                Severity = NotificationSeverity.Success,
-                Summary = "Wachtwoord gewijzigd",
-                Detail = "Het wachtwoord is succesvol aangepast."
-            });
-        }
-        else
-        {
-            NotificationService.Notify(new NotificationMessage
-            {
-                Severity = NotificationSeverity.Error,
-                Summary = "Fout",
-                Detail = "Wachtwoord wijzigen is mislukt."
-            });
-        }
+            Severity = ok ? NotificationSeverity.Success : NotificationSeverity.Error,
+            Summary = ok ? "Wachtwoord gewijzigd" : "Fout",
+            Detail = ok ? "Het wachtwoord is succesvol aangepast." : "Wachtwoord wijzigen is mislukt."
+        });
+    }
+
+    public void Dispose()
+    {
+        AuthStateProvider.AuthenticationStateChanged -= OnAuthStateChanged;
     }
 }
 

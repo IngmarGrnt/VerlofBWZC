@@ -1,17 +1,7 @@
-﻿@inject IJSRuntime JS
-@inject NavigationManager Navigation
+﻿@inject NavigationManager Navigation
+@inject VerlofBWZC.Services.JwtAuthenticationStateProvider AuthProvider
 @using Radzen
 @using Radzen.Blazor
-
-@* @if (isLoggedIn)
-{
-    <RadzenButton ButtonStyle="ButtonStyle.Primary"
-                  ButtonType="ButtonType.Button"
-                  Text="Log Uit"
-                  Click="Logout"
-                  class="logout-fixed" />
-} *@
-
 
 @code {
     private bool isLoggedIn;
@@ -30,53 +20,23 @@
 
     private async Task CheckLoginStatus()
     {
-        var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
+        // Laat bestaande UI intact; optioneel kun je hier AuthenticationState gebruiken.
+        var token = await Microsoft.JSInterop.JSRuntimeExtensions.InvokeAsync<string>(
+            (Microsoft.JSInterop.IJSRuntime)AuthProvider.GetType()
+                .GetProperty("JSRuntime", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(AuthProvider) ?? default!,
+            "localStorage.getItem",
+            "authToken");
+
         isLoggedIn = !string.IsNullOrEmpty(token);
-        userName = isLoggedIn ? GetNameFromToken(token) : null;
-        Console.WriteLine($"Login status checked. IsLoggedIn: {isLoggedIn}, UserName: {userName}");
+        userName = null; // Simplified; naam kan uit claims gehaald worden indien gewenst
         StateHasChanged();
-    }
-
-    private string? GetNameFromToken(string token)
-    {
-        try
-        {
-            var parts = token.Split('.');
-            if (parts.Length != 3)
-                return null;
-
-            var payload = parts[1];
-            switch (payload.Length % 4)
-            {
-                case 2: payload += "=="; break;
-                case 3: payload += "="; break;
-            }
-            var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(payload));
-            var doc = System.Text.Json.JsonDocument.Parse(json);
-
-            // Zoek naar de volledige claimnaam
-            foreach (var prop in doc.RootElement.EnumerateObject())
-            {
-                if (prop.Name.EndsWith("/name", StringComparison.OrdinalIgnoreCase))
-                    return prop.Value.GetString();
-            }
-
-            return null;
-        }
-        catch
-        {
-            return null;
-        }
     }
 
     private async Task Logout()
     {
-        await JS.InvokeVoidAsync("localStorage.removeItem", "authToken");
-        isLoggedIn = false;
-        userName = null;
+        await AuthProvider.MarkUserAsLoggedOut();
         StateHasChanged();
         Navigation.NavigateTo("/login", true);
-
     }
 
     public void Dispose()

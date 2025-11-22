@@ -1,6 +1,7 @@
 ﻿@page "/login"
 @inject PersonApiService PersonApi
 @inject NavigationManager Navigation
+@inject VerlofBWZC.Services.JwtAuthenticationStateProvider AuthProvider
 @using Radzen
 @using Radzen.Blazor
 @using VerlofBWZC.DataContracts.DTO
@@ -26,22 +27,18 @@
 </div>
 
 @code {
-    [Inject] IJSRuntime JS { get; set; }
-
     private LoginDTO loginModel = new();
     private string errorMessage;
 
     public class TokenResponse { public string token { get; set; } }
 
-   
-
     private async Task HandleLogin()
     {
         errorMessage = null;
         var result = await PersonApi.LoginAsync(loginModel);
-        if (result != null)
+        if (result != null && !string.IsNullOrWhiteSpace(result.token))
         {
-            await JS.InvokeVoidAsync("localStorage.setItem", "authToken", result.token);
+            await AuthProvider.MarkUserAsAuthenticated(result.token);
             Navigation.NavigateTo("/");
         }
         else
@@ -49,6 +46,4 @@
             errorMessage = "Ongeldige inloggegevens.";
         }
     }
-
-   
 }

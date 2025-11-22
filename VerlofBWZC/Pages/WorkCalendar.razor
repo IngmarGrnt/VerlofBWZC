@@ -10,7 +10,9 @@
 @using VerlofBWZC.Handler
 @using VerlofBWZC.Services
 @using System.Text
-
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
 @page "/workcalendar"
 @inject HttpClient Http
 @inject NotificationService NotificationService

@@ -10,6 +10,10 @@
 @inject IJSRuntime JS
 @inject PersonApiService PersonApi
 @inject NotificationService NotificationService
+
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin,Manager")]
+
 <h1>Teamkalender</h1>
 
 @if (!MonthGroups.Any())
@@ -367,10 +371,52 @@ private void OnDayClicked(int personId, WorkDay day)
 
     private string GetInitials(PersonBaseDTO person)
     {
-        if (string.IsNullOrWhiteSpace(person.FirstName) || string.IsNullOrWhiteSpace(person.LastName) || person.LastName.Length < 2)
-            return "";
-        return $"{person.FirstName[0]}{person.FirstName[1]}{person.LastName[0]}".ToUpper();
+        if (person == null) return "";
+        var last = person.LastName?.Trim();
+        if (string.IsNullOrWhiteSpace(last)) return "";
+
+        // Splits op spaties (compound achternaam)
+        var parts = last.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        if (parts.Length >= 2)
+        {
+            // Eerste twee letters van het eerste deel + eerste letter van het tweede deel
+            var firstPart = parts[0];
+            var secondPart = parts[1];
+
+            var initials = new StringBuilder();
+
+            if (firstPart.Length >= 2)
+            {
+                initials.Append(firstPart[0]);
+                initials.Append(firstPart[1]);
+            }
+            else
+            {
+                // Minder dan 2 karakters: neem wat er is
+                initials.Append(firstPart[0]);
+            }
+
+            if (secondPart.Length >= 1)
+            {
+                initials.Append(secondPart[0]);
+            }
+
+            return initials.ToString().ToUpperInvariant();
+        }
+
+        // Geen compound: neem de eerste 3 karakters (of minder als korter)
+        return last.Length >= 3
+            ? last.Substring(0, 3).ToUpperInvariant()
+            : last.ToUpperInvariant();
     }
+
+    // private string GetInitials(PersonBaseDTO person)
+    // {
+    //     if (string.IsNullOrWhiteSpace(person.FirstName) || string.IsNullOrWhiteSpace(person.LastName) || person.LastName.Length < 2)
+    //         return "";
+    //     return $"{person.LastName[0]}{person.LastName[1]}{person.LastName[2]}".ToUpper();
+    // }
 
     // private void OnDayClicked(int personId, WorkDay day)
     // {

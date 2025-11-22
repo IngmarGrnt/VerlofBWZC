@@ -5,6 +5,7 @@
 @using System.Net.Http
 @using System.Net.Http.Headers
 @using System.Net.Http.Json
+@inject VerlofBWZC.Services.JwtAuthenticationStateProvider AuthProvider
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
 @inject HttpClient Http
@@ -99,7 +100,7 @@
     {
         token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
         isLoggedIn = !string.IsNullOrEmpty(token);
-        userRole = JwtUtils.GetUserRolFromToken(token);
+        userRole = VerlofBWZC.Handler.JwtUtils.GetUserRolFromToken(token);
 
         if (isLoggedIn)
         {
@@ -144,7 +145,7 @@
 
     private async Task Logout()
     {
-        await JS.InvokeVoidAsync("localStorage.removeItem", "authToken");
+        await AuthProvider.MarkUserAsLoggedOut();
         isLoggedIn = false;
         userName = null;
         _perms = null;

@@ -14,6 +14,9 @@
 @inject DialogService DialogService
 @inject IJSRuntime JS
 
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+
 
 @if (isLoading)
 {

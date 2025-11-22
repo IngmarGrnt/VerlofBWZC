@@ -8,6 +8,9 @@
 @inject HttpClient Http
 @inject NotificationService Notifications
 
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin,Manager")]
+
 <div class="manager-panel">
     <h3>Managerpaneel - Kalendertoegang</h3>
 
