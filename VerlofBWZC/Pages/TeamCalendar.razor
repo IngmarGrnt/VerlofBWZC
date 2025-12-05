@@ -2,7 +2,9 @@
 @using Radzen
 @using Radzen.Blazor
 @using System.Text
+@using System.Net.Http.Headers
 @using VerlofBWZC.DataContracts.DTO
+@using VerlofBWZC.DataContracts.DTO.Access
 @using VerlofBWZC.DataContracts.DTO.Calendar
 @using VerlofBWZC.Handler
 @using VerlofBWZC.Services
@@ -12,7 +14,7 @@
 @inject NotificationService NotificationService
 
 @using Microsoft.AspNetCore.Authorization
-@attribute [Authorize(Roles = "Admin,Manager")]
+@attribute [Authorize]
 
 <h1>Teamkalender</h1>
 
@@ -28,7 +30,7 @@ else
         <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" Gap="1rem" Style="width:100%; margin-bottom:1rem">
             <!-- Left group -->
             <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
-                @if (CanSave)
+                @if (CanSaveTeamCalendar)
                 {
                     <RadzenButton Text="Opslaan" Icon="save" Click="@SaveTeamDaysOff" />
                 }
@@ -53,6 +55,9 @@ else
 
                 <span class="rz-text-secondary" style="margin-left:1rem;">Min. verlof per persoon:</span>
                 <RadzenBadge Text="@MinimumLeavePerPersonText" BadgeStyle="BadgeStyle.Success" Variant="Variant.Filled" />
+
+                <span class="rz-text-secondary" style="margin-left:1rem;">Aantal Pers:</span>
+                <RadzenBadge Text="@TeamMemberCount" BadgeStyle="BadgeStyle.Secondary" Variant="Variant.Filled" />
             </div>
 
             <!-- Right group -->
@@ -148,7 +153,7 @@ else
                                 {
                                     var isDayOff = selectedDays.Any(d => d.PersonId == mc.member.Id && d.Date.Date == wd.Date.Date && d.Shift == wd.Shift);
                                     
-                                    @if(CanSave)
+                                    @if(CanSaveTeamCalendar)
                                     {
                                         <RadzenButton Size="ButtonSize.Small"
                                                       Variant="@(isDayOff ? Variant.Filled : Variant.Outlined)"
@@ -211,7 +216,13 @@ else
         string.Equals(CurrentUserRole, "Admin", StringComparison.OrdinalIgnoreCase) ||
         string.Equals(CurrentUserRole, "Manager", StringComparison.OrdinalIgnoreCase);
 
-    private bool CanSave => SelectedYear == CurrentDayOffYear && CanManageCalendar;
+
+
+    // Permissions from ManagerPanel rules
+    private CalendarPermissionsDTO? _perms;
+
+    //private bool CanSave => CanManageCalendar;
+    private bool CanSaveTeamCalendar => ((_perms?.CanSaveTeamCalendar ?? true) && CanManageCalendar);
     private bool CanExport => CanManageCalendar;
 
     //Nog in DTO zetten--------------------------------------------
@@ -244,6 +255,7 @@ else
         : (double)YearTotalWorkDays * DailyQuota / TeamMembers.Count;
 
     private string MinimumLeavePerPersonText => MinimumLeavePerPerson.ToString("0.##");
+    private string TeamMemberCount => TeamMembers.Count.ToString(); 
     public class MonthGroup
     {
         public int Year { get; set; }
@@ -261,8 +273,51 @@ else
             .ToList();
 
     protected override async Task OnInitializedAsync()
-    {
+    {        
+        await LoadPermissions();
         await LoadTeamCalendar();
+        await ExpandAllMonths(); 
+
+    }
+
+    private async Task LoadPermissions()
+    {
+        try
+        {
+            var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
+
+            using var req = new HttpRequestMessage(HttpMethod.Get, $"api/access/calendar-permissions?year={SelectedYear}");
+            if (!string.IsNullOrEmpty(token))
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+            var resp = await Http.SendAsync(req);
+            if (resp.IsSuccessStatusCode)
+            {
+                _perms = await resp.Content.ReadFromJsonAsync<CalendarPermissionsDTO>();
+            }
+            else
+            {
+                _perms = null;
+                NotificationService.Notify(new NotificationMessage
+                {
+                    Severity = NotificationSeverity.Warning,
+                    Summary = "Permissies",
+                    Detail = $"Permissies laden mislukt ({(int)resp.StatusCode}).",
+                    Duration = 4000
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            _perms = null;
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Error,
+                Summary = "Permissies",
+                Detail = ex.Message,
+                Duration = 4000
+            });
+        }
     }
 
     private async Task OnYearChanged(object value)
@@ -272,6 +327,7 @@ else
             SelectedYear = year;
             StateHasChanged(); // updates CanSave
             await LoadTeamCalendar();
+            await LoadPermissions();
             StateHasChanged();
         }
     }

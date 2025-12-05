@@ -1,0 +1,225 @@
+@page "/Quarterlyleave"
+@using Radzen
+@using Radzen.Blazor    
+@using System.Text
+@using VerlofBWZC.DataContracts.DTO
+@using VerlofBWZC.Handler
+@using VerlofBWZC.Services
+@inject HttpClient Http
+@inject IJSRuntime JS
+@inject PersonApiService PersonApi
+@inject NotificationService NotificationService
+
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+
+<h1>Kwartaaloverzicht verlof</h1>
+
+<div style="margin-bottom:1rem">
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
+        <RadzenDropDown @bind-Value="SelectedYear"
+                        Data="@Years"
+                        Placeholder="Selecteer een jaar"
+                        Style="width:180px"
+                        Change="OnYearChanged" />
+
+       @*  <RadzenButton Text="Ververs" Icon="refresh" Click="@LoadQuarterlyData" /> *@
+    </RadzenStack>
+    <div style="margin-top:1rem; display:flex; gap:1rem; align-items:center;">
+        <div style="font-weight:600">Shifts met aantal personen op verlof:</div>
+        <RadzenBadge Text=@($"1 Shift: {ShiftsWith1Off}") BadgeStyle="BadgeStyle.Dark" Variant="Variant.Filled" />
+        <RadzenBadge Text=@($"2 Shiften: {ShiftsWith2Off}") BadgeStyle="BadgeStyle.Dark" Variant="Variant.Filled" />
+        <RadzenBadge Text=@($"3 Shiften: {ShiftsWith3Off}") BadgeStyle="BadgeStyle.Dark" Variant="Variant.Filled" />
+        <RadzenBadge Text=@($"4 Shiften: {ShiftsWith4Off}") BadgeStyle="BadgeStyle.Dark" Variant="Variant.Filled" />
+        <RadzenBadge Text=@($"5 Shiften: {ShiftsWith5Off}") BadgeStyle="BadgeStyle.Dark" Variant="Variant.Filled" />
+        <RadzenBadge Text=@($"6 Shiften: {ShiftsWith6Off}") BadgeStyle="BadgeStyle.Dark" Variant="Variant.Filled" />
+        <RadzenBadge Text=@($"7 Shiften: {ShiftsWith7Off}") BadgeStyle="BadgeStyle.Dark" Variant="Variant.Filled" />
+        <RadzenBadge Text=@($"8 Shiften: {ShiftsWith8Off}") BadgeStyle="BadgeStyle.Dark" Variant="Variant.Filled" />
+    </div>
+    <div style="margin-top:1rem; display:flex; gap:1rem; align-items:center;">
+        <div style="font-weight:600">Totaal aantal shifts:</div>
+        <RadzenBadge Text=@($"{ShiftsCount}") BadgeStyle="BadgeStyle.Dark" Variant="Variant.Filled" />
+    </div>
+</div>
+<!-- Parameters onder de datagrid: aantal shifts met precies 5,6,7 personen op verlof -->
+
+
+@if (PersonQuarterCounts == null)
+{
+    <h3><em>Loading...</em></h3>
+}
+else    
+{
+    <RadzenDataGrid Data="@PersonQuarterCounts" TItem="PersonQuarterCountsDto" ShowPagingSummary="false" ShowPagination="false" AllowSorting="false">
+        <Columns>
+            <!-- Initialen kolom -->
+            <RadzenDataGridColumn TItem="PersonQuarterCountsDto" Title="Initialen" Width="70px">
+                <Template Context="p">
+                    @{
+                        var person = TeamMembers.FirstOrDefault(m => m.Id == p.PersonId);
+                    }
+                    <span class="header-initials" title="@((person != null) ? $"{person.FirstName} {person.LastName}" : string.Empty)">
+                        @GetInitials(person)
+                    </span>
+                </Template>
+            </RadzenDataGridColumn>
+
+            <RadzenDataGridColumn TItem="PersonQuarterCountsDto" Property="Name" Title="Naam" Width="250px">
+                <Template Context="p">  
+                    <div style="display:flex;align-items:center;gap:.5rem">
+                        <div style="font-weight:600">@p.Name</div>
+                    </div>
+                </Template>
+            </RadzenDataGridColumn>
+
+            <RadzenDataGridColumn TItem="PersonQuarterCountsDto" Property="Q1" Title="KW1" Width="80px">
+                <Template Context="p">@p.Q1</Template>
+            </RadzenDataGridColumn>
+
+            <RadzenDataGridColumn TItem="PersonQuarterCountsDto" Property="Q2" Title="KW2" Width="80px">
+                <Template Context="p">@p.Q2</Template>
+            </RadzenDataGridColumn>
+
+            <RadzenDataGridColumn TItem="PersonQuarterCountsDto" Property="Q3" Title="KW3" Width="80px">
+                <Template Context="p">@p.Q3</Template>
+            </RadzenDataGridColumn>
+
+        </Columns>
+    </RadzenDataGrid>
+
+   
+}
+
+@code {
+    private int SelectedYear { get; set; } = DateTime.Now.Year + 1;
+    private List<int> Years { get; set; } = Enumerable.Range(DateTime.Now.Year - 1, 5).ToList();
+
+    private List<PersonBaseDTO> TeamMembers = new();
+    private List<TeamDayOffDTO> TeamDaysOff = new();
+
+    private List<PersonQuarterCountsDto>? PersonQuarterCounts;
+
+    // parameters onder grid
+    private int ShiftsWith1Off { get; set; }
+    private int ShiftsWith2Off { get; set; }
+    private int ShiftsWith3Off { get; set; }
+    private int ShiftsWith4Off { get; set; }
+    private int ShiftsWith5Off { get; set; }
+    private int ShiftsWith6Off { get; set; }
+    private int ShiftsWith7Off { get; set; }
+    private int ShiftsWith8Off { get; set; }
+    private int ShiftsCount { get; set; }
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadQuarterlyData();
+    }
+        
+    private async Task OnYearChanged(object value)
+    {
+        if (value is int year)
+        {
+            SelectedYear = year;
+            await LoadQuarterlyData();
+        }
+    }
+
+    private async Task LoadQuarterlyData()
+    {
+        PersonQuarterCounts = null;
+
+        var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
+        var userId = JwtUtils.GetUserIdFromToken(token);
+        var person = await PersonApi.GetPersonByIdAsync(int.Parse(userId));
+        var teamName = person?.Team;
+        var speciality = person?.Speciality;
+
+        TeamMembers = await Http.GetFromJsonAsync<List<PersonBaseDTO>>($"api/person/team/{teamName}/{speciality}") ?? new List<PersonBaseDTO>();
+
+        TeamDaysOff = await Http.GetFromJsonAsync<List<TeamDayOffDTO>>($"api/person/team-days-off/{teamName}/{SelectedYear}/{speciality}") ?? new List<TeamDayOffDTO>();
+
+        // Bereken per persoon de aantallen per kwartaal (KW1 = jan-mar, KW2 = apr-jun, KW3 = jul-sep)
+        PersonQuarterCounts = TeamMembers
+            .Select(m => new PersonQuarterCountsDto
+            {
+                PersonId = m.Id,
+                Name = string.IsNullOrWhiteSpace(m.FirstName) ? m.LastName : $"{m.FirstName} {m.LastName}",
+                Q1 = TeamDaysOff.Count(d => d.PersonId == m.Id && d.Date.Year == SelectedYear && d.Date.Month >= 1 && d.Date.Month <= 4),
+                Q2 = TeamDaysOff.Count(d => d.PersonId == m.Id && d.Date.Year == SelectedYear && d.Date.Month >= 5 && d.Date.Month <= 8),
+                Q3 = TeamDaysOff.Count(d => d.PersonId == m.Id && d.Date.Year == SelectedYear && d.Date.Month >= 9 && d.Date.Month <= 12)
+            })
+            .OrderByDescending(p => p.Q1 + p.Q2 + p.Q3)
+            .ToList();
+
+        // Bereken aantallen shifts met exact 5,6,7 personen op verlof (per datum+shift)
+        var shiftCounts = TeamDaysOff
+            .Where(d => d.Date.Year == SelectedYear)
+            .GroupBy(d => new { Date = d.Date.Date, d.Shift })
+            .Select(g => g.Select(x => x.PersonId).Distinct().Count())
+            .ToList();
+        ShiftsWith1Off = shiftCounts.Count(c => c == 1);
+        ShiftsWith2Off = shiftCounts.Count(c => c == 2);
+        ShiftsWith3Off = shiftCounts.Count(c => c == 3);
+        ShiftsWith4Off = shiftCounts.Count(c => c == 4);
+        ShiftsWith5Off = shiftCounts.Count(c => c == 5);
+        ShiftsWith6Off = shiftCounts.Count(c => c == 6);
+        ShiftsWith7Off = shiftCounts.Count(c => c == 7);
+        ShiftsWith8Off = shiftCounts.Count(c => c == 8);
+        ShiftsCount = shiftCounts.Sum();
+
+        StateHasChanged();
+    }
+
+    private string GetInitials(PersonBaseDTO? person)
+    {
+        if (person == null) return "";
+        var last = person.LastName?.Trim();
+        if (string.IsNullOrWhiteSpace(last)) return "";
+
+        var parts = last.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        if (parts.Length >= 2)
+        {
+            var firstPart = parts[0];
+            var secondPart = parts[1];
+
+            var initials = new StringBuilder();
+
+            if (firstPart.Length >= 2)
+            {
+                initials.Append(firstPart[0]);
+                initials.Append(firstPart[1]);
+            }
+            else
+            {
+                initials.Append(firstPart[0]);
+            }
+
+            if (secondPart.Length >= 1)
+            {
+                initials.Append(secondPart[0]);
+            }
+
+            return initials.ToString().ToUpperInvariant();
+        }
+
+        return last.Length >= 3
+            ? last.Substring(0, 3).ToUpperInvariant()
+            : last.ToUpperInvariant();
+    }
+
+    public class TeamDayOffDTO
+    {
+        public int PersonId { get; set; }
+        public DateTime Date { get; set; }
+        public string Shift { get; set; }
+    }
+
+    public class PersonQuarterCountsDto
+    {
+        public int PersonId { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public int Q1 { get; set; }
+        public int Q2 { get; set; }
+        public int Q3 { get; set; }
+    }
+}
