@@ -19,6 +19,7 @@
 @attribute [Authorize]
 
 @using VerlofBWZC.DataContracts.DTO.Holiday
+@using VerlofBWZC.DataContracts.DTO.Lottery
 @using System.Globalization
 
 <PageTitle>Teamkalender</PageTitle>
@@ -240,6 +241,16 @@ else
                             </td>
                             <td class="tc-col-count">
                                 <span class="@(count > DailyQuota ? "tc-count tc-count-over" : count == DailyQuota ? "tc-count tc-count-full" : "tc-count")">@count/@DailyQuota</span>
+                                @if (CanManageCalendar && (count > DailyQuota || HasDraw(wd.Date)))
+                                {
+                                    var hasDraw = HasDraw(wd.Date);
+                                    <button type="button" class="@(hasDraw ? "tc-lottery-btn tc-lottery-done" : "tc-lottery-btn")"
+                                            title="@(hasDraw ? "Loting gedaan: resultaat bekijken of opnieuw loten" : "Wie heeft verlof? Loting houden")"
+                                            aria-label="Loting"
+                                            @onclick="() => OpenLottery(wd)">
+                                        <i class="rzi">@(hasDraw ? "task_alt" : "casino")</i>
+                                    </button>
+                                }
                             </td>
                             @foreach (var member in TeamMembers)
                             {
@@ -502,6 +513,70 @@ else
         mg.Days.Any(wd => GetTotalSelectedDays(wd) > DailyQuota)
         || selectedDays.Any(d => d.Date.Year == mg.Year && d.Date.Month == mg.Month && TeamMembers.Any(m => m.Id == d.PersonId) && IsLoose(d));
 
+    // --- Loting vanuit de teamkalender (bewaard via api/lottery, dus ook op de loterijpagina) ---
+
+    private List<LotteryDrawDTO> Draws = new();
+
+    private async Task LoadDraws()
+    {
+        if (!CanManageCalendar) { Draws = new(); return; }
+        try
+        {
+            Draws = await Http.GetFromJsonAsync<List<LotteryDrawDTO>>("api/lottery/draws") ?? new();
+        }
+        catch
+        {
+            Draws = new();
+        }
+    }
+
+    // Lotingen voor deze datum waarin iemand van de getoonde personen meedeed
+    private List<LotteryDrawDTO> DrawsFor(DateTime date) => Draws
+        .Where(d => d.FromDate.Date <= date.Date && d.ToDate.Date >= date.Date)
+        .Where(d => d.Winners.Concat(d.Losers).Any(p => TeamMembers.Any(m => m.Id == p.PersonId)))
+        .ToList();
+
+    private bool HasDraw(DateTime date) => DrawsFor(date).Any();
+
+    private async Task OpenLottery(WorkDay wd)
+    {
+        var candidates = selectedDays
+            .Where(d => d.Date.Date == wd.Date.Date && d.Shift == wd.Shift)
+            .Select(d =>
+            {
+                var member = TeamMembers.FirstOrDefault(m => m.Id == d.PersonId);
+                var category = d.LeaveCategoryId is int catId ? LeaveCategories.FirstOrDefault(c => c.Id == catId) : null;
+                return member == null ? null : new TeamLotteryDialog.Candidate
+                {
+                    PersonId = member.Id,
+                    FirstName = member.FirstName ?? "",
+                    LastName = member.LastName ?? "",
+                    Category = category?.Name,
+                    Color = category?.Color
+                };
+            })
+            .Where(c => c != null)
+            .Select(c => c!)
+            .OrderBy(c => c.LastName).ThenBy(c => c.FirstName)
+            .ToList();
+
+        var result = await DialogService.OpenAsync<TeamLotteryDialog>(
+            $"Loting · {Capitalize(wd.Date.ToString("dddd d MMMM yyyy", Nl))} · {(wd.Shift == "D" ? "dagshift" : "nachtshift")}",
+            new Dictionary<string, object>
+            {
+                { nameof(TeamLotteryDialog.Date), wd.Date },
+                { nameof(TeamLotteryDialog.Shift), wd.Shift },
+                { nameof(TeamLotteryDialog.Quota), DailyQuota },
+                { nameof(TeamLotteryDialog.Candidates), candidates },
+                { nameof(TeamLotteryDialog.ExistingDraws), DrawsFor(wd.Date) },
+                { nameof(TeamLotteryDialog.NextDrawNumber), Draws.Count == 0 ? 1 : Draws.Max(d => d.DrawNumber) + 1 }
+            },
+            new DialogOptions { Width = "560px", CloseDialogOnEsc = true });
+
+        if (result is true)
+            await LoadDraws();
+    }
+
     // Naar de maand van een datum springen en die rij in beeld brengen
     private async Task JumpTo(DateTime? date)
     {
@@ -716,6 +791,8 @@ private void OnDayClicked(int personId, WorkDay day)
         {
             PublicHolidays = new();
         }
+
+        await LoadDraws();
 
         isDirty = false;
 

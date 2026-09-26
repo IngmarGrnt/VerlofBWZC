@@ -345,15 +345,23 @@
 
 .tc-col-date {
     left: 0;
-    min-width: 92px;
+    box-sizing: border-box;
+    width: 96px;
+    min-width: 96px;
+    max-width: 96px;
     text-align: left !important;
     padding: 0 .5rem 0 .6rem !important;
     color: var(--bwzc-navy);
 }
 
 .tc-col-count {
-    left: 92px;
-    min-width: 52px;
+    left: 96px;
+    box-sizing: border-box;
+    width: 80px;
+    min-width: 80px;
+    max-width: 80px;
+    text-align: left !important;
+    padding-left: .4rem !important;
     border-right: 1px solid var(--bwzc-line);
 }
 
@@ -498,12 +506,16 @@
     }
 
     .tc-col-date {
-        min-width: 78px;
+        width: 84px;
+        min-width: 84px;
+        max-width: 84px;
     }
 
     .tc-col-count {
-        left: 78px;
-        min-width: 44px;
+        left: 84px;
+        width: 74px;
+        min-width: 74px;
+        max-width: 74px;
     }
 
     .tc-col-member {
@@ -532,3 +544,166 @@
         width: 15px;
         height: 15px;
     }
+
+/* Loting-knop naast "Bezet" */
+.tc-lottery-btn {
+    border: 1px solid var(--bwzc-red);
+    background: var(--bwzc-white);
+    color: var(--bwzc-red-dark);
+    width: 24px;
+    height: 22px;
+    border-radius: 6px;
+    padding: 0;
+    margin-left: .25rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    vertical-align: middle;
+    cursor: pointer;
+}
+
+    .tc-lottery-btn .rzi {
+        font-size: 15px;
+    }
+
+    .tc-lottery-btn:hover {
+        background: var(--bwzc-red);
+        color: #fff;
+    }
+
+.tc-lottery-done {
+    border-color: var(--bwzc-navy);
+    color: var(--bwzc-navy);
+}
+
+    .tc-lottery-done:hover {
+        background: var(--bwzc-navy);
+    }
+
+/* Loting-popup */
+.tl-info {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    font-size: .85rem;
+    color: var(--bwzc-navy);
+    background: var(--bwzc-ice);
+    border-radius: var(--bwzc-radius);
+    padding: .5rem .75rem;
+    margin-bottom: .75rem;
+}
+
+.tl-over {
+    color: var(--bwzc-red-dark);
+    font-weight: 600;
+}
+
+.tl-section-title {
+    font-weight: 600;
+    color: var(--bwzc-navy);
+    margin: .75rem 0 .25rem;
+}
+
+.tl-hint {
+    font-size: .78rem;
+    color: var(--bwzc-muted);
+    margin-bottom: .4rem;
+}
+
+.tl-list {
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+    max-height: 260px;
+    overflow: auto;
+    margin-bottom: .75rem;
+}
+
+.tl-person {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .35rem .6rem;
+    border: 1px solid var(--bwzc-line);
+    border-radius: var(--bwzc-radius);
+    cursor: pointer;
+}
+
+    .tl-person input {
+        accent-color: var(--bwzc-navy);
+        width: 16px;
+        height: 16px;
+    }
+
+.tl-person-in {
+    border-color: var(--bwzc-navy);
+    background: #F7F9FD;
+}
+
+.tl-person-name {
+    flex: 1;
+}
+
+.tl-cat {
+    font-size: .72rem;
+    border: 1px solid;
+    border-radius: 999px;
+    padding: .05rem .5rem;
+}
+
+.tl-form {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: .75rem;
+    margin-bottom: .35rem;
+}
+
+    .tl-form label > span {
+        display: block;
+        font-size: .78rem;
+        color: var(--bwzc-muted);
+        margin-bottom: .2rem;
+    }
+
+.tl-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: .5rem;
+    margin-top: 1rem;
+}
+
+.tl-result {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .35rem;
+    margin-bottom: .5rem;
+}
+
+.tl-result-name, .tl-result-label {
+    width: 100%;
+    font-size: .8rem;
+    color: var(--bwzc-muted);
+}
+
+.tl-tag {
+    font-size: .8rem;
+    border-radius: 999px;
+    padding: .15rem .6rem;
+}
+
+.tl-tag-win {
+    background: #E3F4EA;
+    color: #1E6B3A;
+}
+
+.tl-tag-lose {
+    background: rgba(241, 63, 63, 0.12);
+    color: var(--bwzc-red-dark);
+}
+
+@media (max-width: 640px) {
+    .tl-form {
+        grid-template-columns: 1fr;
+    }
+}

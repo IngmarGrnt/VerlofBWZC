@@ -1,0 +1,197 @@
+@using System.Globalization
+@using Radzen
+@using Radzen.Blazor
+@using VerlofBWZC.DataContracts.DTO
+@using VerlofBWZC.DataContracts.DTO.Lottery
+@inject HttpClient Http
+@inject DialogService DialogService
+@inject NotificationService NotificationService
+
+@* Loting voor één shift vanuit de teamkalender. Bewaart via api/lottery/draw, dus ook zichtbaar op de loterijpagina. *@
+
+<div class="tl">
+    <div class="tl-info">
+        <span><strong>@Candidates.Count</strong> personen met verlof</span>
+        <span>max <strong>@Quota</strong></span>
+        <span class="tl-over">@(Candidates.Count - Quota) te veel</span>
+    </div>
+
+    @if (ExistingDraws.Any())
+    {
+        <div class="tl-section-title">Eerdere loting(en) voor deze datum</div>
+        @foreach (var d in ExistingDraws)
+        {
+            <div class="tl-result">
+                <div class="tl-result-name">@d.DrawName</div>
+                @foreach (var w in d.Winners)
+                {
+                    <span class="tl-tag tl-tag-win">@w.FirstName @w.LastName</span>
+                }
+                @foreach (var l in d.Losers)
+                {
+                    <span class="tl-tag tl-tag-lose">@l.FirstName @l.LastName</span>
+                }
+            </div>
+        }
+    }
+
+    @if (result == null)
+    {
+        <div class="tl-section-title">Wie gaat mee in de loting?</div>
+        <div class="tl-hint">Niet aangevinkt = houdt zeker verlof (bv. al eerder toegekend).</div>
+        <div class="tl-list">
+            @foreach (var c in Candidates)
+            {
+                var isIn = selected.Contains(c.PersonId);
+                <label class="@(isIn ? "tl-person tl-person-in" : "tl-person")">
+                    <input type="checkbox" checked="@isIn" @onchange="e => Toggle(c.PersonId, (bool)(e.Value ?? false))" />
+                    <span class="tl-person-name">@c.FirstName @c.LastName</span>
+                    @if (!string.IsNullOrEmpty(c.Category))
+                    {
+                        <span class="tl-cat" style="@($"border-color:{c.Color}; color:{c.Color};")">@c.Category</span>
+                    }
+                </label>
+            }
+        </div>
+
+        <div class="tl-form">
+            <label>
+                <span>Naam loting</span>
+                <RadzenTextBox @bind-Value="drawName" Style="width:100%" />
+            </label>
+            <label>
+                <span>Aantal winnaars (houden verlof)</span>
+                <RadzenNumeric TValue="int" @bind-Value="winnersCount" Min="0" Max="@selected.Count" Style="width:120px" />
+            </label>
+        </div>
+        <div class="tl-hint">
+            @(Candidates.Count - selected.Count) zeker + @winnersCount winnaar(s) = @(Candidates.Count - selected.Count + winnersCount) van max @Quota.
+        </div>
+
+        <div class="tl-actions">
+            <RadzenButton Text="Annuleren" ButtonStyle="ButtonStyle.Light" Click="@(() => DialogService.Close(false))" />
+            <RadzenButton Text="Loting trekken" Icon="casino" ButtonStyle="ButtonStyle.Primary"
+                          Disabled="@(busy || selected.Count == 0)" Click="@DrawAsync" />
+        </div>
+    }
+    else
+    {
+        <div class="tl-section-title">Resultaat: @result.DrawName</div>
+        <div class="tl-result">
+            <div class="tl-result-label">Winnaars (houden verlof)</div>
+            @foreach (var w in result.Winners)
+            {
+                <span class="tl-tag tl-tag-win">@w.FirstName @w.LastName</span>
+            }
+            @if (!result.Winners.Any())
+            {
+                <span class="tl-hint">geen</span>
+            }
+        </div>
+        <div class="tl-result">
+            <div class="tl-result-label">Verliezers</div>
+            @foreach (var l in result.Losers)
+            {
+                <span class="tl-tag tl-tag-lose">@l.FirstName @l.LastName</span>
+            }
+            @if (!result.Losers.Any())
+            {
+                <span class="tl-hint">geen</span>
+            }
+        </div>
+        <div class="tl-hint">De loting is bewaard en staat ook op de loterijpagina.</div>
+        <div class="tl-actions">
+            <RadzenButton Text="Sluiten" ButtonStyle="ButtonStyle.Primary" Click="@(() => DialogService.Close(true))" />
+        </div>
+    }
+</div>
+
+@code {
+    public class Candidate
+    {
+        public int PersonId { get; set; }
+        public string FirstName { get; set; } = "";
+        public string LastName { get; set; } = "";
+        public string? Category { get; set; }
+        public string? Color { get; set; }
+    }
+
+    [Parameter] public DateTime Date { get; set; }
+    [Parameter] public string Shift { get; set; } = "D";
+    [Parameter] public int Quota { get; set; }
+    [Parameter] public List<Candidate> Candidates { get; set; } = new();
+    [Parameter] public List<LotteryDrawDTO> ExistingDraws { get; set; } = new();
+    [Parameter] public int NextDrawNumber { get; set; } = 1;
+
+    private readonly HashSet<int> selected = new();
+    private string drawName = "";
+    private int winnersCount;
+    private bool busy;
+    private LotteryDrawDTO? result;
+
+    protected override void OnInitialized()
+    {
+        foreach (var c in Candidates)
+            selected.Add(c.PersonId);
+        drawName = $"Loting {Date.ToString("ddd d MMM yyyy", new CultureInfo("nl-BE"))} {Shift}";
+        RecalcWinners();
+    }
+
+    private void Toggle(int personId, bool on)
+    {
+        if (on) selected.Add(personId); else selected.Remove(personId);
+        RecalcWinners();
+    }
+
+    // Standaard: zoveel winnaars dat het totaal op het maximum uitkomt
+    private void RecalcWinners() =>
+        winnersCount = Math.Clamp(Quota - (Candidates.Count - selected.Count), 0, selected.Count);
+
+    private async Task DrawAsync()
+    {
+        busy = true;
+        try
+        {
+            // Schudden (Fisher–Yates), zelfde werkwijze als de loterijpagina
+            var list = Candidates.Where(c => selected.Contains(c.PersonId)).ToList();
+            var rng = Random.Shared;
+            for (int i = list.Count - 1; i > 0; i--)
+            {
+                int j = rng.Next(i + 1);
+                (list[i], list[j]) = (list[j], list[i]);
+            }
+
+            var count = Math.Clamp(winnersCount, 0, list.Count);
+            var dto = new LotteryDrawDTO
+            {
+                DrawNumber = NextDrawNumber,
+                DrawName = string.IsNullOrWhiteSpace(drawName) ? $"Loting {Date:dd-MM-yyyy} {Shift}" : drawName.Trim(),
+                FromDate = Date.Date,
+                ToDate = Date.Date,
+                Winners = list.Take(count).Select(c => new LotteryPersonDTO { PersonId = c.PersonId, FirstName = c.FirstName, LastName = c.LastName }).ToList(),
+                Losers = list.Skip(count).Select(c => new LotteryPersonDTO { PersonId = c.PersonId, FirstName = c.FirstName, LastName = c.LastName }).ToList()
+            };
+
+            var resp = await Http.PostAsJsonAsync("api/lottery/draw", dto);
+            if (resp.IsSuccessStatusCode)
+            {
+                result = dto;
+                NotificationService.Notify(NotificationSeverity.Success, "Loting bewaard", $"{dto.DrawName}: {dto.Winners.Count} winnaar(s).");
+            }
+            else
+            {
+                var msg = await resp.Content.ReadAsStringAsync();
+                NotificationService.Notify(NotificationSeverity.Error, "Loting niet bewaard",
+                    string.IsNullOrWhiteSpace(msg) ? $"Opslaan mislukt ({(int)resp.StatusCode})." : msg);
+            }
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Fout", ex.Message);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}
