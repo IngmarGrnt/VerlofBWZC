@@ -92,6 +92,15 @@ window.exportElementToPdf = async (
             /* Tighten flex gaps */
             .export-fit [style*="gap: 6px"] { gap: 2px !important; }
 
+            /* Werkkalender (nieuwe opmaak): 4 maanden per rij, kleinere shiftknoppen */
+            .export-fit .wc-months { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; gap: 6px !important; }
+            .export-fit .wc-month { padding: 6px !important; }
+            .export-fit .wc-chips { gap: 3px !important; }
+            .export-fit .wc-chip { width: 40px !important; height: 34px !important; }
+            .export-fit .wc-chip-day { font-size: 11px !important; }
+            .export-fit .wc-chip-meta { font-size: 8px !important; }
+            .export-fit .wc-summary { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)) !important; }
+
             /* Hide non-essential visual noise inside export area if present */
             .export-fit .workcalendar-legend { display: none !important; }
             .export-fit .rz-paginator { display: none !important; }
