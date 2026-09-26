@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace VerlofBWZC.DataAccess.Migrations
 {
     [DbContext(typeof(VerlofBWZC_DbContext))]
-    partial class VerlofBWZC_DbContextModelSnapshot : ModelSnapshot
+    [Migration("20260926161000_SyncModelSnapshot")]
+    partial class SyncModelSnapshot
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -80,9 +83,6 @@ namespace VerlofBWZC.DataAccess.Migrations
                     b.Property<DateTime>("LastUpdate")
                         .HasColumnType("datetime2");
 
-                    b.Property<int?>("LeaveCategoryId")
-                        .HasColumnType("int");
-
                     b.Property<int>("PersonId")
                         .HasColumnType("int");
 
@@ -95,57 +95,9 @@ namespace VerlofBWZC.DataAccess.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("LeaveCategoryId");
-
                     b.HasIndex("PersonId");
 
                     b.ToTable("DayOffs");
-                });
-
-            modelBuilder.Entity("VerlofBWZC.DataAccess.Entities.LeaveCategory", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Color")
-                        .IsRequired()
-                        .HasMaxLength(9)
-                        .HasColumnType("nvarchar(9)");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime>("LastUpdate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("MaxShifts")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Speciality")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Team")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("Year")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Team", "Speciality", "Year");
-
-                    b.ToTable("LeaveCategories");
                 });
 
             modelBuilder.Entity("VerlofBWZC.DataAccess.Entities.LotteryDraw", b =>
@@ -302,11 +254,6 @@ namespace VerlofBWZC.DataAccess.Migrations
 
             modelBuilder.Entity("VerlofBWZC.DataAccess.Entities.DayOff", b =>
                 {
-                    b.HasOne("VerlofBWZC.DataAccess.Entities.LeaveCategory", null)
-                        .WithMany()
-                        .HasForeignKey("LeaveCategoryId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("VerlofBWZC.DataAccess.Entities.Person", null)
                         .WithMany("DayOffs")
                         .HasForeignKey("PersonId")

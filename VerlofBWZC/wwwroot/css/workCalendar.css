@@ -121,3 +121,11 @@
 .rz-data-grid .rz-data-row.holiday-row-feestdag:hover > td {
     filter: brightness(0.98);
 }
+/* --- Verlofcategorie-balk (Groot verlof, Verlof 4, ...) --- */
+.leave-category-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem;
+    margin: -0.5rem 0 1rem 0;
+}

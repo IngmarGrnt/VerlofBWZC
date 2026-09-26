@@ -166,7 +166,8 @@ namespace VerlofBWZC.Api.Controllers
                 .Select(d => new {
                     d.PersonId,
                     d.Date,
-                    d.Shift // <-- Shift wordt nu meegestuurd
+                    d.Shift, // <-- Shift wordt nu meegestuurd
+                    d.LeaveCategoryId
                 })
                 .ToListAsync();
 

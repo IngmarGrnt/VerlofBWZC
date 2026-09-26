@@ -93,5 +93,28 @@ namespace VerlofBWZC.DataAccess.Extensions
             mb.Entity<CalendarAccessRule>()
                 .Property(c => c.Year);
         }
+
+        public static void LeaveCategoryConfig(this ModelBuilder mb)
+        {
+            mb.Entity<LeaveCategory>()
+                .Property(c => c.Name)
+                .IsRequired()
+                .HasMaxLength(50);
+
+            mb.Entity<LeaveCategory>()
+                .Property(c => c.Color)
+                .IsRequired()
+                .HasMaxLength(9);
+
+            mb.Entity<LeaveCategory>()
+                .HasIndex(c => new { c.Team, c.Speciality, c.Year });
+
+            // Categorie verwijderen maakt de verlofdagen weer "gewoon verlof"
+            mb.Entity<DayOff>()
+                .HasOne<LeaveCategory>()
+                .WithMany()
+                .HasForeignKey(d => d.LeaveCategoryId)
+                .OnDelete(DeleteBehavior.SetNull);
+        }
     }
 }

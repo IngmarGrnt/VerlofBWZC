@@ -31,6 +31,7 @@ builder.Services.AddAutoMapperConfiguration();
 builder.Services.AddDbContext<VerlofBWZC_DbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddScoped<CalendarAccessService>();
+builder.Services.AddScoped<LeaveCategoryService>();
 
 
 // Use allowed origins from configuration
