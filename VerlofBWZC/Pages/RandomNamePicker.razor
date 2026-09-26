@@ -1,772 +1,528 @@
-﻿@page "/Random-picker"
+@page "/Random-picker"
 @using System.Globalization
+@using System.Net.Http.Headers
 @using Radzen
 @using Radzen.Blazor
 @using VerlofBWZC.DataContracts.DTO
+@using VerlofBWZC.DataContracts.DTO.Access
 @using VerlofBWZC.DataContracts.DTO.Calendar
+@using VerlofBWZC.DataContracts.DTO.Leave
 @using VerlofBWZC.DataContracts.DTO.Lottery
 @using VerlofBWZC.Services
 @using VerlofBWZC.Handler
-
-@inject PersonApiService PersonApi
-@inject NotificationService NotificationService
-@inject HttpClient Http
-@inject DialogService DialogService
-@inject IJSRuntime JS
-
 @using Microsoft.AspNetCore.Authorization
 @attribute [Authorize]
 
+@inject PersonApiService PersonApi
+@inject LotteryApiService LotteryApi
+@inject NotificationService NotificationService
+@inject HttpClient Http
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+
+<PageTitle>Loterij</PageTitle>
 
 @if (isLoading)
 {
-    <h2><em>Loading...</em></h2>
+    <h1>Loterij</h1>
+    <p class="wc-loading">Loterij laden…</p>
 }
 else
 {
-    <div class="rz-mb-3" style="display:flex; flex-wrap:wrap; gap:1rem; align-items:center;">
-        @if (isAdmin)
-        {
-            @* Admin: loting voor elke ploeg en specialiteit; Manager enkel de eigen *@
-            <RadzenDropDown TValue="string" @bind-Value="SelectedTeam" Data="@TeamOptions" Placeholder="Ploeg" Style="width:140px" Change="@(async _ => await ReloadTeamAsync())" />
-            <RadzenDropDown TValue="string" @bind-Value="SelectedSpeciality" Data="@SpecialityOptions" Placeholder="Specialiteit" Style="width:180px" Change="@(async _ => await ReloadTeamAsync())" />
-        }
-        <RadzenDropDown @bind-Value="SelectedYear"
-                        Data="@Years"
-                        Style="width:160px"
-                        Change="OnYearChanged"
-                        Placeholder="Jaar" />
-
-        <RadzenDropDown Data="@MonthOptions"
-                        TextProperty="Text"
-                        ValueProperty="Value"
-                        TValue="int"
-                        Value="SelectedMonth"
-                        ValueChanged="OnMonthChanged"
-                        Style="width:180px"
-                        Placeholder="Maand" />
-
-        <RadzenDropDown Data="@MonthWorkingDays"
-                        TextProperty="Label"
-                        ValueProperty="Date"
-                        TValue="DateTime?"
-                        Value="SelectedFrom"
-                        ValueChanged="OnFromChanged"
-                        Style="width:220px"
-                        Placeholder="Van (werkdag)" />
-
-        <span>tot</span>
-
-        <RadzenDropDown Data="@MonthWorkingDays"
-                        TextProperty="Label"
-                        ValueProperty="Date"
-                        TValue="DateTime?"
-                        Value="SelectedTo"
-                        ValueChanged="OnToChanged"
-                        Style="width:220px"
-                        Placeholder="Tot (werkdag)" />
-
-        <RadzenCheckBoxList TValue="string"
-                            Value="SelectedShifts"
-                            ValueChanged="@( (IEnumerable<string> v) => SelectedShifts = v.ToList() )"
-                            Data="@ShiftOptions"
-                            Orientation="Orientation.Horizontal"
-                            Style="margin-left: 1rem;" />
-
-        <div style="margin-left:auto; display:flex; align-items:center; gap:.5rem;">
-            <span class="rz-text-secondary">Shifts in bereik:</span>
-            <RadzenBadge Text="@ShiftCountInRange.ToString()" BadgeStyle="BadgeStyle.Info" Variant="Variant.Filled" />
-        </div>
-    </div>
-
-    <div class="rz-mb-3 rz-p-2 rz-border-radius-6 rz-shadow-2" style="background: var(--rz-base-200); display:flex; gap:1.0rem; align-items:center;">
-        <RadzenBadge Text="Team" Variant="Variant.Filled" BadgeStyle="BadgeStyle.Primary" />
-        <strong>@DisplayTeam</strong>
-        <RadzenBadge Text="Specialiteit" Variant="Variant.Filled" BadgeStyle="BadgeStyle.Secondary" />
-        <strong>@DisplaySpeciality</strong>
-
-        <span style="margin-left:2rem;">Naam loting:</span>
-        <RadzenTextBox @bind-Value="CurrentDrawName"
-                       Placeholder="@($"Loting {NextYearDrawIndex}")"
-                       Style="width:200px" />
-
-        <span class="rz-text-secondary" style="margin-left:auto;">Deelnemerslijst is automatisch gefilterd op deze waarden</span>
-    </div>
-
-    <div style="display:grid; grid-template-columns: 1fr 120px 1fr; gap:1rem; align-items:center;">
-        <RadzenListBox TItem="PersonBaseDTO"
-                       @bind-Value="SelectedAvailable"
-                       Data="AvailablePersons"
-                       Multiple="true"
-                       Style="height:340px"
-                       FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive">
-            <Template Context="p">
-                <span>@p.FirstName @p.LastName</span>
-                <span class="rz-text-secondary">(@p.Team / @p.Speciality)</span>
-            </Template>
-        </RadzenListBox>
-
-        <div style="display:flex; flex-direction:column; gap:.5rem; align-items:center;">
-            <RadzenButton Text=">" Click="@AddSelectedToParticipants" Disabled="@(SelectedAvailable == null || SelectedAvailable.Count == 0)" />
-            <RadzenButton Text=">>" Click="@AddAllToParticipants" Disabled="@(AvailablePersons.Count == 0)" />
-            <RadzenButton Text="<" Click="@RemoveSelectedParticipants" Disabled="@(SelectedParticipants == null || SelectedParticipants.Count == 0)" />
-            <RadzenButton Text="<<" Click="@ClearParticipants" Disabled="@(Participants.Count == 0)" />
-        </div>
-
-        <RadzenListBox TItem="PersonBaseDTO"
-                       @bind-Value="SelectedParticipants"
-                       Data="Participants"
-                       Multiple="true"
-                       Style="height:340px"
-                       FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive">
-            <Template Context="p">
-                <span>@p.FirstName @p.LastName</span>
-                <span class="rz-text-secondary">(@p.Team) / @p.Speciality)</span>
-            </Template>
-        </RadzenListBox>
-    </div>
-    @if (DateTime.Now.Year + 1 == SelectedYear)
-    {
-    <div class="rz-mt-3" style="display:flex; gap:1rem; align-items:center; flex-wrap:wrap;">
-        <RadzenNumeric @bind-Value="WinnersCount" Min="1" Max="@Math.Max(1, Participants.Count)" Style="width:140px" />
-        <RadzenButton Text="Trek Winnaars" Icon="casino" ButtonStyle="ButtonStyle.Primary" Click="@DrawWinners" />
-        <span class="rz-text-secondary">Deelnemers: @Participants.Count</span>
-    </div>
-    }
-    @if (FilteredDraws.Any())
-    {
-        <h3 class="rz-mt-3">Resultaten</h3>
-
-        @foreach (var draw in FilteredDraws)
-        {
-            <div class="rz-mt-2 rz-mb-3 rz-p-2 rz-border-radius-6 rz-shadow-2" style="background: var(--rz-base-100);">
-                <div style="display:flex; align-items:center; gap:1rem; margin-bottom:.5rem;">
-                    <!-- Enkel datum tonen (FromDate), correct geformatteerd -->
-                    <h4 style="margin:.2rem 0;"> @draw.DrawName.ToString() - @draw.FromDate.ToString("dd-MM-yyyy")  t/m @draw.ToDate.ToString("dd-MM-yyyy")</h4>
-                    <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small"
-                                  Text="Wis loting"
-                                  Click="@(()=>DeleteDraw(draw.DrawNumber))" style="margin-left:auto;" />
-                </div>
-
-                <RadzenDataGrid Data="@draw.Rows" TItem="DrawRow" ShowColumnPicker="false" ShowPagingSummary="false" ShowPagination="false">
-                    <Columns>
-                        <RadzenDataGridColumn TItem="DrawRow" Title="Naam">
-                            <Template Context="r">@r.FullName</Template>
-                        </RadzenDataGridColumn>
-                        <RadzenDataGridColumn TItem="DrawRow" Title="Resultaat" Width="120px">
-                            <Template Context="r">
-                                <RadzenBadge Text="@r.Result" BadgeStyle="@(r.Result == "Winnaar" ? BadgeStyle.Success : BadgeStyle.Warning)" Variant="Variant.Filled" />
-                            </Template>
-                        </RadzenDataGridColumn>
-                        <RadzenDataGridColumn TItem="DrawRow" Title="Periode" Width="220px">
-                            <Template Context="r">@($"{r.FromDate:dd-MM-yyyy} t/m {r.ToDate:dd-MM-yyyy}")</Template>
-                        </RadzenDataGridColumn>
-                    </Columns>
-                </RadzenDataGrid>
+    <!-- Kop: titel, jaar, ploeg/specialiteit, kerngetallen -->
+    <div class="wc-header">
+        <div class="wc-title">
+            <h1>Loterij</h1>
+            <div class="wc-year" role="group" aria-label="Jaar kiezen">
+                <button type="button" class="wc-year-btn" aria-label="Vorig jaar" disabled="@(SelectedYear <= MinYear)" @onclick="() => ChangeYear(-1)">
+                    <i class="rzi">chevron_left</i>
+                </button>
+                <span class="wc-year-label">@SelectedYear</span>
+                <button type="button" class="wc-year-btn" aria-label="Volgend jaar" disabled="@(SelectedYear >= MaxYear)" @onclick="() => ChangeYear(1)">
+                    <i class="rzi">chevron_right</i>
+                </button>
             </div>
-        }
-    }
-    @* <RadzenDialog /> *@
-    <RadzenNotification />
-}
-
-
-@code {
-    // Data
-    private bool isLoading = true;
-    private List<PersonBaseDTO> AllPersons = new();
-    private List<PersonBaseDTO> AvailablePersons = new();
-    private List<PersonBaseDTO> Participants = new();
-    private Dictionary<int, PersonBaseDTO> PersonIndex = new(); // add this
-    // Lijsten met alle lotingen (elk met eigen rijen Winnaar/Verliezer)
-    private List<DrawView> AllDraws = new();
-
-    // Optionele custom naam; default = "Loting {NextYearDrawIndex}"
-    private string? CurrentDrawName;
-
-    // Globale (unieke) drawNumber voor API/DB
-    private int NextDrawNumber => AllDraws.Count == 0 ? 1 : AllDraws.Max(d => d.DrawNumber) + 1;
-
-    // Jaar-gebonden teller voor de zichtbare naam ("Loting 1", "Loting 2", ...)
-    private int NextYearDrawIndex =>
-            AllDraws
-                .Where(d => d.FromDate.Year == SelectedYear || d.ToDate.Year == SelectedYear)
-                .Count(d => d.Rows.Any(r => PersonMatchesFilters(r.PersonId))) + 1;
-
-    // Selection
-    private List<PersonBaseDTO> SelectedAvailable = new();
-    private List<PersonBaseDTO> SelectedParticipants = new();
-
-    // Year / month / shifts
-    private int SelectedYear { get; set; } = DateTime.Now.Year + 1;
-    private List<int> Years { get; set; } = Enumerable.Range(DateTime.Now.Year - 1, 12).Reverse().ToList();
-    private int SelectedMonth { get; set; } = DateTime.Now.Month;
-
-    // From/To (internal)
-    private DateTime FromDate { get; set; }
-    private DateTime ToDate { get; set; }
-
-    private List<string> ShiftOptions { get; } = new() { "D", "N" };
-    private List<string> SelectedShifts { get; set; } = new() { "D", "N" };
-
-    // Month + day options
-    private class MonthOption { public int Value { get; set; } public string Text { get; set; } = ""; }
-    private class DayOption { public DateTime Date { get; set; } public string Label { get; set; } = ""; }
-
-    private List<MonthOption> MonthOptions = Enumerable.Range(1, 12)
-        .Select(m => new MonthOption { Value = m, Text = CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(m) })
-        .ToList();
-
-    private List<DayOption> MonthWorkingDays = new();
-    private DateTime? SelectedFrom { get; set; }
-    private DateTime? SelectedTo { get; set; }
-
-    // Meta options (loaded from API)
-    private List<string> TeamOptions = new();
-    private List<string> SpecialityOptions = new();
-    private List<string> GradeOptions = new();
-    private List<string> RoleOptions = new();
-
-    // Team/Speciality (selected)
-    private string? SelectedTeam { get; set; }
-    private string? SelectedSpeciality { get; set; }
-
-    private string DisplayTeam =>
-        string.IsNullOrWhiteSpace(SelectedTeam) ? "Onbekend" : SelectedTeam;
-
-    private string DisplaySpeciality =>
-        string.IsNullOrWhiteSpace(SelectedSpeciality) ? "Onbekend" : SelectedSpeciality;
-
-    // Workdays
-    private List<WorkDay> TeamWorkDays = new();
-
-    protected override async Task OnInitializedAsync()
-    {
-        InitRangeToMonth(SelectedYear, SelectedMonth);
-
-        // Load meta for normalization/mapping
-        await LoadMetaAsync();
-
-        // Resolve team/specialiteit van ingelogde user
-        var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
-        var userId = JwtUtils.GetUserIdFromToken(token);
-        if (int.TryParse(userId, out var id))
-        {
-            var person = await PersonApi.GetPersonByIdAsync(id);
-            SelectedTeam = NormalizeTeam(person?.Team);
-            SelectedSpeciality = NormalizeSpeciality(person?.Speciality);
-            isAdmin = string.Equals(person?.Role, "Admin", StringComparison.OrdinalIgnoreCase);
-        }
-
-        // Personen voor dit team/specialiteit
-        if (!string.IsNullOrWhiteSpace(SelectedTeam) && !string.IsNullOrWhiteSpace(SelectedSpeciality))
-        {
-            AllPersons = await Http.GetFromJsonAsync<List<PersonBaseDTO>>(
-                $"api/person/team/{SelectedTeam}/{SelectedSpeciality}") ?? new();
-        }
-        else
-        {
-            AllPersons = await PersonApi.GetAllPersonsAsync();
-        }
-
-        // Normalize people so filtering and UI show labels instead of numeric codes
-        NormalizePeople(AllPersons);
-        ApplyFilters();
-
-        // Index met ALLE personen (nodig om team/speciality per DrawRow op te zoeken)
-        var allForIndex = await PersonApi.GetAllPersonsAsync();
-        NormalizePeople(allForIndex);
-        PersonIndex = (allForIndex ?? new()).ToDictionary(p => p.Id);
-
-        await LoadTeamWorkDays();
-        RebuildMonthWorkingDays();
-
-        // Bestaande lotingen laden
-        await LoadExistingDraws();
-
-        isLoading = false;
-    }
-
-    private bool isAdmin;
-
-    // Admin koos een andere ploeg/specialiteit: personen en werkdagen opnieuw laden
-    private async Task ReloadTeamAsync()
-    {
-        if (string.IsNullOrWhiteSpace(SelectedTeam) || string.IsNullOrWhiteSpace(SelectedSpeciality))
-            return;
-
-        AllPersons = await Http.GetFromJsonAsync<List<PersonBaseDTO>>($"api/person/team/{SelectedTeam}/{SelectedSpeciality}") ?? new();
-        NormalizePeople(AllPersons);
-        ApplyFilters();
-        await LoadTeamWorkDays();
-        RebuildMonthWorkingDays();
-        StateHasChanged();
-    }
-
-    private async Task LoadMetaAsync()
-    {
-        try
-        {
-            TeamOptions = await Http.GetFromJsonAsync<List<string>>("api/meta/teams") ?? new();
-            SpecialityOptions = await Http.GetFromJsonAsync<List<string>>("api/meta/specialities") ?? new();
-            GradeOptions = await Http.GetFromJsonAsync<List<string>>("api/meta/grades") ?? new();
-            RoleOptions = await Http.GetFromJsonAsync<List<string>>("api/meta/roles") ?? new();
-        }
-        catch
-        {
-            TeamOptions ??= new();
-            SpecialityOptions ??= new();
-            GradeOptions ??= new();
-            RoleOptions ??= new();
-        }
-    }
-
-    private static bool IsDigits(string? s) => !string.IsNullOrWhiteSpace(s) && s.All(char.IsDigit);
-
-    private string NormalizeTeam(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value)) return "";
-        if (value.StartsWith("Ploeg", StringComparison.OrdinalIgnoreCase)) return value;
-        if (IsDigits(value) && int.TryParse(value, out var idx) && idx >= 0 && idx < TeamOptions.Count)
-            return TeamOptions[idx];
-        return value;
-    }
-
-    private string NormalizeSpeciality(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value)) return "";
-        if (IsDigits(value) && int.TryParse(value, out var idx) && idx >= 0 && idx < SpecialityOptions.Count)
-            return SpecialityOptions[idx];
-        return value;
-    }
-
-    private void NormalizePeople(List<PersonBaseDTO>? people)
-    {
-        if (people == null) return;
-        foreach (var p in people)
-        {
-            p.Team = NormalizeTeam(p.Team);
-            p.Speciality = NormalizeSpeciality(p.Speciality);
-        }
-    }
-
-    private bool PersonMatchesFilters(int personId)
-    {
-        if (!PersonIndex.TryGetValue(personId, out var p)) return false;
-
-        if (!string.IsNullOrEmpty(SelectedTeam) && !string.Equals(p.Team, SelectedTeam, StringComparison.Ordinal))
-            return false;
-
-        if (!string.IsNullOrEmpty(SelectedSpeciality) && !string.Equals(p.Speciality, SelectedSpeciality, StringComparison.Ordinal))
-            return false;
-
-        return true;
-    }
-
-    // Alleen lotingen tonen van het geselecteerde jaar én gefilterd op team/specialiteit
-    private IEnumerable<DrawView> FilteredDraws =>
-        AllDraws
-            .Select(d => new DrawView
+            @if (isAdmin)
             {
-                DrawNumber = d.DrawNumber,
-                DrawName = d.DrawName,
-                FromDate = d.FromDate,
-                ToDate = d.ToDate,
-                Rows = d.Rows.Where(r => PersonMatchesFilters(r.PersonId)).ToList()
-            })
-            .Where(d => d.Rows.Count > 0) // toon enkel draws met relevante deelnemers
-            .Where(d => d.FromDate.Year == SelectedYear || d.ToDate.Year == SelectedYear)
-            .OrderBy(d => d.DrawNumber);
-
-    private async Task LoadExistingDraws()
-    {
-        try
-        {
-            var draws = await Http.GetFromJsonAsync<List<LotteryDrawDTO>>("api/lottery/draws") ?? new();
-            AllDraws = draws
-                .OrderBy(d => d.DrawNumber)
-                .ThenBy(d => d.CreatedAtUtc)
-                .Select(d =>
-                {
-                    var rows = new List<DrawRow>();
-                    rows.AddRange((d.Winners ?? new()).Select(w => new DrawRow
-                    {
-                        DrawNumber = d.DrawNumber,
-                        DrawName = d.DrawName,
-                        FromDate = d.FromDate,
-                        ToDate = d.ToDate,
-                        PersonId = w.PersonId,
-                        FullName = $"{w.FirstName} {w.LastName}",
-                        Result = "Winnaar"
-                    }));
-                    rows.AddRange((d.Losers ?? new()).Select(l => new DrawRow
-                    {
-                        DrawNumber = d.DrawNumber,
-                        DrawName = d.DrawName,
-                        FromDate = d.FromDate,
-                        ToDate = d.ToDate,
-                        PersonId = l.PersonId,
-                        FullName = $"{l.FirstName} {l.LastName}",
-                        Result = "Verliezer"
-                    }));
-                    // Sorteer winners eerst, dan alfabetisch
-                    rows = rows.OrderBy(r => r.Result == "Verliezer")
-                               .ThenBy(r => r.FullName)
-                               .ToList();
-
-                    return new DrawView
-                    {
-                        DrawNumber = d.DrawNumber,
-                        DrawName = d.DrawName,
-                        FromDate = d.FromDate,
-                        ToDate = d.ToDate,
-                        Rows = rows
-                    };
-                })
-                .ToList();
-        }
-        catch
-        {
-            AllDraws = new();
-        }
-    }
-
-    private void InitRangeToMonth(int year, int month)
-    {
-        FromDate = new DateTime(year, month, 1);
-        ToDate = new DateTime(year, month, DateTime.DaysInMonth(year, month));
-    }
-
-    private async Task OnYearChanged(object? value)
-    {
-        if (value is int y)
-        {
-            SelectedYear = y;
-            InitRangeToMonth(SelectedYear, SelectedMonth);
-            await LoadTeamWorkDays();
-            RebuildMonthWorkingDays();
-        }
-        StateHasChanged();
-    }
-
-    private async Task OnMonthChanged(int value)
-    {
-        SelectedMonth = value;
-        InitRangeToMonth(SelectedYear, SelectedMonth);
-        await LoadTeamWorkDays();
-        RebuildMonthWorkingDays();
-    }
-
-    private void OnFromChanged(DateTime? value)
-    {
-        SelectedFrom = value;
-        if (SelectedTo.HasValue && SelectedFrom.HasValue && SelectedTo.Value < SelectedFrom.Value)
-            SelectedTo = SelectedFrom;
-        SyncFromToDates();
-    }
-
-    private void OnToChanged(DateTime? value)
-    {
-        SelectedTo = value;
-        if (SelectedFrom.HasValue && SelectedTo.HasValue && SelectedTo.Value < SelectedFrom.Value)
-            SelectedFrom = SelectedTo;
-        SyncFromToDates();
-    }
-
-    private void SyncFromToDates()
-    {
-        if (SelectedFrom.HasValue) FromDate = SelectedFrom.Value;
-        if (SelectedTo.HasValue) ToDate = SelectedTo.Value;
-        StateHasChanged();
-    }
-
-    private void RebuildMonthWorkingDays()
-    {
-        var dates = TeamWorkDays
-            .Where(w => w.Date.Year == SelectedYear && w.Date.Month == SelectedMonth)
-            .Select(w => w.Date.Date)
-            .Distinct()
-            .OrderBy(d => d)
-            .ToList();
-
-        MonthWorkingDays = dates
-            .Select(d => new DayOption { Date = d, Label = d.ToString("ddd dd-MM-yyyy") })
-            .ToList();
-
-        if (MonthWorkingDays.Count == 0)
-        {
-            SelectedFrom = SelectedTo = null;
-            InitRangeToMonth(SelectedYear, SelectedMonth);
-        }
-        else
-        {
-            SelectedFrom = SelectedFrom.HasValue && MonthWorkingDays.Any(x => x.Date == SelectedFrom.Value)
-                ? SelectedFrom
-                : MonthWorkingDays.First().Date;
-
-            SelectedTo = SelectedTo.HasValue && MonthWorkingDays.Any(x => x.Date == SelectedTo.Value)
-                ? SelectedTo
-                : MonthWorkingDays.Last().Date;
-
-            if (SelectedTo < SelectedFrom) SelectedTo = SelectedFrom;
-
-            FromDate = SelectedFrom.Value;
-            ToDate = SelectedTo.Value;
-        }
-    }
-
-    private void ApplyFilters()
-    {
-        IEnumerable<PersonBaseDTO> q = AllPersons;
-
-        if (!string.IsNullOrEmpty(SelectedTeam))
-            q = q.Where(p => p.Team == SelectedTeam);
-
-        if (!string.IsNullOrEmpty(SelectedSpeciality))
-            q = q.Where(p => p.Speciality == SelectedSpeciality);
-
-        var participantIds = Participants.Select(p => p.Id).ToHashSet();
-        AvailablePersons = q.Where(p => !participantIds.Contains(p.Id))
-                            .OrderBy(p => p.LastName)
-                            .ThenBy(p => p.FirstName)
-                            .ToList();
-
-        if (WinnersCount > Participants.Count)
-            WinnersCount = Math.Max(1, Participants.Count);
-    }
-
-    private async Task LoadTeamWorkDays()
-    {
-        if (string.IsNullOrEmpty(SelectedTeam))
-        {
-            TeamWorkDays = new();
-            return;
-        }
-        try
-        {
-            TeamWorkDays = await Http.GetFromJsonAsync<List<WorkDay>>(
-                $"api/calender?teamName={SelectedTeam}&year={SelectedYear}") ?? new();
-        }
-        catch
-        {
-            TeamWorkDays = new();
-        }
-        StateHasChanged();
-    }
-
-    private int ShiftCountInRange =>
-        TeamWorkDays.Count(wd =>
-            wd.Date.Date >= FromDate.Date &&
-            wd.Date.Date <= ToDate.Date &&
-            SelectedShifts.Contains(wd.Shift));
-
-    private void AddSelectedToParticipants()
-    {
-        if (SelectedAvailable == null || SelectedAvailable.Count == 0) return;
-        foreach (var p in SelectedAvailable)
-        {
-            if (!Participants.Any(x => x.Id == p.Id))
-                Participants.Add(p);
-        }
-        SelectedAvailable.Clear();
-        ApplyFilters();
-    }
-
-    private void AddAllToParticipants()
-    {
-        foreach (var p in AvailablePersons)
-        {
-            if (!Participants.Any(x => x.Id == p.Id))
-                Participants.Add(p);
-        }
-        ApplyFilters();
-    }
-
-    private void RemoveSelectedParticipants()
-    {
-        if (SelectedParticipants == null || SelectedParticipants.Count == 0) return;
-        foreach (var p in SelectedParticipants.ToList())
-        {
-            Participants.RemoveAll(x => x.Id == p.Id);
-        }
-        SelectedParticipants.Clear();
-        ApplyFilters();
-    }
-
-    private void ClearParticipants()
-    {
-        Participants.Clear();
-        ApplyFilters();
-    }
-
-    private async Task DrawWinners()
-    {
-        if (Participants.Count == 0)
-        {
-            NotificationService.Notify(NotificationSeverity.Warning, "Geen deelnemers", "Kies deelnemers voor je de trekking uitvoert.");
-            return;
-        }
-
-        if (WinnersCount < 1)
-        {
-            NotificationService.Notify(NotificationSeverity.Warning, "Ongeldig aantal", "Aantal winnaars moet minstens 1 zijn.");
-            return;
-        }
-
-        var count = Math.Min(WinnersCount, Participants.Count);
-
-        // Shuffle (Fisher–Yates)
-        var rng = Random.Shared;
-        var list = Participants.ToList();
-        for (int i = list.Count - 1; i > 0; i--)
-        {
-            int j = rng.Next(i + 1);
-            (list[i], list[j]) = (list[j], list[i]);
-        }
-
-        var winners = list.Take(count).ToList();
-        var losers  = list.Skip(count).ToList();
-
-        // Globale unieke ID voor opslag
-        var drawNumber = NextDrawNumber;
-
-        // Zichtbare naam reset per jaar
-        var drawName = string.IsNullOrWhiteSpace(CurrentDrawName) ? $"Loting {NextYearDrawIndex}" : CurrentDrawName.Trim();
-
-        // API: bewaren
-        var saved = await SaveDrawAsync(drawNumber, drawName, FromDate.Date, ToDate.Date, winners, losers);
-        if (!saved)
-        {
-            NotificationService.Notify(NotificationSeverity.Warning, "Opslaan mislukt", "Kon de loting niet bewaren.");
-            return;
-        }
-
-        // UI: nieuwe draw toevoegen
-        var rows = new List<DrawRow>();
-        rows.AddRange(winners.Select(p => new DrawRow
-        {
-            DrawNumber = drawNumber,
-            DrawName = drawName,
-            FromDate = FromDate.Date,
-            ToDate = ToDate.Date,
-            PersonId = p.Id,
-            FullName = $"{p.FirstName} {p.LastName}",
-            Result = "Winnaar"
-        }));
-        rows.AddRange(losers.Select(p => new DrawRow
-        {
-            DrawNumber = drawNumber,
-            DrawName = drawName,
-            FromDate = FromDate.Date,
-            ToDate = ToDate.Date,
-            PersonId = p.Id,
-            FullName = $"{p.FirstName} {p.LastName}",
-            Result = "Verliezer"
-        }));
-        rows = rows.OrderBy(r => r.Result == "Verliezer").ThenBy(r => r.FullName).ToList();
-
-        AllDraws.Add(new DrawView
-        {
-            DrawNumber = drawNumber,
-            DrawName = drawName,
-            FromDate = FromDate.Date,
-            ToDate = ToDate.Date,
-            Rows = rows
-        });
-
-        NotificationService.Notify(NotificationSeverity.Success, "Trekking voltooid",
-            $"{drawName}: {winners.Count} winnaar(s) gekozen en opgeslagen.");
-
-        CurrentDrawName = null;
-        StateHasChanged();
-    }
-
-    // POST naar api/lottery/draw (DTO: LotteryDrawDTO met Winners + Losers)
-    private async Task<bool> SaveDrawAsync(int drawNumber, string drawName, DateTime from, DateTime to,
-                                           List<PersonBaseDTO> winners, List<PersonBaseDTO> losers)
-    {
-        try
-        {
-            var dto = new LotteryDrawDTO
-            {
-                DrawNumber = drawNumber,
-                DrawName = drawName,
-                FromDate = from,
-                ToDate = to,
-                Winners = winners.Select(w => new LotteryPersonDTO
-                {
-                    PersonId = w.Id,
-                    FirstName = w.FirstName ?? "",
-                    LastName = w.LastName ?? ""
-                }).ToList(),
-                Losers = losers.Select(l => new LotteryPersonDTO
-                {
-                    PersonId = l.Id,
-                    FirstName = l.FirstName ?? "",
-                    LastName = l.LastName ?? ""
-                }).ToList()
-            };
-
-            var resp = await Http.PostAsJsonAsync("api/lottery/draw", dto);
-            return resp.IsSuccessStatusCode;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    // DELETE naar api/lottery/draw/{drawNumber}
-    private async Task DeleteDraw(int drawNumber)
-    {
-        var confirmed = await DialogService.Confirm(
-            $"Weet je zeker dat je loting wil wissen?",
-            "Bevestigen",
-            new ConfirmOptions { OkButtonText = "Ja", CancelButtonText = "Nee", CloseDialogOnEsc = true });
-
-        if (confirmed != true) return;
-
-        try
-        {
-            var resp = await Http.DeleteAsync($"api/lottery/draw/{drawNumber}");
-            if (resp.IsSuccessStatusCode)
-            {
-                AllDraws.RemoveAll(d => d.DrawNumber == drawNumber);
-                NotificationService.Notify(NotificationSeverity.Success, "Loting gewist", $"Loting {drawNumber} is verwijderd.");
+                <RadzenDropDown TValue="string" @bind-Value="SelectedTeam" Data="@TeamOptions" Placeholder="Ploeg" Style="width:140px" Change="@(async _ => await ReloadAllAsync())" />
+                <RadzenDropDown TValue="string" @bind-Value="SelectedSpeciality" Data="@SpecialityOptions" Placeholder="Specialiteit" Style="width:200px" Change="@(async _ => await ReloadAllAsync())" />
             }
             else
             {
-                var msg = await resp.Content.ReadAsStringAsync();
-                NotificationService.Notify(NotificationSeverity.Error, "Fout", $"Wissen mislukt ({(int)resp.StatusCode}). {msg}");
+                <span class="tc-scope">@SelectedTeam · @SelectedSpeciality</span>
             }
+        </div>
+        <div class="lp-kpis">
+            <span class="lp-kpi">Paren boven max <strong class="@(OverPairsYear > 0 ? "lp-red" : "")">@OverPairsYear</strong></span>
+            <span class="lp-kpi">Lotingen <strong>@YearDraws.Count</strong> · niet toegepast <strong class="@(OpenDrawsYear > 0 ? "lp-orange" : "")">@OpenDrawsYear</strong></span>
+        </div>
+    </div>
+
+    <div class="lp-grid">
+        <!-- Links: nieuwe loting -->
+        <section class="lp-card">
+            <div class="lp-step">1 · Kies een shiftpaar</div>
+            <div class="tc-months" role="group" aria-label="Maand kiezen">
+                @for (var m = 1; m <= 12; m++)
+                {
+                    var month = m;
+                    var hasOver = Pairs.Any(p => p.Day.Month == month && p.Over && !p.HasDraw);
+                    <button type="button" class="@(SelectedMonth == month ? "tc-month tc-month-active" : "tc-month")"
+                            aria-pressed="@(SelectedMonth == month ? "true" : "false")"
+                            title="@(hasOver ? "Deze maand heeft paren boven het maximum zonder loting" : null)"
+                            @onclick="() => SelectedMonth = month">
+                        @ShortMonth(month)
+                        @if (hasOver)
+                        {
+                            <span class="tc-month-dot"></span>
+                        }
+                    </button>
+                }
+                <label class="tc-two-months" title="Enkel paren waar meer personen verlof hebben dan het maximum">
+                    <input type="checkbox" checked="@OnlyOver" @onchange="e => OnlyOver = (bool)(e.Value ?? false)" />
+                    enkel boven max
+                </label>
+            </div>
+
+            <div class="lp-pairs">
+                @foreach (var p in VisiblePairs)
+                {
+                    var active = SelectedPair == p.Day;
+                    <button type="button" class="@(active ? "lp-pair lp-pair-active" : "lp-pair")" @onclick="() => SelectedPair = p.Day">
+                        <span class="lp-pair-date">@PairText(p)</span>
+                        <span class="lp-pair-shifts">D+N</span>
+                        @if (p.HasDraw)
+                        {
+                            <span class="@(p.DrawApplied ? "tl-status tl-status-done" : "tl-status tl-status-open")"><i class="rzi">task_alt</i> @(p.DrawApplied ? "geloot" : "niet toegepast")</span>
+                        }
+                        <span class="lp-pair-count">
+                            <span class="@(p.DayCount > Quota ? "tc-count tc-count-over" : "tc-count")">@p.DayCount/@Quota</span>
+                            <span class="@(p.NightCount > Quota ? "tc-count tc-count-over" : "tc-count")">@p.NightCount/@Quota</span>
+                        </span>
+                    </button>
+                }
+                @if (!VisiblePairs.Any())
+                {
+                    <p class="tl-hint">@(OnlyOver ? "Geen paren boven het maximum in deze maand." : "Geen shiften in deze maand.")</p>
+                }
+            </div>
+
+            @if (SelectedPair is DateTime day)
+            {
+                var pair = Pairs.First(p => p.Day == day);
+                <div class="lp-step lp-step-2">2 · Loting @PairText(pair)</div>
+                <LotteryForm @key="@($"{day:yyyyMMdd}-{formVersion}")"
+                             DayDate="pair.Day" NightDate="pair.Night" Quota="Quota"
+                             CanApply="CanApply" AllowAddPeople="true"
+                             Load="() => LoadFormContext(pair)"
+                             OnRemoved="OnRemovedAsync" OnRestored="OnRestoredAsync" OnChanged="OnFormChangedAsync" />
+            }
+            else
+            {
+                <p class="tl-hint lp-pick-hint">Kies hierboven een shiftpaar: de dag- en nachtshift worden samen genomen.</p>
+            }
+        </section>
+
+        <!-- Rechts: resultaten -->
+        <section class="lp-card">
+            <div class="lp-results-head">
+                <span class="lp-step" style="margin:0">Resultaten @SelectedYear</span>
+                <input type="search" class="rz-textbox lp-search" @bind="Search" @bind:event="oninput" placeholder="Zoek op naam…" aria-label="Zoek op naam" />
+                <RadzenDropDown TValue="string" @bind-Value="StatusFilter" Data="@StatusOptions" Style="width:150px" />
+            </div>
+
+            <!-- Stand per persoon: gewonnen/verloren lotingen dit jaar -->
+            <button type="button" class="lp-standings-toggle" aria-expanded="@(showStandings ? "true" : "false")" @onclick="() => showStandings = !showStandings">
+                <i class="rzi">@(showStandings ? "expand_less" : "expand_more")</i> Stand per persoon @SelectedYear
+            </button>
+            @if (showStandings)
+            {
+                var stats = LotteryApiService.StatsFor(TeamDraws, SelectedYear);
+                <div class="lp-standings">
+                    @foreach (var m in TeamMembers
+                        .Select(m => (member: m, st: stats.TryGetValue(m.Id, out var s) ? s : new LotteryApiService.Stats(0, 0)))
+                        .OrderByDescending(x => x.st.Lost).ThenBy(x => x.st.Won).ThenBy(x => x.member.LastName))
+                    {
+                        <div class="lp-standing">
+                            <span class="lp-standing-name">@m.member.FirstName @m.member.LastName</span>
+                            <span class="tl-record-w">@m.st.Won gew.</span>
+                            <span class="tl-record-l">@m.st.Lost verl.</span>
+                        </div>
+                    }
+                </div>
+            }
+
+            @foreach (var d in FilteredDraws)
+            {
+                var applied = LotteryApiService.IsApplied(d);
+                <div class="@(applied || !d.Losers.Any() ? "lp-draw" : "lp-draw lp-draw-open")">
+                    <div class="lp-draw-head">
+                        <button type="button" class="lp-draw-title" title="Openen in de teamkalender" @onclick="() => OpenInTeamCalendar(d)">
+                            @DrawPeriod(d)
+                        </button>
+                        <span class="lp-draw-name">@d.DrawName</span>
+                        <span class="@(applied ? "tl-status tl-status-done" : "tl-status tl-status-open")">@(applied ? "toegepast" : d.Losers.Any() ? "niet toegepast" : "geen verliezers")</span>
+                        <span class="lp-draw-actions">
+                            @if (!applied && CanApply && d.Losers.Any())
+                            {
+                                <RadzenButton Text="Toepassen" Icon="done_all" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Outlined"
+                                              Click="@(() => { pendingApply = d.DrawNumber; pendingDelete = null; })" />
+                            }
+                            <RadzenButton Icon="delete" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Outlined"
+                                          title="Loting verwijderen" aria-label="Loting verwijderen"
+                                          Click="@(() => { pendingDelete = d.DrawNumber; pendingApply = null; })" />
+                        </span>
+                    </div>
+                    <div class="lp-draw-people">
+                        @foreach (var w in d.Winners)
+                        {
+                            <span class="tl-tag tl-tag-win">@w.FirstName @w.LastName</span>
+                        }
+                        @foreach (var l in d.Losers)
+                        {
+                            <span class="tl-tag tl-tag-lose">@l.FirstName @l.LastName</span>
+                        }
+                    </div>
+                    @if (pendingApply == d.DrawNumber)
+                    {
+                        <div class="tl-confirm">
+                            <div class="tl-confirm-title"><i class="rzi">help_outline</i> Loting toepassen?</div>
+                            <div class="tl-hint">@string.Join(", ", d.Losers.Select(l => $"{l.FirstName} {l.LastName}")) @(d.Losers.Count == 1 ? "verliest" : "verliezen") hun verlof op @DrawPeriod(d). Dit wordt meteen opgeslagen.</div>
+                            <div class="tl-actions">
+                                <RadzenButton Text="Terug" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" Click="@(() => pendingApply = null)" />
+                                <RadzenButton Text="Ja, toepassen" Icon="done_all" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Small"
+                                              Disabled="@busy" Click="@(() => ApplyDrawAsync(d))" />
+                            </div>
+                        </div>
+                    }
+                    @if (pendingDelete == d.DrawNumber)
+                    {
+                        <div class="tl-confirm tl-confirm-danger">
+                            <div class="tl-confirm-title"><i class="rzi">delete</i> Loting verwijderen?</div>
+                            <div class="tl-hint">@(applied ? "De verliezers krijgen hun verlof terug (met hun verlofregel)." : "Er werd nog geen verlof weggehaald.")</div>
+                            <div class="tl-actions">
+                                <RadzenButton Text="Terug" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" Click="@(() => pendingDelete = null)" />
+                                <RadzenButton Text="Ja, verwijderen" Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small"
+                                              Disabled="@busy" Click="@(() => DeleteDrawAsync(d))" />
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+            @if (!FilteredDraws.Any())
+            {
+                <p class="tl-hint">Geen lotingen gevonden.</p>
+            }
+            <p class="tl-hint lp-foot"><i class="rzi">event</i> Klik op de datum van een loting om ze in de teamkalender te openen.</p>
+        </section>
+    </div>
+}
+
+@code {
+    private static readonly CultureInfo Nl = new("nl-BE");
+
+    private bool isLoading = true;
+    private bool isAdmin;
+    private bool busy;
+    private int formVersion;
+    private int? pendingApply;
+    private int? pendingDelete;
+    private bool showStandings;
+
+    private int SelectedYear = DateTime.Now.Year + 1;
+    private int MinYear => DateTime.Now.Year - 1;
+    private int MaxYear => DateTime.Now.Year + 10;
+    private int SelectedMonth = 1;
+    private bool OnlyOver = true;
+    private DateTime? SelectedPair;
+
+    private string? SelectedTeam;
+    private string? SelectedSpeciality;
+    private List<string> TeamOptions = new();
+    private List<string> SpecialityOptions = new();
+
+    private string? Search;
+    private string StatusFilter = "Alle";
+    private readonly List<string> StatusOptions = new() { "Alle", "Niet toegepast", "Toegepast" };
+
+    private List<WorkDay> WorkDays = new();
+    private List<PersonBaseDTO> TeamMembers = new();
+    private List<TeamDayOff> DaysOff = new();
+    private List<LeaveCategoryDTO> Categories = new();
+    private List<LotteryDrawDTO> Draws = new();
+    private CalendarPermissionsDTO? perms;
+
+    public class TeamDayOff
+    {
+        public int PersonId { get; set; }
+        public DateTime Date { get; set; }
+        public string Shift { get; set; } = "";
+        public int? LeaveCategoryId { get; set; }
+    }
+
+    private record Pair(DateTime Day, DateTime Night, int DayCount, int NightCount, bool Over, bool HasDraw, bool DrawApplied);
+
+    private int Quota => Math.Max(1, TeamMembers.Count / 4);
+    private bool CanApply => isAdmin || (perms?.CanSaveTeamCalendar ?? false);
+
+    // --- Shiftparen: dagshift op dag X + nachtshift op dag X+1 ---
+    private List<Pair> Pairs => WorkDays
+        .Where(w => w.Shift == "D")
+        .OrderBy(w => w.Date)
+        .Select(w =>
+        {
+            var day = w.Date.Date;
+            var night = day.AddDays(1);
+            var dc = DaysOff.Count(d => d.Date.Date == day && d.Shift == "D");
+            var nc = DaysOff.Count(d => d.Date.Date == night && d.Shift == "N");
+            var draws = DrawsFor(day, night);
+            return new Pair(day, night, dc, nc, dc > Quota || nc > Quota, draws.Any(), draws.Any() && draws.All(d => LotteryApiService.IsApplied(d) || !d.Losers.Any()));
+        })
+        .ToList();
+
+    private IEnumerable<Pair> VisiblePairs => Pairs
+        .Where(p => p.Day.Month == SelectedMonth)
+        .Where(p => !OnlyOver || p.Over || p.HasDraw || p.Day == SelectedPair);
+
+    private int OverPairsYear => Pairs.Count(p => p.Over && !p.HasDraw);
+
+    private List<LotteryDrawDTO> DrawsFor(DateTime day, DateTime night) => TeamDraws
+        .Where(d => d.FromDate.Date <= night && d.ToDate.Date >= day)
+        .ToList();
+
+    // Lotingen van deze ploeg/specialiteit: minstens één deelnemer is lid
+    private IEnumerable<LotteryDrawDTO> TeamDraws => Draws
+        .Where(d => d.Winners.Concat(d.Losers).Any(p => TeamMembers.Any(m => m.Id == p.PersonId)));
+
+    private List<LotteryDrawDTO> YearDraws => TeamDraws
+        .Where(d => d.FromDate.Year == SelectedYear || d.ToDate.Year == SelectedYear)
+        .ToList();
+
+    private int OpenDrawsYear => YearDraws.Count(d => d.Losers.Any() && !LotteryApiService.IsApplied(d));
+
+    private IEnumerable<LotteryDrawDTO> FilteredDraws => YearDraws
+        .Where(d => StatusFilter switch
+        {
+            "Toegepast" => LotteryApiService.IsApplied(d),
+            "Niet toegepast" => d.Losers.Any() && !LotteryApiService.IsApplied(d),
+            _ => true
+        })
+        .Where(d => string.IsNullOrWhiteSpace(Search)
+            || d.DrawName.Contains(Search, StringComparison.OrdinalIgnoreCase)
+            || d.Winners.Concat(d.Losers).Any(p => $"{p.FirstName} {p.LastName}".Contains(Search, StringComparison.OrdinalIgnoreCase)))
+        .OrderByDescending(d => d.FromDate).ThenByDescending(d => d.CreatedAtUtc);
+
+    private static string ShortMonth(int month) =>
+        new DateTime(2000, month, 1).ToString("MMM", new CultureInfo("nl-BE")).TrimEnd('.');
+
+    private string PairText(Pair p) =>
+        $"{p.Day.ToString("ddd d", Nl)} – {p.Night.ToString(p.Day.Month == p.Night.Month ? "ddd d" : "ddd d MMM", Nl)}";
+
+    private string DrawPeriod(LotteryDrawDTO d)
+    {
+        if (d.FromDate.Date == d.ToDate.Date)
+        {
+            var shift = WorkDays.FirstOrDefault(w => w.Date.Date == d.FromDate.Date)?.Shift;
+            return $"{d.FromDate.ToString("ddd d MMM", Nl)}{(shift != null ? $" ({shift})" : "")}";
+        }
+        var sameMonth = d.FromDate.Month == d.ToDate.Month;
+        return $"{d.FromDate.ToString(sameMonth ? "ddd d" : "ddd d MMM", Nl)} – {d.ToDate.ToString("ddd d MMM", Nl)} (D+N)";
+    }
+
+    // --- Laden ---
+
+    protected override async Task OnInitializedAsync()
+    {
+        var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
+        var userId = JwtUtils.GetUserIdFromToken(token);
+        var person = userId != null ? await PersonApi.GetPersonByIdAsync(int.Parse(userId)) : null;
+        SelectedTeam = person?.Team;
+        SelectedSpeciality = person?.Speciality;
+        isAdmin = string.Equals(person?.Role, "Admin", StringComparison.OrdinalIgnoreCase);
+
+        if (isAdmin)
+        {
+            TeamOptions = await Http.GetFromJsonAsync<List<string>>("api/meta/teams") ?? new();
+            SpecialityOptions = await Http.GetFromJsonAsync<List<string>>("api/meta/specialities") ?? new();
+        }
+
+        await ReloadAllAsync();
+        SelectedMonth = SelectedYear == DateTime.Now.Year ? DateTime.Now.Month : 1;
+        isLoading = false;
+    }
+
+    private async Task ChangeYear(int delta)
+    {
+        var year = SelectedYear + delta;
+        if (year < MinYear || year > MaxYear) return;
+        SelectedYear = year;
+        SelectedMonth = SelectedYear == DateTime.Now.Year ? DateTime.Now.Month : 1;
+        await ReloadAllAsync();
+    }
+
+    private async Task ReloadAllAsync()
+    {
+        SelectedPair = null;
+        pendingApply = pendingDelete = null;
+        if (string.IsNullOrEmpty(SelectedTeam) || string.IsNullOrEmpty(SelectedSpeciality))
+            return;
+
+        try
+        {
+            TeamMembers = await Http.GetFromJsonAsync<List<PersonBaseDTO>>($"api/person/team/{SelectedTeam}/{SelectedSpeciality}") ?? new();
+            WorkDays = await Http.GetFromJsonAsync<List<WorkDay>>($"api/calender?teamName={SelectedTeam}&year={SelectedYear}") ?? new();
+            try
+            {
+                Categories = await Http.GetFromJsonAsync<List<LeaveCategoryDTO>>($"api/leave-categories?team={SelectedTeam}&speciality={SelectedSpeciality}&year={SelectedYear}") ?? new();
+            }
+            catch
+            {
+                Categories = new();
+            }
+            await LoadDaysOffAsync();
+            Draws = await LotteryApi.GetDrawsAsync();
+            await LoadPermissionsAsync();
         }
         catch (Exception ex)
         {
-            NotificationService.Notify(NotificationSeverity.Error, "Fout netwerk", ex.Message);
+            NotificationService.Notify(NotificationSeverity.Error, "Laden mislukt", ex.Message);
+        }
+        formVersion++;
+    }
+
+    private async Task LoadDaysOffAsync()
+    {
+        DaysOff = await Http.GetFromJsonAsync<List<TeamDayOff>>($"api/person/team-days-off/{SelectedTeam}/{SelectedYear}/{SelectedSpeciality}") ?? new();
+    }
+
+    private async Task LoadPermissionsAsync()
+    {
+        if (isAdmin) { perms = null; return; }
+        try
+        {
+            perms = await Http.GetFromJsonAsync<CalendarPermissionsDTO>($"api/access/calendar-permissions?year={SelectedYear}");
+        }
+        catch
+        {
+            perms = null;
         }
     }
 
-    // Winners count input
-    private int WinnersCount { get; set; } = 1;
+    // --- Formulier (links) ---
 
-    // View models
-    private class DrawView
+    private async Task<LotteryForm.Context> LoadFormContext(Pair pair)
     {
-        public int DrawNumber { get; set; }
-        public string DrawName { get; set; } = "";
-        public DateTime FromDate { get; set; }
-        public DateTime ToDate { get; set; }
-        public List<DrawRow> Rows { get; set; } = new();
+        Draws = await LotteryApi.GetDrawsAsync();
+        return new LotteryForm.Context
+        {
+            Candidates = BuildCandidates(pair.Day, pair.Night),
+            ExistingDraws = DrawsFor(pair.Day, pair.Night),
+            TeamMembers = TeamMembers,
+            Stats = LotteryApiService.StatsFor(TeamDraws, SelectedYear),
+            NextDrawNumber = Draws.Count == 0 ? 1 : Draws.Max(d => d.DrawNumber) + 1
+        };
     }
 
-    private class DrawRow
+    // Iedereen met verlof op de dag- en/of nachtshift van het paar
+    private List<LotteryForm.Candidate> BuildCandidates(DateTime day, DateTime night) => DaysOff
+        .Where(d => (d.Date.Date == day && d.Shift == "D") || (d.Date.Date == night && d.Shift == "N"))
+        .GroupBy(d => d.PersonId)
+        .Select(g =>
+        {
+            var member = TeamMembers.FirstOrDefault(m => m.Id == g.Key);
+            var catId = g.Select(d => d.LeaveCategoryId).FirstOrDefault(id => id != null);
+            var category = catId is int id ? Categories.FirstOrDefault(c => c.Id == id) : null;
+            var shifts = g.Select(d => d.Shift).Distinct().OrderBy(s => s == "D" ? 0 : 1).ToList();
+            return member == null ? null : new LotteryForm.Candidate
+            {
+                PersonId = member.Id,
+                FirstName = member.FirstName ?? "",
+                LastName = member.LastName ?? "",
+                Category = category?.Name,
+                Color = category?.Color,
+                Shifts = string.Join("+", shifts)
+            };
+        })
+        .Where(c => c != null)
+        .Select(c => c!)
+        .OrderBy(c => c.LastName).ThenBy(c => c.FirstName)
+        .ToList();
+
+    private Task OnRemovedAsync(List<RestoredDayOffDTO> removed)
     {
-        public int DrawNumber { get; set; }
-        public string DrawName { get; set; } = "";
-        public DateTime FromDate { get; set; }
-        public DateTime ToDate { get; set; }
-        public int PersonId { get; set; }
-        public string FullName { get; set; } = "";
-        public string Result { get; set; } = ""; // "Winnaar" of "Verliezer"
+        DaysOff.RemoveAll(d => removed.Any(r => r.PersonId == d.PersonId && r.Date.Date == d.Date.Date && r.Shift == d.Shift));
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private Task OnRestoredAsync(List<RestoredDayOffDTO> restored)
+    {
+        foreach (var r in restored.Where(r => !DaysOff.Any(d => d.PersonId == r.PersonId && d.Date.Date == r.Date.Date && d.Shift == r.Shift)))
+            DaysOff.Add(new TeamDayOff { PersonId = r.PersonId, Date = r.Date, Shift = r.Shift, LeaveCategoryId = r.LeaveCategoryId });
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private async Task OnFormChangedAsync()
+    {
+        Draws = await LotteryApi.GetDrawsAsync();
+        StateHasChanged();
+    }
+
+    // --- Resultaten (rechts) ---
+
+    private async Task ApplyDrawAsync(LotteryDrawDTO d)
+    {
+        busy = true;
+        try
+        {
+            var res = await LotteryApi.ApplyAsync(d.DrawNumber);
+            if (!res.Ok)
+            {
+                NotificationService.Notify(NotificationSeverity.Error, "Niet toegepast", res.Error);
+                return;
+            }
+            await OnRemovedAsync(res.Value!);
+            NotificationService.Notify(NotificationSeverity.Success, "Loting toegepast", d.DrawName);
+            pendingApply = null;
+            Draws = await LotteryApi.GetDrawsAsync();
+            formVersion++; // formulier links opnieuw opbouwen
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task DeleteDrawAsync(LotteryDrawDTO d)
+    {
+        busy = true;
+        try
+        {
+            var res = await LotteryApi.DeleteAsync(d.DrawNumber);
+            if (!res.Ok)
+            {
+                NotificationService.Notify(NotificationSeverity.Error, "Niet verwijderd", res.Error);
+                return;
+            }
+            await OnRestoredAsync(res.Value!);
+            NotificationService.Notify(NotificationSeverity.Success, "Loting verwijderd",
+                res.Value!.Count > 0 ? $"{d.DrawName}: verlof teruggezet." : d.DrawName);
+            pendingDelete = null;
+            Draws = await LotteryApi.GetDrawsAsync();
+            formVersion++;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private void OpenInTeamCalendar(LotteryDrawDTO d)
+    {
+        var url = $"teamcalendar?jaar={d.FromDate.Year}&maand={d.FromDate.Month}";
+        if (isAdmin)
+            url += $"&ploeg={Uri.EscapeDataString(SelectedTeam ?? "")}&spec={Uri.EscapeDataString(SelectedSpeciality ?? "")}";
+        Nav.NavigateTo(url);
     }
 }

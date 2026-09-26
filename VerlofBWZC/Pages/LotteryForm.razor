@@ -1,0 +1,532 @@
+@using System.Globalization
+@using Radzen
+@using Radzen.Blazor
+@using VerlofBWZC.DataContracts.DTO
+@using VerlofBWZC.DataContracts.DTO.Lottery
+@using VerlofBWZC.Services
+@inject LotteryApiService LotteryApi
+@inject NotificationService NotificationService
+
+@* Loting voor één shiftpaar (dag + nacht), of enkel de dag- of nachtshift.
+   Gedeeld door de teamkalender (popup) en de loterijpagina. Alles gaat via api/lottery. *@
+
+<div class="tl">
+    @if (loading)
+    {
+        <p class="tl-hint">Laden…</p>
+    }
+    else
+    {
+        @if (result == null)
+        {
+            <div class="tl-scope" role="group" aria-label="Loting over">
+                @foreach (var s in new[] { Scope.Pair, Scope.Day, Scope.Night })
+                {
+                    <button type="button" class="@(scope == s ? "tl-scope-btn tl-scope-active" : "tl-scope-btn")"
+                            aria-pressed="@(scope == s ? "true" : "false")"
+                            @onclick="() => SetScope(s)">
+                        @ScopeLabel(s)
+                    </button>
+                }
+            </div>
+        }
+
+        <div class="tl-info">
+            <span><strong>@WithLeave.Count</strong> personen met verlof</span>
+            @if (scope != Scope.Night)
+            {
+                <span>dag @DayDate.ToString("ddd d/M", Nl): <strong>@DayCount</strong>/@Quota</span>
+            }
+            @if (scope != Scope.Day)
+            {
+                <span>nacht @NightDate.ToString("ddd d/M", Nl): <strong>@NightCount</strong>/@Quota</span>
+            }
+            @if (WithLeave.Count > Quota)
+            {
+                <span class="tl-over">@(WithLeave.Count - Quota) te veel</span>
+            }
+        </div>
+
+        @if (existing.Any())
+        {
+            <div class="tl-section-title">Eerdere loting(en)</div>
+            @foreach (var d in existing)
+            {
+                var applied = LotteryApiService.IsApplied(d);
+                <div class="tl-result">
+                    <div class="tl-result-name">
+                        @d.DrawName
+                        <span class="@(applied ? "tl-status tl-status-done" : "tl-status tl-status-open")">@(applied ? "toegepast" : "niet toegepast")</span>
+                    </div>
+                    @foreach (var w in d.Winners)
+                    {
+                        <span class="tl-tag tl-tag-win">@w.FirstName @w.LastName</span>
+                    }
+                    @foreach (var l in d.Losers)
+                    {
+                        <span class="tl-tag tl-tag-lose">@l.FirstName @l.LastName</span>
+                    }
+                    @if (result == null && !applied && CanApply && d.Losers.Any())
+                    {
+                        <RadzenButton Text="Toepassen" Icon="done_all" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Outlined"
+                                      title="Verliezers van deze loting verliezen hun verlof op de shiften van deze loting"
+                                      Click="@(() => { pendingApply = d.DrawNumber; pendingDelete = null; })" />
+                    }
+                    @if (result == null)
+                    {
+                        <RadzenButton Text="Verwijderen" Icon="delete" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Outlined"
+                                      title="Deze loting verwijderen (ook van de loterijpagina)"
+                                      Click="@(() => { pendingDelete = d.DrawNumber; pendingApply = null; })" />
+                    }
+                    @if (pendingApply == d.DrawNumber)
+                    {
+                        <div class="tl-confirm">
+                            <div class="tl-confirm-title"><i class="rzi">help_outline</i> Loting "@d.DrawName" toepassen?</div>
+                            <div class="tl-hint">@LoserNames(d) @(d.Losers.Count == 1 ? "verliest" : "verliezen") hun verlof op de shift(en) van deze loting. Dit wordt meteen opgeslagen.</div>
+                            <div class="tl-actions">
+                                <RadzenButton Text="Terug" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" Click="@(() => pendingApply = null)" />
+                                <RadzenButton Text="Ja, toepassen" Icon="done_all" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Small"
+                                              Disabled="@busy" Click="@(() => ApplyAsync(d.DrawNumber, d.DrawName))" />
+                            </div>
+                        </div>
+                    }
+                    @if (pendingDelete == d.DrawNumber)
+                    {
+                        <div class="tl-confirm tl-confirm-danger">
+                            <div class="tl-confirm-title"><i class="rzi">delete</i> Loting "@d.DrawName" verwijderen?</div>
+                            <div class="tl-hint">De loting verdwijnt ook van de loterijpagina. Was ze toegepast, dan krijgen de verliezers hun verlof terug (met hun verlofregel).</div>
+                            <div class="tl-actions">
+                                <RadzenButton Text="Terug" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" Click="@(() => pendingDelete = null)" />
+                                <RadzenButton Text="Ja, verwijderen" Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small"
+                                              Disabled="@busy" Click="@(() => DeleteAsync(d))" />
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        }
+
+        @if (result == null)
+        {
+            <div class="tl-section-title">Wie gaat mee in de loting?</div>
+            <div class="tl-hint">Niet aangevinkt = houdt zeker verlof. Verlof uit een verlofregel (bv. Groot verlof) is standaard niet aangevinkt.</div>
+            <div class="tl-list">
+                @foreach (var c in Scoped.OrderBy(c => string.IsNullOrEmpty(c.Category)).ThenBy(c => c.Shifts == ""))
+                {
+                    var isIn = selected.Contains(c.PersonId);
+                    <label class="@(isIn ? "tl-person tl-person-in" : "tl-person")">
+                        <input type="checkbox" checked="@isIn" @onchange="e => Toggle(c.PersonId, (bool)(e.Value ?? false))" />
+                        <span class="tl-person-name">@c.FirstName @c.LastName</span>
+                        @if (stats.TryGetValue(c.PersonId, out var st))
+                        {
+                            <span class="tl-record" title="Lotingen dit jaar: @st.Won gewonnen, @st.Lost verloren"><span class="tl-record-w">@st.Won gew.</span> · <span class="tl-record-l">@st.Lost verl.</span></span>
+                        }
+                        @if (c.Shifts == "")
+                        {
+                            <span class="tl-shifts tl-shifts-half" title="Toegevoegd, heeft geen verlof op deze shift(en)">toegevoegd</span>
+                        }
+                        else if (scope == Scope.Pair)
+                        {
+                            <span class="@(c.Shifts == "D+N" ? "tl-shifts" : "tl-shifts tl-shifts-half")"
+                                  title="@(c.Shifts == "D+N" ? "Verlof op dag- en nachtshift" : "Enkel verlof op de " + (c.Shifts == "D" ? "dagshift" : "nachtshift"))">@c.Shifts</span>
+                        }
+                        @if (!string.IsNullOrEmpty(c.Category))
+                        {
+                            <span class="tl-cat" style="@($"border-color:{c.Color}; color:{c.Color};")">@c.Category</span>
+                        }
+                    </label>
+                }
+                @if (!Scoped.Any())
+                {
+                    <span class="tl-hint">Niemand heeft verlof op deze shift.</span>
+                }
+            </div>
+
+            @if (AllowAddPeople && AddablePeople.Any())
+            {
+                <div class="tl-add">
+                    <RadzenDropDown TValue="int?" Data="@AddablePeople" TextProperty="Text" ValueProperty="Id"
+                                    @bind-Value="personToAdd" Placeholder="Persoon van de ploeg toevoegen" AllowFiltering="true"
+                                    FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" Style="width:100%" />
+                    <RadzenButton Icon="add" Text="Toevoegen" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                  Disabled="@(personToAdd == null)" Click="@AddPerson" />
+                </div>
+            }
+
+            <div class="tl-form">
+                <label>
+                    <span>Naam loting</span>
+                    <RadzenTextBox @bind-Value="drawName" Style="width:100%" />
+                </label>
+                <label>
+                    <span>Aantal winnaars (houden verlof)</span>
+                    <RadzenNumeric TValue="int" @bind-Value="winnersCount" Min="0" Max="@SelectedCount" Style="width:120px" />
+                </label>
+            </div>
+            <div class="tl-hint">
+                @(Scoped.Count - SelectedCount) zeker (niet aangevinkt) + @winnersCount winnaar(s) = @(Scoped.Count - SelectedCount + winnersCount) van max @Quota.
+            </div>
+
+            @if (confirming)
+            {
+                <div class="tl-confirm">
+                    <div class="tl-confirm-title"><i class="rzi">help_outline</i> @(applyNow && CanApply ? "Loting trekken, bewaren en toepassen?" : "Loting trekken en bewaren?")</div>
+                    <div>
+                        <strong>@drawName</strong> · @ScopeLabel(scope)<br />
+                        @SelectedCount deelnemer(s), @winnersCount winnaar(s)@(Scoped.Count - SelectedCount > 0 ? $", {Scoped.Count - SelectedCount} houden zeker verlof" : "").
+                    </div>
+                    @if (CanApply)
+                    {
+                        <label class="tl-apply-now"><input type="checkbox" checked="@applyNow" @onchange="e => applyNow = (bool)(e.Value ?? false)" /> Meteen toepassen (verliezers verliezen hun verlof, dit wordt meteen opgeslagen)</label>
+                    }
+                    <div class="tl-hint">De loting wordt bewaard en is zichtbaar in de teamkalender en op de loterijpagina.</div>
+                    <div class="tl-actions">
+                        <RadzenButton Text="Terug" ButtonStyle="ButtonStyle.Light" Click="@(() => confirming = false)" />
+                        <RadzenButton Text="@(applyNow && CanApply ? "Ja, trekken en toepassen" : "Ja, trekken en bewaren")" Icon="casino" ButtonStyle="ButtonStyle.Primary"
+                                      Disabled="@busy" Click="@DrawAsync" />
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="tl-actions">
+                    @if (OnClose.HasDelegate)
+                    {
+                        <RadzenButton Text="Annuleren" ButtonStyle="ButtonStyle.Light" Click="@(() => OnClose.InvokeAsync())" />
+                    }
+                    <RadzenButton Text="Loting trekken" Icon="casino" ButtonStyle="ButtonStyle.Primary"
+                                  Disabled="@(busy || SelectedCount == 0)" Click="@(() => confirming = true)" />
+                </div>
+            }
+        }
+        else
+        {
+            <div class="tl-section-title">
+                Resultaat: @result.DrawName
+                <span class="@(resultApplied ? "tl-status tl-status-done" : "tl-status tl-status-open")">@(resultApplied ? "toegepast" : "niet toegepast")</span>
+            </div>
+            <div class="tl-result">
+                <div class="tl-result-label">Winnaars (houden verlof)</div>
+                @foreach (var w in result.Winners)
+                {
+                    <span class="tl-tag tl-tag-win">@w.FirstName @w.LastName</span>
+                }
+                @if (!result.Winners.Any())
+                {
+                    <span class="tl-hint">geen</span>
+                }
+            </div>
+            <div class="tl-result">
+                <div class="tl-result-label">Verliezers@(resultApplied ? " (verlof weggehaald)" : "")</div>
+                @foreach (var l in result.Losers)
+                {
+                    <span class="tl-tag tl-tag-lose">@l.FirstName @l.LastName</span>
+                }
+                @if (!result.Losers.Any())
+                {
+                    <span class="tl-hint">geen</span>
+                }
+            </div>
+            @if (pendingApply == result.DrawNumber)
+            {
+                <div class="tl-confirm">
+                    <div class="tl-confirm-title"><i class="rzi">help_outline</i> Loting toepassen?</div>
+                    <div class="tl-hint">@LoserNames(result) @(result.Losers.Count == 1 ? "verliest" : "verliezen") hun verlof op de shift(en) van deze loting. Dit wordt meteen opgeslagen.</div>
+                    <div class="tl-actions">
+                        <RadzenButton Text="Terug" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" Click="@(() => pendingApply = null)" />
+                        <RadzenButton Text="Ja, toepassen" Icon="done_all" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Small"
+                                      Disabled="@busy" Click="@(() => ApplyAsync(result.DrawNumber, result.DrawName))" />
+                    </div>
+                </div>
+            }
+            <div class="tl-actions">
+                @if (OnClose.HasDelegate)
+                {
+                    <RadzenButton Text="Sluiten" ButtonStyle="ButtonStyle.Light" Click="@(() => OnClose.InvokeAsync())" />
+                }
+                <RadzenButton Text="Nieuwe loting" Icon="casino" ButtonStyle="ButtonStyle.Light" Click="@NewDrawAsync" />
+                @if (!resultApplied && CanApply && result.Losers.Any() && pendingApply == null)
+                {
+                    <RadzenButton Text="Toepassen" Icon="done_all" ButtonStyle="ButtonStyle.Primary"
+                                  title="Verliezers verliezen hun verlof op de shiften van deze loting"
+                                  Click="@(() => pendingApply = result.DrawNumber)" />
+                }
+            </div>
+        }
+    }
+</div>
+
+@code {
+    public class Candidate
+    {
+        public int PersonId { get; set; }
+        public string FirstName { get; set; } = "";
+        public string LastName { get; set; } = "";
+        public string? Category { get; set; }
+        public string? Color { get; set; }
+        public string Shifts { get; set; } = ""; // "D", "N", "D+N"; "" = handmatig toegevoegd (geen verlof)
+    }
+
+    // Wat het formulier nodig heeft; wordt opnieuw opgehaald na toepassen of verwijderen
+    public class Context
+    {
+        public List<Candidate> Candidates { get; set; } = new();
+        public List<LotteryDrawDTO> ExistingDraws { get; set; } = new();
+        public List<PersonBaseDTO> TeamMembers { get; set; } = new();
+        public int NextDrawNumber { get; set; } = 1;
+        // Gewonnen/verloren lotingen dit jaar per persoon
+        public Dictionary<int, LotteryApiService.Stats> Stats { get; set; } = new();
+    }
+
+    private enum Scope { Pair, Day, Night }
+
+    // Paar: dagshift (DayDate) + nachtshift (NightDate = dag erna)
+    [Parameter] public DateTime DayDate { get; set; }
+    [Parameter] public DateTime NightDate { get; set; }
+    [Parameter] public int Quota { get; set; }
+    [Parameter] public bool CanApply { get; set; } = true;
+    [Parameter] public bool AllowAddPeople { get; set; }
+    [Parameter] public Func<Task<Context>> Load { get; set; } = () => Task.FromResult(new Context());
+    // Verlof weggehaald (toepassen) of teruggezet (verwijderen): de ouder werkt zijn eigen gegevens bij
+    [Parameter] public Func<List<RestoredDayOffDTO>, Task>? OnRemoved { get; set; }
+    [Parameter] public Func<List<RestoredDayOffDTO>, Task>? OnRestored { get; set; }
+    [Parameter] public Func<Task>? OnChanged { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private static readonly CultureInfo Nl = new("nl-BE");
+    private bool loading = true;
+    private DateTime loadedFor;
+    private Scope scope = Scope.Pair;
+    private List<Candidate> cands = new();
+    private List<LotteryDrawDTO> existing = new();
+    private List<PersonBaseDTO> teamMembers = new();
+    private int nextDrawNumber = 1;
+    private Dictionary<int, LotteryApiService.Stats> stats = new();
+    private readonly HashSet<int> selected = new();
+    private string drawName = "";
+    private int winnersCount;
+    private bool busy;
+    private bool confirming;
+    private bool applyNow = true;
+    private int? pendingDelete;
+    private int? pendingApply;
+    private int? personToAdd;
+    private LotteryDrawDTO? result;
+    private bool resultApplied;
+
+    // Kandidaten binnen de gekozen shift(en); handmatig toegevoegden doen altijd mee
+    private List<Candidate> Scoped => scope switch
+    {
+        Scope.Day => cands.Where(c => c.Shifts.Contains('D') || c.Shifts == "").ToList(),
+        Scope.Night => cands.Where(c => c.Shifts.Contains('N') || c.Shifts == "").ToList(),
+        _ => cands
+    };
+
+    private List<Candidate> WithLeave => Scoped.Where(c => c.Shifts != "").ToList();
+    private int DayCount => cands.Count(c => c.Shifts.Contains('D'));
+    private int NightCount => cands.Count(c => c.Shifts.Contains('N'));
+    private int SelectedCount => Scoped.Count(c => selected.Contains(c.PersonId));
+
+    private DateTime FromDate => scope == Scope.Night ? NightDate.Date : DayDate.Date;
+    private DateTime ToDate => scope == Scope.Day ? DayDate.Date : NightDate.Date;
+
+    private record AddOption(int Id, string Text);
+    private List<AddOption> AddablePeople => teamMembers
+        .Where(m => cands.All(c => c.PersonId != m.Id))
+        .OrderBy(m => m.LastName).ThenBy(m => m.FirstName)
+        .Select(m => new AddOption(m.Id, $"{m.FirstName} {m.LastName}"))
+        .ToList();
+
+    private string ScopeLabel(Scope s) => s switch
+    {
+        Scope.Day => $"Enkel dag ({DayDate.ToString("ddd d/M", Nl)})",
+        Scope.Night => $"Enkel nacht ({NightDate.ToString("ddd d/M", Nl)})",
+        _ => "Dag + nacht"
+    };
+
+    private static string LoserNames(LotteryDrawDTO d) =>
+        string.Join(", ", d.Losers.Select(l => $"{l.FirstName} {l.LastName}"));
+
+    // Ander paar gekozen (loterijpagina): alles opnieuw
+    protected override async Task OnParametersSetAsync()
+    {
+        if (loadedFor != DayDate)
+        {
+            loadedFor = DayDate;
+            result = null;
+            scope = Scope.Pair;
+            await ReloadAsync(resetSelection: true);
+        }
+    }
+
+    private async Task ReloadAsync(bool resetSelection)
+    {
+        loading = cands.Count == 0 && existing.Count == 0;
+        var ctx = await Load();
+        // Handmatig toegevoegden behouden zolang ze geen verlof kregen
+        var manual = cands.Where(c => c.Shifts == "" && ctx.Candidates.All(n => n.PersonId != c.PersonId)).ToList();
+        cands = resetSelection ? ctx.Candidates : ctx.Candidates.Concat(manual).ToList();
+        existing = ctx.ExistingDraws;
+        teamMembers = ctx.TeamMembers;
+        nextDrawNumber = ctx.NextDrawNumber;
+        stats = ctx.Stats;
+        if (resetSelection)
+            ResetSelection();
+        SetScope(scope);
+        loading = false;
+    }
+
+    // Standaard doet enkel gewoon verlof mee; verlof uit een verlofregel (categorie) houdt zeker verlof
+    private void ResetSelection()
+    {
+        selected.Clear();
+        foreach (var c in cands.Where(c => string.IsNullOrEmpty(c.Category)))
+            selected.Add(c.PersonId);
+    }
+
+    private void SetScope(Scope s)
+    {
+        scope = s;
+        confirming = false;
+        drawName = s switch
+        {
+            Scope.Day => $"Loting {DayDate.ToString("d MMM yyyy", Nl)} (D)",
+            Scope.Night => $"Loting {NightDate.ToString("d MMM yyyy", Nl)} (N)",
+            _ => $"Loting {(DayDate.Month == NightDate.Month ? DayDate.ToString("%d", Nl) : DayDate.ToString("d MMM", Nl))}–{NightDate.ToString("d MMM yyyy", Nl)} (D+N)"
+        };
+        RecalcWinners();
+    }
+
+    private void Toggle(int personId, bool on)
+    {
+        if (on) selected.Add(personId); else selected.Remove(personId);
+        confirming = false;
+        RecalcWinners();
+    }
+
+    private void AddPerson()
+    {
+        var m = teamMembers.FirstOrDefault(p => p.Id == personToAdd);
+        if (m == null) return;
+        cands.Add(new Candidate { PersonId = m.Id, FirstName = m.FirstName ?? "", LastName = m.LastName ?? "", Shifts = "" });
+        selected.Add(m.Id);
+        personToAdd = null;
+        confirming = false;
+        RecalcWinners();
+    }
+
+    // Standaard: max per shift min wie zeker verlof houdt (niet aangevinkt), zodat het totaal precies het maximum is
+    private void RecalcWinners() =>
+        winnersCount = Math.Clamp(Quota - (Scoped.Count - SelectedCount), 0, SelectedCount);
+
+    private async Task DrawAsync()
+    {
+        busy = true;
+        try
+        {
+            // Schudden (Fisher–Yates)
+            var list = Scoped.Where(c => selected.Contains(c.PersonId)).ToList();
+            var rng = Random.Shared;
+            for (int i = list.Count - 1; i > 0; i--)
+            {
+                int j = rng.Next(i + 1);
+                (list[i], list[j]) = (list[j], list[i]);
+            }
+
+            var count = Math.Clamp(winnersCount, 0, list.Count);
+            var dto = new LotteryDrawDTO
+            {
+                DrawNumber = nextDrawNumber,
+                DrawName = string.IsNullOrWhiteSpace(drawName) ? $"Loting {FromDate:dd-MM-yyyy}" : drawName.Trim(),
+                FromDate = FromDate,
+                ToDate = ToDate,
+                Winners = list.Take(count).Select(c => new LotteryPersonDTO { PersonId = c.PersonId, FirstName = c.FirstName, LastName = c.LastName }).ToList(),
+                Losers = list.Skip(count).Select(c => new LotteryPersonDTO { PersonId = c.PersonId, FirstName = c.FirstName, LastName = c.LastName }).ToList()
+            };
+
+            var created = await LotteryApi.CreateAsync(dto);
+            if (!created.Ok)
+            {
+                NotificationService.Notify(NotificationSeverity.Error, "Loting niet bewaard", created.Error);
+                return;
+            }
+            dto.DrawNumber = created.Value;
+            result = dto;
+            resultApplied = false;
+            confirming = false;
+
+            if (applyNow && CanApply && dto.Losers.Any())
+                await ApplyAsync(dto.DrawNumber, dto.DrawName);
+            else
+            {
+                NotificationService.Notify(NotificationSeverity.Success, "Loting bewaard", $"{dto.DrawName}: {dto.Winners.Count} winnaar(s).");
+                if (OnChanged != null) await OnChanged();
+            }
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task ApplyAsync(int drawNumber, string name)
+    {
+        busy = true;
+        try
+        {
+            var applied = await LotteryApi.ApplyAsync(drawNumber);
+            if (!applied.Ok)
+            {
+                NotificationService.Notify(NotificationSeverity.Error, "Niet toegepast", applied.Error);
+                return;
+            }
+            if (OnRemoved != null && applied.Value!.Count > 0)
+                await OnRemoved(applied.Value);
+            if (result?.DrawNumber == drawNumber)
+                resultApplied = true;
+            NotificationService.Notify(NotificationSeverity.Success, "Loting toegepast",
+                $"{name}: {applied.Value!.Select(r => r.PersonId).Distinct().Count()} persoon/personen verloren hun verlof.");
+            pendingApply = null;
+            await ReloadAsync(resetSelection: result == null);
+            if (OnChanged != null) await OnChanged();
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task DeleteAsync(LotteryDrawDTO draw)
+    {
+        busy = true;
+        try
+        {
+            var deleted = await LotteryApi.DeleteAsync(draw.DrawNumber);
+            if (!deleted.Ok)
+            {
+                NotificationService.Notify(NotificationSeverity.Error, "Niet verwijderd", deleted.Error);
+                return;
+            }
+            if (OnRestored != null && deleted.Value!.Count > 0)
+                await OnRestored(deleted.Value);
+            NotificationService.Notify(NotificationSeverity.Success, "Loting verwijderd",
+                deleted.Value!.Count > 0 ? $"{draw.DrawName}: verlof teruggezet." : draw.DrawName);
+            pendingDelete = null;
+            // Iedereen die (weer) verlof heeft opnieuw in de lijst, klaar voor een nieuwe loting
+            await ReloadAsync(resetSelection: true);
+            if (OnChanged != null) await OnChanged();
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task NewDrawAsync()
+    {
+        result = null;
+        resultApplied = false;
+        pendingApply = null;
+        await ReloadAsync(resetSelection: true);
+    }
+}

@@ -194,3 +194,651 @@
     outline: 2px dashed #E67700;
     outline-offset: 1px;
 }
+
+/* =========================================================================
+   Teamkalender v2 (huisstijl: zie theme.css; kop/kaarten/pillen uit workCalendar.css)
+   ========================================================================= */
+.tc-scope {
+    font-size: .85rem;
+    font-weight: 500;
+    color: var(--bwzc-navy);
+    border: 1px solid var(--bwzc-line);
+    border-radius: 999px;
+    padding: .25rem .8rem;
+}
+
+/* Samenvattingskaarten die klikbaar zijn (spring naar probleem) */
+.tc-stat-btn {
+    font: inherit;
+    text-align: left;
+    border: none;
+    display: flex;
+    flex-direction: column;
+    cursor: pointer;
+}
+
+    .tc-stat-btn:disabled {
+        cursor: default;
+    }
+
+    .tc-stat-btn:not(:disabled):hover {
+        filter: brightness(.97);
+    }
+
+    .tc-stat-btn:focus-visible {
+        outline: 2px solid var(--bwzc-blue);
+        outline-offset: 2px;
+    }
+
+.tc-label-over, .tc-value-over {
+    color: var(--bwzc-red-dark);
+}
+
+.tc-label-warn, .tc-value-warn {
+    color: #B35C00;
+}
+
+/* Maandknoppen */
+.tc-months {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+    margin-bottom: .9rem;
+}
+
+.tc-month {
+    font: inherit;
+    font-size: .8rem;
+    font-weight: 500;
+    padding: .3rem .8rem;
+    border-radius: 999px;
+    border: 1px solid var(--bwzc-line);
+    background: var(--bwzc-white);
+    color: var(--bwzc-navy);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+}
+
+    .tc-month:hover {
+        border-color: var(--bwzc-navy);
+    }
+
+    .tc-month:focus-visible {
+        outline: 2px solid var(--bwzc-blue);
+        outline-offset: 2px;
+    }
+
+.tc-month-active {
+    background: var(--bwzc-navy);
+    border-color: var(--bwzc-navy);
+    color: #fff;
+}
+
+.tc-month-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--bwzc-red);
+}
+
+.tc-legend-loose {
+    display: inline-block;
+    width: 12px;
+    height: 10px;
+    border-radius: 3px;
+    background: var(--rz-info);
+    outline: 2px dashed #E67700;
+    outline-offset: 1px;
+}
+
+.tc-legend-night {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    background: #F4F7FC;
+    border: 1px solid var(--bwzc-line);
+}
+
+/* Raster */
+.tc-grid-wrap {
+    overflow: auto;
+    max-height: calc(100vh - 170px);
+    border: 1px solid var(--bwzc-line);
+    border-radius: var(--bwzc-radius);
+    background: var(--bwzc-white);
+}
+
+.tc-grid {
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: .8rem;
+    min-width: 100%;
+}
+
+    .tc-grid th, .tc-grid td {
+        border-bottom: 1px solid var(--bwzc-line);
+        padding: 0;
+        text-align: center;
+        white-space: nowrap;
+    }
+
+    .tc-grid thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: var(--bwzc-ice);
+        color: var(--bwzc-navy);
+        font-weight: 600;
+        padding: .4rem .2rem;
+        vertical-align: bottom;
+    }
+
+/* Datum + bezet blijven links staan bij horizontaal scrollen */
+.tc-col-date, .tc-col-count {
+    position: sticky;
+    z-index: 1;
+    background: var(--bwzc-white);
+}
+
+.tc-col-date {
+    left: 0;
+    box-sizing: border-box;
+    width: 96px;
+    min-width: 96px;
+    max-width: 96px;
+    text-align: left !important;
+    padding: 0 .5rem 0 .6rem !important;
+    color: var(--bwzc-navy);
+}
+
+.tc-col-count {
+    left: 96px;
+    box-sizing: border-box;
+    width: 80px;
+    min-width: 80px;
+    max-width: 80px;
+    text-align: left !important;
+    padding-left: .4rem !important;
+    border-right: 1px solid var(--bwzc-line);
+}
+
+.tc-grid thead .tc-col-date, .tc-grid thead .tc-col-count {
+    z-index: 3;
+    background: var(--bwzc-ice);
+}
+
+.tc-col-member {
+    min-width: 40px;
+    line-height: 1.15;
+}
+
+    .tc-col-member > span {
+        display: block;
+    }
+
+.tc-initials {
+    font-size: .8rem;
+    letter-spacing: .02em;
+}
+
+.tc-spec {
+    font-size: .65rem;
+    font-weight: 400;
+    color: var(--bwzc-muted);
+}
+
+.tc-used {
+    font-size: .68rem;
+    font-weight: 400;
+    color: var(--bwzc-muted);
+}
+
+.tc-member-over {
+    box-shadow: inset 0 -3px 0 var(--bwzc-red);
+}
+
+    .tc-member-over .tc-used {
+        color: var(--bwzc-red-dark);
+        font-weight: 600;
+    }
+
+/* Rijen: nachtshift lichte band, dikkere lijn na elk D+N-paar */
+.tc-row {
+    height: 30px;
+}
+
+.tc-row-night td, .tc-row-night .tc-col-date, .tc-row-night .tc-col-count {
+    background: #F4F7FC;
+}
+
+.tc-row-night td {
+    border-bottom: 2px solid var(--bwzc-line);
+}
+
+.tc-row:hover td, .tc-row:hover .tc-col-date, .tc-row:hover .tc-col-count {
+    background: var(--bwzc-ice);
+}
+
+.tc-month-row td {
+    background: var(--bwzc-white);
+    font-family: var(--bwzc-font-title);
+    font-size: 1rem;
+    color: var(--bwzc-navy);
+    padding: .6rem .6rem .3rem !important;
+    text-align: left;
+}
+
+.tc-date {
+    display: inline-block;
+    min-width: 3.3em;
+}
+
+.tc-shift {
+    font-weight: 600;
+    margin-right: .25rem;
+}
+
+/* Bezet: x/max */
+.tc-count {
+    color: var(--bwzc-muted);
+    font-size: .75rem;
+}
+
+.tc-count-full {
+    color: var(--bwzc-navy);
+    font-weight: 600;
+}
+
+.tc-count-over {
+    background: var(--bwzc-red);
+    color: #fff;
+    font-weight: 600;
+    border-radius: 999px;
+    padding: .1rem .45rem;
+}
+
+/* Vakjes */
+.tc-cell-btn {
+    border: none;
+    background: transparent;
+    padding: 0;
+    width: 100%;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+    .tc-cell-btn:focus-visible {
+        outline: 2px solid var(--bwzc-blue);
+        outline-offset: -2px;
+    }
+
+    .tc-cell-btn:hover .tc-block:not(.tc-block-on) {
+        border-color: var(--bwzc-navy);
+    }
+
+.tc-block {
+    display: inline-block;
+    width: 22px;
+    height: 18px;
+    border-radius: 5px;
+    border: 1px dashed transparent;
+    vertical-align: middle;
+}
+
+.tc-block-on {
+    background: var(--rz-info);
+}
+
+.tc-block-loose {
+    outline: 2px dashed #E67700;
+    outline-offset: 1px;
+}
+
+@media (max-width: 640px) {
+    .tc-grid-wrap {
+        max-height: calc(100vh - 120px);
+    }
+
+    .tc-col-date {
+        width: 84px;
+        min-width: 84px;
+        max-width: 84px;
+    }
+
+    .tc-col-count {
+        left: 84px;
+        width: 74px;
+        min-width: 74px;
+        max-width: 74px;
+    }
+
+    .tc-col-member {
+        min-width: 34px;
+    }
+
+    .tc-block {
+        width: 18px;
+        height: 16px;
+    }
+}
+
+.tc-two-months {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    margin-left: .5rem;
+    font-size: .8rem;
+    font-weight: 500;
+    color: var(--bwzc-navy);
+    cursor: pointer;
+}
+
+    .tc-two-months input {
+        accent-color: var(--bwzc-navy);
+        width: 15px;
+        height: 15px;
+    }
+
+/* Loting-knop naast "Bezet" */
+.tc-lottery-btn {
+    border: 1px solid var(--bwzc-red);
+    background: var(--bwzc-white);
+    color: var(--bwzc-red-dark);
+    width: 24px;
+    height: 22px;
+    border-radius: 6px;
+    padding: 0;
+    margin-left: .25rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    vertical-align: middle;
+    cursor: pointer;
+}
+
+    .tc-lottery-btn .rzi {
+        font-size: 15px;
+    }
+
+    .tc-lottery-btn:hover {
+        background: var(--bwzc-red);
+        color: #fff;
+    }
+
+.tc-lottery-done {
+    border-color: var(--bwzc-navy);
+    color: var(--bwzc-navy);
+}
+
+    .tc-lottery-done:hover {
+        background: var(--bwzc-navy);
+    }
+
+/* Loting-popup */
+.tl-info {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    font-size: .85rem;
+    color: var(--bwzc-navy);
+    background: var(--bwzc-ice);
+    border-radius: var(--bwzc-radius);
+    padding: .5rem .75rem;
+    margin-bottom: .75rem;
+}
+
+.tl-over {
+    color: var(--bwzc-red-dark);
+    font-weight: 600;
+}
+
+.tl-section-title {
+    font-weight: 600;
+    color: var(--bwzc-navy);
+    margin: .75rem 0 .25rem;
+}
+
+.tl-hint {
+    font-size: .78rem;
+    color: var(--bwzc-muted);
+    margin-bottom: .4rem;
+}
+
+.tl-list {
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+    max-height: 260px;
+    overflow: auto;
+    margin-bottom: .75rem;
+}
+
+.tl-person {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .35rem .6rem;
+    border: 1px solid var(--bwzc-line);
+    border-radius: var(--bwzc-radius);
+    cursor: pointer;
+}
+
+    .tl-person input {
+        accent-color: var(--bwzc-navy);
+        width: 16px;
+        height: 16px;
+    }
+
+.tl-person-in {
+    border-color: var(--bwzc-navy);
+    background: #F7F9FD;
+}
+
+.tl-person-name {
+    flex: 1;
+}
+
+.tl-cat {
+    font-size: .72rem;
+    border: 1px solid;
+    border-radius: 999px;
+    padding: .05rem .5rem;
+}
+
+.tl-form {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: .75rem;
+    margin-bottom: .35rem;
+}
+
+    .tl-form label > span {
+        display: block;
+        font-size: .78rem;
+        color: var(--bwzc-muted);
+        margin-bottom: .2rem;
+    }
+
+.tl-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: .5rem;
+    margin-top: 1rem;
+}
+
+.tl-result {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .35rem;
+    margin-bottom: .5rem;
+}
+
+.tl-result-name, .tl-result-label {
+    width: 100%;
+    font-size: .8rem;
+    color: var(--bwzc-muted);
+}
+
+.tl-tag {
+    font-size: .8rem;
+    border-radius: 999px;
+    padding: .15rem .6rem;
+}
+
+.tl-tag-win {
+    background: #E3F4EA;
+    color: #1E6B3A;
+}
+
+.tl-tag-lose {
+    background: rgba(241, 63, 63, 0.12);
+    color: var(--bwzc-red-dark);
+}
+
+@media (max-width: 640px) {
+    .tl-form {
+        grid-template-columns: 1fr;
+    }
+}
+
+.tl-shifts {
+    font-size: .72rem;
+    font-weight: 600;
+    color: var(--bwzc-navy);
+    background: var(--bwzc-ice);
+    border-radius: 999px;
+    padding: .05rem .5rem;
+}
+
+.tl-shifts-half {
+    color: #B35C00;
+    background: rgba(230, 119, 0, 0.12);
+}
+
+/* Bezet-getal altijd even breed, zodat de lotingknoppen mooi onder elkaar staan */
+.tc-count {
+    display: inline-block;
+    box-sizing: border-box;
+    width: 2.7rem;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.tc-count-over {
+    padding: .1rem 0;
+}
+
+/* Loting-popup: keuze dag + nacht / enkel dag / enkel nacht */
+.tl-scope {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+    margin-bottom: .75rem;
+}
+
+.tl-scope-btn {
+    font: inherit;
+    font-size: .8rem;
+    font-weight: 500;
+    padding: .3rem .8rem;
+    border-radius: 999px;
+    border: 1px solid var(--bwzc-line);
+    background: var(--bwzc-white);
+    color: var(--bwzc-navy);
+    cursor: pointer;
+}
+
+    .tl-scope-btn:hover {
+        border-color: var(--bwzc-navy);
+    }
+
+.tl-scope-active {
+    background: var(--bwzc-navy);
+    border-color: var(--bwzc-navy);
+    color: #fff;
+}
+
+/* Loting-popup: bevestiging voor het trekken en bewaren */
+.tl-confirm {
+    margin-top: .75rem;
+    padding: .75rem .9rem;
+    border: 1px solid var(--bwzc-navy);
+    border-radius: var(--bwzc-radius);
+    background: #F7F9FD;
+    font-size: .88rem;
+    color: var(--bwzc-ink);
+}
+
+    .tl-confirm .tl-hint {
+        margin-top: .4rem;
+    }
+
+    .tl-confirm .tl-actions {
+        margin-top: .6rem;
+    }
+
+.tl-confirm-title {
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    font-weight: 600;
+    color: var(--bwzc-navy);
+    margin-bottom: .35rem;
+}
+
+.tl-apply-now {
+    display: flex;
+    align-items: flex-start;
+    gap: .4rem;
+    margin-top: .5rem;
+    font-weight: 500;
+    color: var(--bwzc-navy);
+    cursor: pointer;
+}
+
+    .tl-apply-now input {
+        accent-color: var(--bwzc-navy);
+        margin-top: .2rem;
+    }
+
+.tl-warn-text {
+    color: #B35C00;
+}
+
+.tl-confirm-danger {
+    width: 100%;
+    border-color: var(--bwzc-red);
+    background: rgba(241, 63, 63, 0.06);
+}
+
+    .tl-confirm-danger .tl-confirm-title {
+        color: var(--bwzc-red-dark);
+    }
+
+/* Gewonnen / verloren lotingen */
+.tl-record {
+    font-size: .72rem;
+    white-space: nowrap;
+}
+
+.tl-record-w {
+    color: #1E6B3A;
+    font-weight: 600;
+}
+
+.tl-record-l {
+    color: var(--bwzc-red-dark);
+    font-weight: 600;
+}
+
+.tc-lottery-rec {
+    font-size: .65rem;
+    font-weight: 400;
+}

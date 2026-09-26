@@ -18,270 +18,271 @@
 @using Microsoft.AspNetCore.Authorization
 @attribute [Authorize]
 
-<h1>Teamkalender</h1>
+@using VerlofBWZC.DataContracts.DTO.Holiday
+@using VerlofBWZC.DataContracts.DTO.Lottery
+@using System.Globalization
+
+<PageTitle>Teamkalender</PageTitle>
+
+@* Waarschuwen bij verlaten van de pagina met niet-opgeslagen wijzigingen *@
+<NavigationLock ConfirmExternalNavigation="@isDirty" OnBeforeInternalNavigation="OnBeforeInternalNavigation" />
 
 @if (!MonthGroups.Any())
 {
-    <h2><em>Loading...</em></h2>
-    return;
-
+    <h1>Teamkalender</h1>
+    <p class="wc-loading">Teamkalender laden…</p>
 }
 else
 {
-    <div class="teamcalendar-toolbar">
-        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" Gap="1rem" Style="width:100%; margin-bottom:1rem">
-            <!-- Left group -->
-            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
-                @if (CanSaveTeamCalendar)
-                {
-                    <RadzenButton Text="Opslaan" Icon="save" Click="@SaveTeamDaysOff" />
-                }
-                @if (CanExport)
-                {
-                    <RadzenButton Text="Exporteren naar CSV" Icon="download" Click="@ExportToCsv" />
-                }
-                <RadzenDropDown @bind-Value="SelectedYear"
-                                Data="@Years"
-                                Placeholder="Selecteer een jaar"
-                                Style="width:200px"
-                                Change="OnYearChanged" />
-                @if (IsAdmin)
-                {
-                    <RadzenDropDown TValue="string" @bind-Value="SelectedTeam"
-                                    Data="@TeamOptions"
-                                    Placeholder="Ploeg"
-                                    Style="width:160px"
-                                    Change="OnTeamOrSpecialityChanged" />
-                    <RadzenDropDown TValue="string" @bind-Value="SelectedSpeciality"
-                                    Data="@SpecialityOptions"
-                                    Placeholder="Specialiteit"
-                                    Style="width:220px"
-                                    Change="OnTeamOrSpecialityChanged" />
-                }
-            </RadzenStack>
-
-            <!-- Samenvatting rechts onderaan -->
-            <div class="rz-mt-2" style="display:flex; justify-content:flex-end; align-items:center; gap:.5rem;">
-                <span class="rz-text-secondary">Totaal werkdagen (jaar):</span>
-                <RadzenBadge Text="@YearTotalWorkDays.ToString()" BadgeStyle="BadgeStyle.Primary" Variant="Variant.Filled" />
-
-                <span class="rz-text-secondary" style="margin-left:1rem;">Quota per shift:</span>
-                <RadzenBadge Text="@DailyQuota.ToString()" BadgeStyle="BadgeStyle.Info" Variant="Variant.Filled" />
-
-                <span class="rz-text-secondary" style="margin-left:1rem;">Min. verlof per persoon:</span>
-                <RadzenBadge Text="@MinimumLeavePerPersonText" BadgeStyle="BadgeStyle.Success" Variant="Variant.Filled" />
-
-                <span class="rz-text-secondary" style="margin-left:1rem;">Aantal Pers:</span>
-                <RadzenBadge Text="@TeamMemberCount" BadgeStyle="BadgeStyle.Secondary" Variant="Variant.Filled" />
+    <!-- Kop: titel, jaar, ploeg/specialiteit, acties -->
+    <div class="wc-header">
+        <div class="wc-title">
+            <h1>Teamkalender</h1>
+            <div class="wc-year" role="group" aria-label="Jaar kiezen">
+                <button type="button" class="wc-year-btn" aria-label="Vorig jaar" disabled="@(SelectedYear <= Years.Min())" @onclick="() => ChangeYear(-1)">
+                    <i class="rzi">chevron_left</i>
+                </button>
+                <span class="wc-year-label">@SelectedYear</span>
+                <button type="button" class="wc-year-btn" aria-label="Volgend jaar" disabled="@(SelectedYear >= Years.Max())" @onclick="() => ChangeYear(1)">
+                    <i class="rzi">chevron_right</i>
+                </button>
             </div>
+            @if (IsAdmin)
+            {
+                <RadzenDropDown TValue="string" @bind-Value="SelectedTeam"
+                                Data="@TeamOptions"
+                                Placeholder="Ploeg"
+                                Style="width:140px"
+                                Change="OnTeamOrSpecialityChanged" />
+                <RadzenDropDown TValue="string" @bind-Value="SelectedSpeciality"
+                                Data="@SpecialityOptions"
+                                Placeholder="Specialiteit"
+                                Style="width:200px"
+                                Change="OnTeamOrSpecialityChanged" />
+            }
+            else
+            {
+                <span class="tc-scope">@SelectedTeam · @SelectedSpeciality</span>
+            }
+            @if (isDirty)
+            {
+                <span class="wc-dirty"><i class="rzi">edit</i> Niet opgeslagen</span>
+            }
+        </div>
+        <div class="wc-actions">
+            @if (CanExport)
+            {
+                <RadzenButton Text="Export" Icon="download" ButtonStyle="ButtonStyle.Light" Click="@ExportToCsv" title="Exporteren naar CSV" />
+            }
+            @if (CanSaveTeamCalendar)
+            {
+                <RadzenButton Text="Opslaan" Icon="save" ButtonStyle="ButtonStyle.Primary" Click="@SaveTeamDaysOff" />
+            }
+        </div>
+    </div>
 
-            <!-- Right group -->
-            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-                <RadzenButton Text="Alles uitklappen" Icon="unfold_more" Click="@ExpandAllMonths" ButtonStyle="ButtonStyle.Base" />
-                <RadzenButton Text="Alles inklappen" Icon="unfold_less" Click="@CollapseAllMonths" ButtonStyle="ButtonStyle.Base" />
-            </RadzenStack>
-        </RadzenStack>
+    <!-- Samenvatting -->
+    <div class="wc-summary">
+        <div class="wc-stat">
+            <div class="wc-stat-label">Personen</div>
+            <div class="wc-stat-value">@TeamMembers.Count</div>
+            <div class="wc-stat-note">@(IsAdmin && ShowAllSpecialities ? CompositionText : SelectedSpeciality)</div>
+        </div>
+        <div class="wc-stat">
+            <div class="wc-stat-label">Max per shift</div>
+            <div class="wc-stat-value">@DailyQuota</div>
+            <div class="wc-stat-note">min. verlof p.p.: @MinimumLeavePerPersonText</div>
+        </div>
+        @{
+            var overRows = OverQuotaRows;
+            var loose = LooseShiftsAll;
+        }
+        <button type="button" class="@(overRows.Count > 0 ? "wc-stat tc-stat-btn wc-stat-over" : "wc-stat tc-stat-btn")"
+                disabled="@(overRows.Count == 0)" title="@(overRows.Count > 0 ? "Spring naar de eerste shift boven het maximum" : null)"
+                @onclick="() => JumpTo(overRows.FirstOrDefault()?.Date)">
+            <span class="@(overRows.Count > 0 ? "wc-stat-label tc-label-over" : "wc-stat-label")">Shiften boven max</span>
+            <span class="wc-stat-value @(overRows.Count > 0 ? "tc-value-over" : "")">@overRows.Count</span>
+            <span class="wc-stat-note">@(overRows.Count > 0 ? "klik om te bekijken" : "alles binnen het maximum")</span>
+        </button>
+        <button type="button" class="@(loose.Count > 0 ? "wc-stat tc-stat-btn wc-stat-warn" : "wc-stat tc-stat-btn")"
+                disabled="@(loose.Count == 0)" title="@(loose.Count > 0 ? "Spring naar de eerste losse shift" : null)"
+                @onclick="() => JumpTo(loose.FirstOrDefault()?.Date)">
+            <span class="@(loose.Count > 0 ? "wc-stat-label tc-label-warn" : "wc-stat-label")">Losse shiften</span>
+            <span class="wc-stat-value @(loose.Count > 0 ? "tc-value-warn" : "")">@loose.Count</span>
+            <span class="wc-stat-note">@(loose.Count > 0 ? "dag zonder nacht of omgekeerd" : "alles per 2 shiften")</span>
+        </button>
+    </div>
 
+    <!-- Maanden -->
+    <div class="tc-months" role="group" aria-label="Maand kiezen">
+        @foreach (var mg in MonthGroups)
+        {
+            var isActive = SelectedMonth != null && VisibleMonths.Any(v => v.Month == mg.Month);
+            var hasIssue = MonthHasIssue(mg);
+            <button type="button" class="@(isActive ? "tc-month tc-month-active" : "tc-month")"
+                    aria-pressed="@(isActive ? "true" : "false")"
+                    title="@(hasIssue ? "Deze maand heeft shiften boven het maximum of losse shiften" : null)"
+                    @onclick="() => SelectedMonth = mg.Month">
+                @ShortMonth(mg.Month)
+                @if (hasIssue)
+                {
+                    <span class="tc-month-dot"></span>
+                }
+            </button>
+        }
+        <button type="button" class="@(SelectedMonth == null ? "tc-month tc-month-active" : "tc-month")"
+                aria-pressed="@(SelectedMonth == null ? "true" : "false")"
+                @onclick="() => SelectedMonth = null">
+            Hele jaar
+        </button>
+        <label class="tc-two-months" title="Toon de gekozen maand samen met de maand ervoor, handig voor verlof dat over de maandgrens loopt">
+            <input type="checkbox" checked="@TwoMonths" disabled="@(SelectedMonth == null)" @onchange="e => TwoMonths = (bool)(e.Value ?? false)" />
+            2 maanden
+        </label>
+    </div>
+
+    <!-- Aanduiden als + legende -->
+    <div class="wc-toolbar">
         @if (LeaveCategories.Any() && CanSaveTeamCalendar)
         {
-            <!-- Verlofverantwoordelijke: categorie kiezen en dan op shiften van personen klikken -->
-            <div class="rz-mb-2" style="display:flex; flex-wrap:wrap; align-items:center; gap:.5rem;">
-                <span class="rz-text-secondary">Aanduiden als:</span>
-                <RadzenButton Text="Gewoon verlof" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Info"
-                              Variant="@(ActiveCategoryName == null ? Variant.Filled : Variant.Outlined)"
-                              Click="@(() => ActiveCategoryName = null)" />
+            <div class="wc-categories" role="group" aria-label="Aanduiden als">
+                <span class="wc-toolbar-label">Aanduiden als</span>
+                <button type="button" class="wc-pill"
+                        style="@(ActiveCategoryName == null ? "background:var(--rz-info); border-color:var(--rz-info); color:#fff;" : "border-color:var(--rz-info); color:var(--rz-info-dark);")"
+                        aria-pressed="@(ActiveCategoryName == null ? "true" : "false")"
+                        @onclick="() => ActiveCategoryName = null">
+                    Gewoon verlof
+                </button>
                 @foreach (var c in CategoryChoices)
                 {
                     var isActive = ActiveCategoryName == c.Name;
-                    <RadzenButton Text="@c.Name" Size="ButtonSize.Small"
-                                  Variant="@(isActive ? Variant.Filled : Variant.Outlined)"
-                                  Style="@(isActive ? $"background-color:{c.Color}; border-color:{c.Color}; color:#fff;" : $"border-color:{c.Color}; color:{c.Color};")"
-                                  Click="@(() => ActiveCategoryName = c.Name)" />
-                }
-                <span class="rz-text-secondary" style="font-size:.85rem;">
-                    @(ActiveCategoryName == null
-                        ? "Klik op een shift om verlof aan of uit te zetten."
-                        : "Klik op een shift om deze categorie te geven; nog eens klikken zet de shift weer uit.")
-                </span>
-            </div>
-        }
-
-        @if (LeaveCategories.Any())
-        {
-            <!-- Legende verlofcategorieën -->
-            <div class="rz-mb-2" style="display:flex; flex-wrap:wrap; align-items:center; gap:.75rem;">
-                <span class="rz-text-secondary">Verlofcategorieën:</span>
-                @foreach (var c in LeaveCategories.GroupBy(c => c.Name).Select(g => g.First()))
-                {
-                    <span style="display:inline-flex; align-items:center; gap:.3rem;">
-                        <span style="@($"display:inline-block; width:14px; height:14px; border-radius:50%; background:{c.Color};")"></span>
+                    <button type="button" class="wc-pill"
+                            style="@(isActive ? $"background:{c.Color}; border-color:{c.Color}; color:#fff;" : $"border-color:{c.Color}; color:{c.Color};")"
+                            aria-pressed="@(isActive ? "true" : "false")"
+                            @onclick="() => ActiveCategoryName = c.Name">
                         @c.Name
-                    </span>
+                    </button>
                 }
             </div>
         }
-
-        @if (IsAdmin && ShowAllSpecialities)
+        else if (LeaveCategories.Any())
         {
-            <!-- Samenstelling van de ploeg per specialiteit -->
-            <div class="rz-mb-2" style="display:flex; flex-wrap:wrap; align-items:center; gap:.5rem;">
-                <span class="rz-text-secondary">Samenstelling @SelectedTeam:</span>
-                @if (!TeamMembers.Any())
+            <div class="wc-legend">
+                @foreach (var c in CategoryChoices)
                 {
-                    <span class="rz-text-secondary"><em>geen leden</em></span>
-                }
-                @* Zelfde volgorde als de kolommen *@
-                @foreach (var g in TeamMembers.GroupBy(m => string.IsNullOrWhiteSpace(m.Speciality) ? "(geen)" : m.Speciality))
-                {
-                    <RadzenBadge Text="@($"{g.Key}: {g.Count()}")" BadgeStyle="BadgeStyle.Secondary" Variant="Variant.Filled" />
+                    <span><span class="wc-swatch" style="@($"background:{c.Color}")"></span>@c.Name</span>
                 }
             </div>
         }
+        <div class="wc-legend">
+            <span><span class="wc-swatch" style="background:var(--rz-info)"></span>Verlof</span>
+            <span><span class="wc-dot-inline wc-dot-holiday"></span>Feestdag</span>
+            <span><span class="tc-legend-loose"></span>Losse shift</span>
+            <span><span class="tc-legend-night"></span>Nachtshift</span>
+        </div>
     </div>
+    @if (CanSaveTeamCalendar)
+    {
+        <div class="wc-hint">
+            @(ActiveCategoryName == null
+                ? "Klik op een vakje om verlof aan of uit te zetten."
+                : "Klik op een vakje om deze categorie te geven; nog eens klikken zet het weer uit.")
+        </div>
+    }
 
-    <!-- Bovenliggende grid: Maanden -->
-    <RadzenDataGrid @ref="monthsGrid"
-                    Data="@MonthGroups"
-                    TItem="MonthGroup"
-                    ShowPagingSummary="false"
-                    ShowPagination="false"
-                    ShowColumnPicker="false"
-                    AllowSorting="false"
-                    AllowFiltering="false"
-                    ExpandMode="DataGridExpandMode.Multiple">
-        <Template Context="mg">
-            <!-- Onderliggende grid: Werkdagen in de maand -->
-            <RadzenDataGrid Data="@mg.Days"
-                            TItem="WorkDay"
-                            ShowPagingSummary="false"
-                            ShowPagination="false"
-                            ShowColumnPicker="false"
-                            AllowSorting="false"
-                            AllowFiltering="false">
-                <Columns>
-                    <RadzenDataGridColumn TItem="WorkDay" Property="Date" Title="Datum" Width="110px" Frozen="true" FrozenPosition="FrozenColumnPosition.Left">
-                        <Template Context="wd">
-                            @wd.Date.ToString("ddd dd-MM")
-                        </Template>
-                    </RadzenDataGridColumn>
-
-                    <RadzenDataGridColumn TItem="WorkDay" Property="Shift" Title="Shift" Width="70px" Frozen="true" FrozenPosition="FrozenColumnPosition.Left">
-                        <Template Context="wd">
-                            <RadzenBadge Text="@wd.Shift"
-                                         BadgeStyle="@(wd.Shift == "D" ? BadgeStyle.Primary : BadgeStyle.Secondary)"
-                                         Variant="Variant.Filled"
-                                         Class="oval-badge"
-                                         Style="font-size:1rem;" />
-                        </Template>
-                    </RadzenDataGridColumn>
-
-                    <RadzenDataGridColumn TItem="WorkDay" Title="Aantal" Width="70px" Frozen="true" FrozenPosition="FrozenColumnPosition.Left">
-                        <Template Context="wd">
-                            @{
-                                var count = GetTotalSelectedDays(wd);
-                                var quota = Math.Max(1, TeamMembers.Count / 4); // 24 -> 6, 23/22 -> 5, ...
-                                var style = count > quota
-                                ? "background: var(--rz-danger); color: white;"
-                                : count == quota
-                                ? "background: var(--rz-warning); color: black;"
-                                : "background: var(--rz-info); color: white;";
-                            }
-                            <span class="oval-btn-count" style="@style">@count</span>
-                        </Template>
-                    </RadzenDataGridColumn>
-
-                    @foreach (var mc in MemberColumns.Select((member, idx) => new { member, idx }))
+    <!-- Raster: shiften als rijen, personen als kolommen -->
+    <div class="tc-grid-wrap">
+        <table class="tc-grid">
+            <thead>
+                <tr>
+                    <th class="tc-col-date">@GridTitle</th>
+                    <th class="tc-col-count">Bezet</th>
+                    @foreach (var member in TeamMembers)
                     {
-                        <RadzenDataGridColumn TItem="WorkDay"
-                                              Width="50px"
-                                              Frozen="@(mc.idx == -1)"
-                                              FrozenPosition="FrozenColumnPosition.Left">
-                            <HeaderTemplate>
-                                @if (mc.member != null)
+                        var used = YearCount(member.Id);
+                        var allowance = member.LeaveAllowance;
+                        var over = allowance is int a && used > a;
+                        <th class="@(over ? "tc-col-member tc-member-over" : "tc-col-member")"
+                            title="@MemberTitle(member)">
+                            <span class="tc-initials">@GetInitials(member)</span>
+                            @if (ShowAllSpecialities)
+                            {
+                                <span class="tc-spec">@ShortSpeciality(member.Speciality)</span>
+                            }
+                            <span class="tc-used">@used@(allowance is int al ? $"/{al}" : "")</span>
+                        </th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var mg in VisibleMonths)
+                {
+                    @if (VisibleMonths.Count() > 1)
+                    {
+                        <tr class="tc-month-row">
+                            <td class="tc-col-date">@Capitalize(new DateTime(mg.Year, mg.Month, 1).ToString("MMMM", Nl))</td>
+                            <td class="tc-col-count"></td>
+                            <td colspan="@Math.Max(1, TeamMembers.Count)"></td>
+                        </tr>
+                    }
+                    @foreach (var wd in mg.Days)
+                    {
+                        var count = GetTotalSelectedDays(wd);
+                        var holiday = PublicHolidayName(wd.Date);
+                        var isNight = wd.Shift == "N";
+                        <tr class="@(isNight ? "tc-row tc-row-night" : "tc-row")" id="@RowId(wd)">
+                            <td class="tc-col-date" title="@(holiday != null ? $"Feestdag: {holiday}" : null)">
+                                <span class="tc-date">@wd.Date.ToString("ddd dd", Nl)</span>
+                                <span class="tc-shift">@wd.Shift</span>
+                                @if (holiday != null)
                                 {
-                                    <table class="header-table" style="width:100%;height:100%;">
-                                        <tr>
-                                            <td style="text-align:center;vertical-align:bottom;">
-                                                <span class="header-initials"
-                                                      title="@($"{mc.member.FirstName} {mc.member.LastName} - {mc.member.Speciality}{CategoryUsageText(mc.member)}{(LooseCount(mc.member.Id) > 0 ? $" · {LooseCount(mc.member.Id)} losse shift(en)" : "")}")">
-                                                    @GetInitials(mc.member)
-                                                </span>
-                                                @if (ShowAllSpecialities)
-                                                {
-                                                    <div style="font-size:.65rem; line-height:1; opacity:.75;" title="@mc.member.Speciality">
-                                                        @ShortSpeciality(mc.member.Speciality)
-                                                    </div>
-                                                }
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td style="text-align:center;vertical-align:top;">
-                                                <RadzenBadge Text="@GetSelectedDayCount(mc.member.Id).ToString()"
-                                                             BadgeStyle="@GetMemberBadgeStyle(mc.member.Id)"
-                                                             Variant="Variant.Filled"
-                                                             Class="oval-badge header-badge" />
-                                            </td>
-                                        </tr>
-                                    </table>
+                                    <span class="wc-dot-inline wc-dot-holiday"></span>
                                 }
-                            </HeaderTemplate>
-                            <Template Context="wd">
-                                @if (mc.member != null)
+                            </td>
+                            <td class="tc-col-count">
+                                <span class="@(count > DailyQuota ? "tc-count tc-count-over" : count == DailyQuota ? "tc-count tc-count-full" : "tc-count")">@count/@DailyQuota</span>
+                                @if (CanManageCalendar && (PairOverQuota(wd) || HasDraw(wd.Date)))
                                 {
-                                    var dayOff = selectedDays.FirstOrDefault(d => d.PersonId == mc.member.Id && d.Date.Date == wd.Date.Date && d.Shift == wd.Shift);
-                                    var isDayOff = dayOff != null;
-                                    var category = dayOff?.LeaveCategoryId is int catId ? LeaveCategories.FirstOrDefault(c => c.Id == catId) : null;
-                                    var cellStyle = category != null ? $"background-color:{category.Color}; border-color:{category.Color}; color:#fff;" : null;
-                                    var isLoose = isDayOff && IsLoose(dayOff!);
-                                    var cellClass = isLoose ? "oval-btn oval-btn-loose" : "oval-btn";
-                                    var cellTitle = string.Join(" · ", new[] { category?.Name, isLoose ? "Losse shift" : null }.Where(t => t != null));
-
-                                    @if(CanSaveTeamCalendar)
+                                    var hasDraw = HasDraw(wd.Date);
+                                    <button type="button" class="@(hasDraw ? "tc-lottery-btn tc-lottery-done" : "tc-lottery-btn")"
+                                            title="@(hasDraw ? "Loting gedaan: resultaat bekijken of opnieuw loten" : "Wie heeft verlof? Loting houden (dag + nacht)")"
+                                            aria-label="Loting"
+                                            @onclick="() => OpenLottery(wd)">
+                                        <i class="rzi">@(hasDraw ? "task_alt" : "casino")</i>
+                                    </button>
+                                }
+                            </td>
+                            @foreach (var member in TeamMembers)
+                            {
+                                var dayOff = selectedDays.FirstOrDefault(d => d.PersonId == member.Id && d.Date.Date == wd.Date.Date && d.Shift == wd.Shift);
+                                var category = dayOff?.LeaveCategoryId is int catId ? LeaveCategories.FirstOrDefault(c => c.Id == catId) : null;
+                                var isLoose = dayOff != null && IsLoose(dayOff);
+                                var blockClass = dayOff == null ? "tc-block" : isLoose ? "tc-block tc-block-on tc-block-loose" : "tc-block tc-block-on";
+                                var blockStyle = category != null ? $"background:{category.Color};" : null;
+                                var title = $"{member.FirstName} {member.LastName} · {wd.Date.ToString("ddd d MMM", Nl)} {wd.Shift}"
+                                    + (dayOff != null ? " · " + (category?.Name ?? "Verlof") : "")
+                                    + (isLoose ? " · Losse shift" : "");
+                                <td class="tc-cell">
+                                    @if (CanSaveTeamCalendar)
                                     {
-                                        <RadzenButton Size="ButtonSize.Small"
-                                                      Variant="@(isDayOff ? Variant.Filled : Variant.Outlined)"
-                                                      ButtonStyle="@(isDayOff ? ButtonStyle.Info : ButtonStyle.Warning)"
-                                                      Text=""
-                                                      Icon="@(isDayOff ? "check" : null)"
-                                                      Class="@cellClass"
-                                                      Style="@cellStyle"
-                                                      title="@cellTitle"
-                                        Click="@(args => OnDayClicked(mc.member.Id, wd))" />
+                                        <button type="button" class="tc-cell-btn" title="@title"
+                                                aria-pressed="@(dayOff != null ? "true" : "false")"
+                                                @onclick="() => OnDayClicked(member.Id, wd)">
+                                            <span class="@blockClass" style="@blockStyle"></span>
+                                        </button>
                                     }
                                     else
                                     {
-                                        <RadzenButton Size="ButtonSize.Small"
-                                                      Variant="@(isDayOff ? Variant.Filled : Variant.Outlined)"
-                                                      ButtonStyle="@(isDayOff ? ButtonStyle.Info : ButtonStyle.Warning)"
-                                                      Text=""
-                                                      Icon="@(isDayOff ? "check" : null)"
-                                                      Class="@cellClass"
-                                                      Style="@cellStyle"
-                                                      title="@cellTitle"
-                                                      />
+                                        <span class="@blockClass" style="@blockStyle" title="@title"></span>
                                     }
-
-
-                                }
-                            </Template>
-                        </RadzenDataGridColumn>
+                                </td>
+                            }
+                        </tr>
                     }
-                </Columns>
-            </RadzenDataGrid>
-        </Template>
-        <Columns>
-            <RadzenDataGridColumn TItem="MonthGroup" Title="Maand" Width="220px">
-                <Template Context="mg">
-                    @mg.MonthName
-                </Template>
-            </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="MonthGroup" Title="Werkdagen" Width="120px">
-                <Template Context="mg">
-                    @mg.Days.Count 
-                </Template>
-            </RadzenDataGridColumn>
-        </Columns>
-    </RadzenDataGrid>
+                }
+            </tbody>
+        </table>
+    </div>
 }
 
 @code {
@@ -295,7 +296,14 @@ else
     private List<TeamDayOffDTO> TeamDaysOff = new();
     private int CurrentDayOffYear = DateTime.Now.AddYears(1).Year;
 
-    private RadzenDataGrid<MonthGroup>? monthsGrid;
+    private static readonly CultureInfo Nl = new("nl-BE");
+
+    // Getoonde maand (null = hele jaar) en niet-opgeslagen wijzigingen
+    private int? SelectedMonth;
+    private bool TwoMonths;
+    private bool isDirty;
+
+    private List<PublicHolidayDTO> PublicHolidays = new();
 
     // Authorization (simple role-based gating)
     private string? CurrentUserRole;
@@ -406,17 +414,245 @@ else
             TeamOptions = await Http.GetFromJsonAsync<List<string>>("api/meta/teams") ?? new();
             SpecialityOptions = new List<string> { AllSpecialities };
             SpecialityOptions.AddRange(await Http.GetFromJsonAsync<List<string>>("api/meta/specialities") ?? new());
+
+            // Link vanaf de loterijpagina: die ploeg/specialiteit tonen
+            if (!string.IsNullOrEmpty(Ploeg)) SelectedTeam = Ploeg;
+            if (!string.IsNullOrEmpty(Spec)) SelectedSpeciality = Spec;
         }
+
+        if (Jaar is int y && Years.Contains(y))
+            SelectedYear = y;
 
         await LoadPermissions();
         await LoadTeamCalendar();
-        await ExpandAllMonths();
+        SelectedMonth = Maand is >= 1 and <= 12 ? Maand : SelectedYear == DateTime.Now.Year ? DateTime.Now.Month : 1;
     }
+
+    // Optioneel via de link, bv. /teamcalendar?jaar=2027&maand=1 (admin ook &ploeg=...&spec=...)
+    [SupplyParameterFromQuery(Name = "jaar")] public int? Jaar { get; set; }
+    [SupplyParameterFromQuery(Name = "maand")] public int? Maand { get; set; }
+    [SupplyParameterFromQuery(Name = "ploeg")] public string? Ploeg { get; set; }
+    [SupplyParameterFromQuery(Name = "spec")] public string? Spec { get; set; }
 
     private async Task OnTeamOrSpecialityChanged(object value)
     {
+        // De dropdown is dan al gewijzigd: niet-opgeslagen wijzigingen van de vorige selectie vervallen
         await LoadTeamCalendar();
-        await ExpandAllMonths();
+    }
+
+    private async Task ChangeYear(int delta)
+    {
+        var year = SelectedYear + delta;
+        if (year < Years.Min() || year > Years.Max()) return;
+
+        if (isDirty && !await JS.InvokeAsync<bool>("confirm", "Je hebt niet-opgeslagen wijzigingen. Toch van jaar wisselen?"))
+            return;
+
+        SelectedYear = year;
+        await LoadTeamCalendar();
+        await LoadPermissions();
+        SelectedMonth = SelectedYear == DateTime.Now.Year ? DateTime.Now.Month : 1;
+    }
+
+    private async Task OnBeforeInternalNavigation(LocationChangingContext context)
+    {
+        if (isDirty && !await JS.InvokeAsync<bool>("confirm", "Je hebt niet-opgeslagen wijzigingen. Pagina toch verlaten?"))
+            context.PreventNavigation();
+    }
+
+    // --- Weergave ---
+
+    private IEnumerable<MonthGroup> VisibleMonths =>
+        SelectedMonth is int m
+            ? MonthGroups.Where(g => TwoMonths
+                // 2 maanden: de maand ervoor + de gekozen maand (januari: januari + februari)
+                ? g.Month == Math.Max(m, 2) - 1 || g.Month == Math.Max(m, 2)
+                : g.Month == m)
+            : MonthGroups;
+
+    private string GridTitle
+    {
+        get
+        {
+            var months = VisibleMonths.ToList();
+            if (SelectedMonth == null || months.Count == 0) return SelectedYear.ToString();
+            string Name(MonthGroup g) => Capitalize(new DateTime(g.Year, g.Month, 1).ToString("MMMM", Nl));
+            return months.Count == 1 ? Name(months[0]) : $"{ShortMonth(months[0].Month)} – {ShortMonth(months[^1].Month)}";
+        }
+    }
+
+    private static string ShortMonth(int month) =>
+        new DateTime(2000, month, 1).ToString("MMM", new CultureInfo("nl-BE")).TrimEnd('.');
+
+    private static string Capitalize(string s) => string.IsNullOrEmpty(s) ? s : char.ToUpper(s[0]) + s[1..];
+
+    private static string RowId(WorkDay wd) => $"tc-{wd.Date:yyyyMMdd}-{wd.Shift}";
+
+    private string CompositionText => string.Join(", ", TeamMembers
+        .GroupBy(m => string.IsNullOrWhiteSpace(m.Speciality) ? "(geen)" : m.Speciality)
+        .Select(g => $"{ShortSpeciality(g.Key)} {g.Count()}"));
+
+    private int YearCount(int personId) =>
+        selectedDays.Count(d => d.PersonId == personId && d.Date.Year == SelectedYear);
+
+    private string MemberTitle(PersonBaseDTO member)
+    {
+        var used = YearCount(member.Id);
+        var text = $"{member.FirstName} {member.LastName} - {member.Speciality} | verlof {used}"
+            + (member.LeaveAllowance is int a ? $"/{a}" : "")
+            + CategoryUsageText(member);
+        var loose = LooseCount(member.Id);
+        if (LotteryStats.TryGetValue(member.Id, out var ls))
+            text += $" | lotingen {SelectedYear}: {ls.Won} gewonnen, {ls.Lost} verloren";
+        return loose > 0 ? $"{text} | {loose} losse shift(en)" : text;
+    }
+
+    private string? PublicHolidayName(DateTime date)
+    {
+        var h = PublicHolidays.FirstOrDefault(h => h.StartDate.Date == date.Date);
+        return h == null ? null : (h.Name?.FirstOrDefault(n => n.Language == "NL")?.Text ?? h.Name?.FirstOrDefault()?.Text ?? "Feestdag");
+    }
+
+    // Shiften (rijen) waar meer personen verlof hebben dan het maximum
+    private List<WorkDay> OverQuotaRows => WorkDays
+        .Where(wd => GetTotalSelectedDays(wd) > DailyQuota)
+        .OrderBy(wd => wd.Date).ThenBy(wd => wd.Shift == "D" ? 0 : 1)
+        .ToList();
+
+    private List<SelectedDayOffDTO> LooseShiftsAll => selectedDays
+        .Where(d => d.Date.Year == SelectedYear && TeamMembers.Any(m => m.Id == d.PersonId) && IsLoose(d))
+        .OrderBy(d => d.Date).ThenBy(d => d.Shift == "D" ? 0 : 1)
+        .ToList();
+
+    private bool MonthHasIssue(MonthGroup mg) =>
+        mg.Days.Any(wd => GetTotalSelectedDays(wd) > DailyQuota)
+        || selectedDays.Any(d => d.Date.Year == mg.Year && d.Date.Month == mg.Month && TeamMembers.Any(m => m.Id == d.PersonId) && IsLoose(d));
+
+    // --- Loting vanuit de teamkalender (bewaard via api/lottery, dus ook op de loterijpagina) ---
+
+    private List<LotteryDrawDTO> Draws = new();
+    // Gewonnen/verloren lotingen dit jaar per persoon (kolomkop en tooltip)
+    private Dictionary<int, LotteryApiService.Stats> LotteryStats = new();
+
+    private async Task LoadDraws()
+    {
+        if (!CanManageCalendar) { Draws = new(); LotteryStats = new(); return; }
+        try
+        {
+            Draws = await Http.GetFromJsonAsync<List<LotteryDrawDTO>>("api/lottery/draws") ?? new();
+            LotteryStats = LotteryApiService.StatsFor(Draws, SelectedYear);
+        }
+        catch
+        {
+            Draws = new();
+        }
+    }
+
+    // Lotingen voor deze datum waarin iemand van de getoonde personen meedeed
+    private List<LotteryDrawDTO> DrawsFor(DateTime date) => Draws
+        .Where(d => d.FromDate.Date <= date.Date && d.ToDate.Date >= date.Date)
+        .Where(d => d.Winners.Concat(d.Losers).Any(p => TeamMembers.Any(m => m.Id == p.PersonId)))
+        .ToList();
+
+    private bool HasDraw(DateTime date) => DrawsFor(date).Any();
+
+    // Een loting gaat altijd over een paar: dagshift op dag X + nachtshift op dag X+1
+    private static (DateTime Day, DateTime Night) PairOf(WorkDay wd) =>
+        wd.Shift == "D" ? (wd.Date.Date, wd.Date.Date.AddDays(1)) : (wd.Date.Date.AddDays(-1), wd.Date.Date);
+
+    private int ShiftCount(DateTime date, string shift) =>
+        selectedDays.Count(d => d.Date.Date == date && d.Shift == shift);
+
+    private bool PairOverQuota(WorkDay wd)
+    {
+        var (day, night) = PairOf(wd);
+        return ShiftCount(day, "D") > DailyQuota || ShiftCount(night, "N") > DailyQuota;
+    }
+
+    // Iedereen met verlof op de dag- en/of nachtshift van het paar
+    private List<LotteryForm.Candidate> BuildCandidates(DateTime day, DateTime night) =>
+        selectedDays
+        .Where(d => (d.Date.Date == day && d.Shift == "D") || (d.Date.Date == night && d.Shift == "N"))
+        .GroupBy(d => d.PersonId)
+        .Select(g =>
+        {
+            var member = TeamMembers.FirstOrDefault(m => m.Id == g.Key);
+            var catId = g.Select(d => d.LeaveCategoryId).FirstOrDefault(id => id != null);
+            var category = catId is int id ? LeaveCategories.FirstOrDefault(c => c.Id == id) : null;
+            var shifts = g.Select(d => d.Shift).Distinct().OrderBy(s => s == "D" ? 0 : 1).ToList();
+            return member == null ? null : new LotteryForm.Candidate
+            {
+                PersonId = member.Id,
+                FirstName = member.FirstName ?? "",
+                LastName = member.LastName ?? "",
+                Category = category?.Name,
+                Color = category?.Color,
+                Shifts = string.Join("+", shifts)
+            };
+        })
+        .Where(c => c != null)
+        .Select(c => c!)
+        .OrderBy(c => c.LastName).ThenBy(c => c.FirstName)
+        .ToList();
+
+    // Popup met het gedeelde lotingformulier (zelfde als op de loterijpagina)
+    private async Task OpenLottery(WorkDay wd)
+    {
+        var (day, night) = PairOf(wd);
+        var dayText = day.Month == night.Month ? day.ToString("%d", Nl) : day.ToString("d MMMM", Nl);
+
+        await DialogService.OpenAsync<LotteryForm>(
+            $"Loting · {dayText}–{night.ToString("d MMMM yyyy", Nl)}",
+            new Dictionary<string, object>
+            {
+                { nameof(LotteryForm.DayDate), day },
+                { nameof(LotteryForm.NightDate), night },
+                { nameof(LotteryForm.Quota), DailyQuota },
+                { nameof(LotteryForm.CanApply), CanSaveTeamCalendar },
+                { nameof(LotteryForm.AllowAddPeople), true },
+                { nameof(LotteryForm.Load), new Func<Task<LotteryForm.Context>>(async () =>
+                    {
+                        await LoadDraws();
+                        return new LotteryForm.Context
+                        {
+                            Candidates = BuildCandidates(day, night),
+                            ExistingDraws = DrawsFor(day).Concat(DrawsFor(night)).GroupBy(d => d.DrawNumber).Select(g => g.First()).ToList(),
+                            TeamMembers = TeamMembers,
+                            Stats = LotteryApiService.StatsFor(Draws, SelectedYear),
+                            NextDrawNumber = Draws.Count == 0 ? 1 : Draws.Max(d => d.DrawNumber) + 1
+                        };
+                    }) },
+                { nameof(LotteryForm.OnRemoved), new Func<List<RestoredDayOffDTO>, Task>(removed =>
+                    {
+                        // Server haalde het verlof al weg: hier ook uit het raster (niet-opgeslagen wijzigingen blijven)
+                        selectedDays.RemoveAll(d => removed.Any(r => r.PersonId == d.PersonId && r.Date.Date == d.Date.Date && r.Shift == d.Shift));
+                        StateHasChanged();
+                        return Task.CompletedTask;
+                    }) },
+                { nameof(LotteryForm.OnRestored), new Func<List<RestoredDayOffDTO>, Task>(restored =>
+                    {
+                        foreach (var r in restored.Where(r => !selectedDays.Any(d => d.PersonId == r.PersonId && d.Date.Date == r.Date.Date && d.Shift == r.Shift)))
+                            selectedDays.Add(new SelectedDayOffDTO { PersonId = r.PersonId, Date = r.Date, Shift = r.Shift, LeaveCategoryId = r.LeaveCategoryId });
+                        StateHasChanged();
+                        return Task.CompletedTask;
+                    }) },
+                { nameof(LotteryForm.OnClose), EventCallback.Factory.Create(this, () => DialogService.Close()) }
+            },
+            new DialogOptions { Width = "580px", CloseDialogOnEsc = true });
+
+        await LoadDraws();
+    }
+
+    // Naar de maand van een datum springen en die rij in beeld brengen
+    private async Task JumpTo(DateTime? date)
+    {
+        if (date is not DateTime d) return;
+        SelectedMonth = d.Month;
+        StateHasChanged();
+        await Task.Yield();
+        var row = WorkDays.FirstOrDefault(w => w.Date.Date == d.Date);
+        if (row != null)
+            await JS.InvokeVoidAsync("bwzcScrollToId", RowId(row));
     }
 
     private static string ShortSpeciality(string? speciality) => speciality switch
@@ -471,17 +707,6 @@ else
         }
     }
 
-    private async Task OnYearChanged(object value)
-    {
-        if (value is int year)
-        {
-            SelectedYear = year;
-            StateHasChanged(); // updates CanSave
-            await LoadTeamCalendar();
-            await LoadPermissions();
-            StateHasChanged();
-        }
-    }
     private BadgeStyle GetMemberBadgeStyle(int personId)
     {
         var count = GetSelectedDayCount(personId);
@@ -543,6 +768,7 @@ private void OnDayClicked(int personId, WorkDay day)
         {
             // Nog eens klikken zet de shift volledig uit
             selectedDays.Remove(existing);
+            isDirty = true;
             return;
         }
 
@@ -563,6 +789,8 @@ private void OnDayClicked(int personId, WorkDay day)
         else
             existing.LeaveCategoryId = category.Id;
     }
+
+    isDirty = true;
 
     // Only notify for the row the user just edited
     var count = selectedDays.Count(d => d.Date.Date == day.Date.Date && d.Shift == day.Shift);
@@ -619,6 +847,20 @@ private void OnDayClicked(int personId, WorkDay day)
 
         if (ActiveCategoryName != null && LeaveCategories.All(c => c.Name != ActiveCategoryName))
             ActiveCategoryName = null;
+
+        // Feestdagen (stipje in de datumkolom)
+        try
+        {
+            PublicHolidays = await Http.GetFromJsonAsync<List<PublicHolidayDTO>>($"api/holidays/public/{SelectedYear}") ?? new();
+        }
+        catch
+        {
+            PublicHolidays = new();
+        }
+
+        await LoadDraws();
+
+        isDirty = false;
 
         // Bouw maand-groepen
         MonthGroups = WorkDays
@@ -801,6 +1043,7 @@ private void OnDayClicked(int personId, WorkDay day)
 
         if (response.IsSuccessStatusCode)
         {
+            isDirty = false;
             NotificationService.Notify(new NotificationMessage
             {
                 Severity = NotificationSeverity.Success,
@@ -881,18 +1124,6 @@ private void OnDayClicked(int personId, WorkDay day)
         await JS.InvokeVoidAsync("downloadFileFromBase64", "teamkalender.csv", base64);
     }
 
-    // Expand/collapse all using Radzen DataGrid API (matches the Radzen demo pattern)
-    private async Task ExpandAllMonths()
-    {
-        if (monthsGrid == null || MonthGroups.Count == 0) return;
-        await monthsGrid.ExpandRows(MonthGroups);
-    }
-
-    private async Task CollapseAllMonths()
-    {
-        if (monthsGrid == null || MonthGroups.Count == 0) return;
-        await monthsGrid.CollapseRows(MonthGroups);
-    }
 }
 <script>
     function downloadFileFromBase64(filename, base64) {

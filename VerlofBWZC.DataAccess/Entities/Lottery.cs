@@ -37,7 +37,14 @@ namespace VerlofBWZC.DataAccess.Entities
         [MaxLength(200)] public string FirstName { get; set; } = "";
         [MaxLength(200)] public string LastName { get; set; } = "";
 
+        // Bij toepassen weggehaald verlof (om terug te zetten als de loting verwijderd wordt)
+        public bool RemovedDay { get; set; }
+        public bool RemovedNight { get; set; }
+        public int? DayLeaveCategoryId { get; set; }
+        public int? NightLeaveCategoryId { get; set; }
+
         public int LotteryDrawId { get; set; }
         public LotteryDraw? LotteryDraw { get; set; }
     }
 }
+

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VerlofBWZC.Api.Services;
 using VerlofBWZC.DataAccess.Entities;
+using VerlofBWZC.DataAccess.Enums;
 using VerlofBWZC.DataContracts.DTO.Lottery;
 
 namespace VerlofBWZC.Api.Controllers
@@ -15,12 +16,14 @@ namespace VerlofBWZC.Api.Controllers
         private readonly VerlofBWZC_DbContext _db;
         private readonly ILogger<LotteryController> _logger;
         private readonly UserContext _me;
+        private readonly CalendarAccessService _access;
 
-        public LotteryController(VerlofBWZC_DbContext db, ILogger<LotteryController> logger, UserContext me)
+        public LotteryController(VerlofBWZC_DbContext db, ILogger<LotteryController> logger, UserContext me, CalendarAccessService access)
         {
             _db = db;
             _logger = logger;
             _me = me;
+            _access = access;
         }
 
         // Personen waarover de gebruiker lotingen mag zien/beheren: null = alle (Admin), anders eigen ploeg + specialiteit
@@ -70,7 +73,11 @@ namespace VerlofBWZC.Api.Controllers
                 {
                     PersonId = l.PersonId,
                     FirstName = l.FirstName,
-                    LastName = l.LastName
+                    LastName = l.LastName,
+                    RemovedDay = l.RemovedDay,
+                    RemovedNight = l.RemovedNight,
+                    DayLeaveCategoryId = l.DayLeaveCategoryId,
+                    NightLeaveCategoryId = l.NightLeaveCategoryId
                 }).ToList()
             }).ToList();
 
@@ -119,7 +126,8 @@ namespace VerlofBWZC.Api.Controllers
                 _db.LotteryDraws.Add(entity);
                 await _db.SaveChangesAsync();
 
-                return Ok();
+                // Het (eventueel aangepaste) volgnummer teruggeven, zodat de loting nadien toegepast kan worden
+                return Ok(drawNumber);
             }
             catch (Exception ex)
             {
@@ -143,10 +151,115 @@ namespace VerlofBWZC.Api.Controllers
             if (!AllAllowed(participants, await AllowedPersonIdsAsync()))
                 return Forbid();
 
+            // Toegepaste loting: het weggehaalde verlof van de verliezers terugzetten (met hun verlofregel)
+            var restored = new List<RestoredDayOffDTO>();
+            foreach (var loser in draw.Losers)
+            {
+                if (loser.RemovedDay)
+                    restored.Add(new RestoredDayOffDTO { PersonId = loser.PersonId, Date = draw.FromDate.Date, Shift = "D", LeaveCategoryId = loser.DayLeaveCategoryId });
+                if (loser.RemovedNight)
+                    restored.Add(new RestoredDayOffDTO { PersonId = loser.PersonId, Date = draw.ToDate.Date, Shift = "N", LeaveCategoryId = loser.NightLeaveCategoryId });
+            }
+
+            var personIds = restored.Select(r => r.PersonId).Distinct().ToList();
+            var dates = restored.Select(r => r.Date).Distinct().ToList();
+            var existing = await _db.DayOffs
+                .Where(d => personIds.Contains(d.PersonId) && dates.Contains(d.Date.Date))
+                .ToListAsync();
+            var categoryIds = restored.Where(r => r.LeaveCategoryId != null).Select(r => r.LeaveCategoryId!.Value).Distinct().ToList();
+            var validCategoryIds = (await _db.LeaveCategories
+                .Where(c => categoryIds.Contains(c.Id))
+                .Select(c => c.Id)
+                .ToListAsync()).ToHashSet();
+
+            foreach (var r in restored.ToList())
+            {
+                // Intussen opnieuw aangeduid: niet dubbel toevoegen
+                if (existing.Any(d => d.PersonId == r.PersonId && d.Date.Date == r.Date && d.Shift == r.Shift))
+                {
+                    restored.Remove(r);
+                    continue;
+                }
+                if (r.LeaveCategoryId is int catId && !validCategoryIds.Contains(catId))
+                    r.LeaveCategoryId = null; // verlofregel intussen verwijderd: gewoon verlof
+
+                _db.DayOffs.Add(new DayOff
+                {
+                    PersonId = r.PersonId,
+                    Date = r.Date,
+                    Shift = r.Shift,
+                    LeaveCategoryId = r.LeaveCategoryId,
+                    Description = "",
+                    Status = DayOffstatus.Approved,
+                    LastUpdate = DateTime.Now,
+                    IsDeleted = false
+                });
+            }
+
             _db.LotteryDraws.Remove(draw);
             await _db.SaveChangesAsync();
 
-            return NoContent();
+            return Ok(restored);
+        }
+
+        // POST: api/lottery/draw/{drawNumber}/apply
+        // Loting toepassen: verliezers verliezen hun verlof op de shift(en) van de loting.
+        // Per ploeg valt op een datum maar één shift (D op dag X, N op dag X+1), dus alle verlof binnen de periode.
+        // Wat weggehaald wordt, wordt onthouden om terug te zetten als de loting verwijderd wordt.
+        [HttpPost("draw/{drawNumber}/apply")]
+        public async Task<ActionResult<List<RestoredDayOffDTO>>> ApplyDraw(int drawNumber)
+        {
+            var draw = await _db.LotteryDraws
+                .Include(d => d.Winners)
+                .Include(d => d.Losers)
+                .FirstOrDefaultAsync(d => d.DrawNumber == drawNumber);
+
+            if (draw == null)
+                return NotFound();
+
+            var participants = draw.Winners.Select(w => w.PersonId).Concat(draw.Losers.Select(l => l.PersonId));
+            if (!AllAllowed(participants, await AllowedPersonIdsAsync()))
+                return Forbid();
+
+            // Zelfde recht als opslaan in de teamkalender
+            if (!_me.IsAdmin)
+            {
+                var own = await _me.GetTeamAsync();
+                if (own.Team == null || own.Speciality == null)
+                    return Forbid();
+                var perms = await _access.GetPermissionsAsync(User, own.Team.Value, own.Speciality.Value, draw.FromDate.Year);
+                if (!perms.CanSaveTeamCalendar)
+                    return Forbid();
+            }
+
+            var loserIds = draw.Losers.Select(l => l.PersonId).ToList();
+            var from = draw.FromDate.Date;
+            var to = draw.ToDate.Date;
+            var dayOffs = await _db.DayOffs
+                .Where(d => loserIds.Contains(d.PersonId) && d.Date >= from && d.Date < to.AddDays(1))
+                .ToListAsync();
+
+            var removed = new List<RestoredDayOffDTO>();
+            foreach (var d in dayOffs)
+            {
+                var loser = draw.Losers.First(l => l.PersonId == d.PersonId);
+                if (d.Shift == "N")
+                {
+                    loser.RemovedNight = true;
+                    loser.NightLeaveCategoryId = d.LeaveCategoryId;
+                }
+                else
+                {
+                    loser.RemovedDay = true;
+                    loser.DayLeaveCategoryId = d.LeaveCategoryId;
+                }
+                removed.Add(new RestoredDayOffDTO { PersonId = d.PersonId, Date = d.Date.Date, Shift = d.Shift ?? "", LeaveCategoryId = d.LeaveCategoryId });
+            }
+
+            _db.DayOffs.RemoveRange(dayOffs);
+            await _db.SaveChangesAsync();
+
+            return Ok(removed);
         }
     }
 }
