@@ -129,6 +129,21 @@ namespace VerlofBWZC.Api.Controllers
             return Ok(persons);
         }
 
+        // Alle leden van een ploeg, over alle specialiteiten heen
+        [HttpGet("team/{teamName}")]
+        public async Task<ActionResult<IEnumerable<PersonBaseDTO>>> GetPersonsByTeamAllSpecialities(TeamName teamName)
+        {
+            if (!await CanReadTeamAsync(teamName))
+                return Forbid();
+
+            var persons = await _context.Persons
+                .Where(p => p.Team == teamName)
+                .OrderBy(p => p.Speciality).ThenBy(p => p.LastName)
+                .ProjectTo<PersonBaseDTO>(_mapper.ConfigurationProvider)
+                .ToListAsync();
+            return Ok(persons);
+        }
+
         [HttpGet("team-days-off/{teamName}/{year}/{speciality?}")]
         public async Task<IActionResult> GetDaysOffForTeam(TeamName teamName, int year, Speciality? speciality = null)
         {

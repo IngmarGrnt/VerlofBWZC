@@ -43,6 +43,19 @@ else
                                 Placeholder="Selecteer een jaar"
                                 Style="width:200px"
                                 Change="OnYearChanged" />
+                @if (IsAdmin)
+                {
+                    <RadzenDropDown TValue="string" @bind-Value="SelectedTeam"
+                                    Data="@TeamOptions"
+                                    Placeholder="Ploeg"
+                                    Style="width:160px"
+                                    Change="OnTeamOrSpecialityChanged" />
+                    <RadzenDropDown TValue="string" @bind-Value="SelectedSpeciality"
+                                    Data="@SpecialityOptions"
+                                    Placeholder="Specialiteit"
+                                    Style="width:220px"
+                                    Change="OnTeamOrSpecialityChanged" />
+                }
             </RadzenStack>
 
             <!-- Samenvatting rechts onderaan -->
@@ -66,6 +79,23 @@ else
                 <RadzenButton Text="Alles inklappen" Icon="unfold_less" Click="@CollapseAllMonths" ButtonStyle="ButtonStyle.Base" />
             </RadzenStack>
         </RadzenStack>
+
+        @if (IsAdmin && ShowAllSpecialities)
+        {
+            <!-- Samenstelling van de ploeg per specialiteit -->
+            <div class="rz-mb-2" style="display:flex; flex-wrap:wrap; align-items:center; gap:.5rem;">
+                <span class="rz-text-secondary">Samenstelling @SelectedTeam:</span>
+                @if (!TeamMembers.Any())
+                {
+                    <span class="rz-text-secondary"><em>geen leden</em></span>
+                }
+                @* Zelfde volgorde als de kolommen *@
+                @foreach (var g in TeamMembers.GroupBy(m => string.IsNullOrWhiteSpace(m.Speciality) ? "(geen)" : m.Speciality))
+                {
+                    <RadzenBadge Text="@($"{g.Key}: {g.Count()}")" BadgeStyle="BadgeStyle.Secondary" Variant="Variant.Filled" />
+                }
+            </div>
+        }
     </div>
 
     <!-- Bovenliggende grid: Maanden -->
@@ -132,9 +162,15 @@ else
                                         <tr>
                                             <td style="text-align:center;vertical-align:bottom;">
                                                 <span class="header-initials"
-                                                      title="@($"{mc.member.FirstName} {mc.member.LastName}")">
+                                                      title="@($"{mc.member.FirstName} {mc.member.LastName} - {mc.member.Speciality}")">
                                                     @GetInitials(mc.member)
                                                 </span>
+                                                @if (ShowAllSpecialities)
+                                                {
+                                                    <div style="font-size:.65rem; line-height:1; opacity:.75;" title="@mc.member.Speciality">
+                                                        @ShortSpeciality(mc.member.Speciality)
+                                                    </div>
+                                                }
                                             </td>
                                         </tr>
                                         <tr>
@@ -266,19 +302,60 @@ else
 
     private List<SelectedDayOffDTO> selectedDays = new();
 
+    // Minstens 24 kolommen (lege opvulling); meer als de selectie groter is (bv. alle specialiteiten)
     private List<PersonBaseDTO?> MemberColumns =>
         TeamMembers
             .Concat(Enumerable.Repeat<PersonBaseDTO?>(null, Math.Max(0, 24 - TeamMembers.Count)))
-            .Take(24)
             .ToList();
 
+    // Admin kan elke ploeg/specialiteit bekijken; anderen zien enkel hun eigen ploeg
+    private const string AllSpecialities = "Alle specialiteiten";
+    private bool IsAdmin => string.Equals(CurrentUserRole, "Admin", StringComparison.OrdinalIgnoreCase);
+    private string? SelectedTeam;
+    private string? SelectedSpeciality;
+    private List<string> TeamOptions = new();
+    private List<string> SpecialityOptions = new();
+    private bool ShowAllSpecialities => SelectedSpeciality == AllSpecialities;
+
     protected override async Task OnInitializedAsync()
-    {        
+    {
+        // Ingelogde gebruiker bepaalt de standaardselectie
+        var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
+        var userId = JwtUtils.GetUserIdFromToken(token);
+        var person = await PersonApi.GetPersonByIdAsync(int.Parse(userId));
+        SelectedTeam = person?.Team;
+        SelectedSpeciality = person?.Speciality;
+        CurrentUserRole = person?.Role; // capture role for authorization
+
+        if (IsAdmin)
+        {
+            TeamOptions = await Http.GetFromJsonAsync<List<string>>("api/meta/teams") ?? new();
+            SpecialityOptions = new List<string> { AllSpecialities };
+            SpecialityOptions.AddRange(await Http.GetFromJsonAsync<List<string>>("api/meta/specialities") ?? new());
+        }
+
         await LoadPermissions();
         await LoadTeamCalendar();
-        await ExpandAllMonths(); 
-
+        await ExpandAllMonths();
     }
+
+    private async Task OnTeamOrSpecialityChanged(object value)
+    {
+        await LoadTeamCalendar();
+        await ExpandAllMonths();
+    }
+
+    private static string ShortSpeciality(string? speciality) => speciality switch
+    {
+        null or "" => "-",
+        "Onderofficieren" => "OOff",
+        "Officieren" => "Off",
+        "Chauffeur" => "Chauf",
+        "Dispatching" => "Disp",
+        "RedTeam" => "Red",
+        "Duiker" => "Duik",
+        _ => speciality
+    };
 
     private async Task LoadPermissions()
     {
@@ -386,22 +463,22 @@ private void OnDayClicked(int personId, WorkDay day)
 
     private async Task LoadTeamCalendar()
     {
-        // Haal de ingelogde gebruiker op
-        var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
-        var userId = JwtUtils.GetUserIdFromToken(token);
-        var person = await PersonApi.GetPersonByIdAsync(int.Parse(userId));
-        var teamName = person?.Team;
-        var speciality = person?.Speciality;
-        CurrentUserRole = person?.Role; // capture role for authorization
+        var teamName = SelectedTeam;
+        var speciality = SelectedSpeciality;
 
         // Haal teamleden op
-        TeamMembers = await Http.GetFromJsonAsync<List<PersonBaseDTO>>($"api/person/team/{teamName}/{speciality}");
+        TeamMembers = ShowAllSpecialities
+            ? await Http.GetFromJsonAsync<List<PersonBaseDTO>>($"api/person/team/{teamName}") ?? new()
+            : await Http.GetFromJsonAsync<List<PersonBaseDTO>>($"api/person/team/{teamName}/{speciality}") ?? new();
 
         // Haal werkdagen op
         WorkDays = await Http.GetFromJsonAsync<List<WorkDay>>($"api/calender?teamName={teamName}&year={SelectedYear}");
 
         // Haal alle verlofdagen van het team op PER SPECIALITEIT
-        TeamDaysOff = await Http.GetFromJsonAsync<List<TeamDayOffDTO>>($"api/person/team-days-off/{teamName}/{SelectedYear}/{speciality}");
+        var daysOffUrl = ShowAllSpecialities
+            ? $"api/person/team-days-off/{teamName}/{SelectedYear}"
+            : $"api/person/team-days-off/{teamName}/{SelectedYear}/{speciality}";
+        TeamDaysOff = await Http.GetFromJsonAsync<List<TeamDayOffDTO>>(daysOffUrl);
 
         // Synchroniseer selectie met bestaande verlofdagen
         selectedDays = TeamDaysOff
