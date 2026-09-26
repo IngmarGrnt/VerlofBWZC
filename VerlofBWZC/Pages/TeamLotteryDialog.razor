@@ -124,7 +124,7 @@
             </label>
         </div>
         <div class="tl-hint">
-            @winnersCount winnaar(s) uit @SelectedCount deelnemer(s) (max per shift: @Quota)@(Scoped.Count - SelectedCount > 0 ? $"; {Scoped.Count - SelectedCount} houden zeker verlof (verlofregel of niet aangevinkt)" : "").
+            @(Scoped.Count - SelectedCount) zeker (niet aangevinkt) + @winnersCount winnaar(s) = @(Scoped.Count - SelectedCount + winnersCount) van max @Quota.
         </div>
 
         @if (confirming)
@@ -362,9 +362,9 @@
         RecalcWinners();
     }
 
-    // Standaard: evenveel winnaars als het maximum per shift (nooit meer dan er deelnemers zijn)
+    // Standaard: max per shift min wie zeker verlof houdt (niet aangevinkt), zodat het totaal precies het maximum is
     private void RecalcWinners() =>
-        winnersCount = Math.Clamp(Quota, 0, SelectedCount);
+        winnersCount = Math.Clamp(Quota - (Scoped.Count - SelectedCount), 0, SelectedCount);
 
     private async Task DrawAsync()
     {
