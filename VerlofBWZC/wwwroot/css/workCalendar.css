@@ -19,6 +19,9 @@
         padding: 0.5rem 1.2rem;
         border: none;
         min-width: 180px;
+        background: var(--bwzc-navy);
+        color: #fff;
+        border-radius: var(--bwzc-radius);
     }
 
     .workcalendar-header .rz-badge {

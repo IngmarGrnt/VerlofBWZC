@@ -126,7 +126,8 @@
     private List<string> teams = new();
     private List<string> specialities = new();
     private List<int> years = Enumerable.Range(DateTime.Now.Year - 1, 12).ToList();
-    private readonly string[] palette = { "#E53935", "#FB8C00", "#FDD835", "#43A047", "#1E88E5", "#8E24AA", "#6D4C41", "#546E7A" };
+    // Goed te onderscheiden van de huisstijl (rood #F13F3F, blauw #2F80ED) en verlof (blauwgroen), leesbaar met witte tekst
+    private readonly string[] palette = { "#E8590C", "#7B3FBF", "#C2185B", "#2E7D32", "#B7791F", "#6D4C41", "#455A64", "#5C6BC0" };
 
     private string? teamFilter;
     private string? specialityFilter;

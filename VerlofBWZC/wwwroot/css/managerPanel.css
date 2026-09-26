@@ -1,24 +1,24 @@
 ﻿/* Manager Panel scoped styles */
 .manager-panel {
-  --mp-bg: #f8fafc;
+  --mp-bg: var(--bwzc-white);
   --mp-card-bg: #ffffff;
-  --mp-border: #e5e7eb;
-  --mp-border-strong: #d1d5db;
-  --mp-primary: #2563eb;
-  --mp-primary-600: #1d4ed8;
+  --mp-border: var(--bwzc-line);
+  --mp-border-strong: var(--bwzc-line);
+  --mp-primary: var(--bwzc-blue);
+  --mp-primary-600: var(--bwzc-blue-dark);
   --mp-success: #16a34a;
-  --mp-muted: #6b7280;
-  --mp-danger: #dc2626;
-  --mp-shadow: 0 1px 2px rgba(0,0,0,.06), 0 6px 24px rgba(0,0,0,.08);
+  --mp-muted: var(--bwzc-muted);
+  --mp-danger: var(--bwzc-red);
+  --mp-shadow: none;
   --mp-radius: 12px;
 }
 
 .manager-panel h3 {
   margin: 0 0 1rem 0;
-  font-weight: 700;
+  font-weight: 400;
   font-size: 1.5rem;
   letter-spacing: .2px;
-  color: #0f172a;
+  color: var(--bwzc-navy);
 }
 
 /* Fieldset (filters) */
@@ -31,8 +31,8 @@
 
 .manager-panel .rz-fieldset-legend {
   font-weight: 600;
-  color: #0f172a;
-  background: linear-gradient(180deg, #f1f5f9, #e2e8f0);
+  color: var(--bwzc-navy);
+  background: var(--bwzc-ice);
   border: 1px solid var(--mp-border);
   border-radius: 999px;
   padding: .25rem .75rem;
@@ -109,9 +109,9 @@
 }
 
 .manager-panel .rz-button.rz-secondary {
-  background: #e5e7eb;
-  border-color: #e5e7eb;
-  color: #111827;
+  background: var(--bwzc-white);
+  border-color: var(--bwzc-line);
+  color: var(--bwzc-navy);
 }
 
 /* Badges for Yes/No */
@@ -127,9 +127,9 @@
   border: 1px solid #86efac;
 }
 .manager-panel .rz-badge-secondary {
-  background: #eef2f7 !important;
-  color: #374151 !important;
-  border: 1px solid #e5e7eb;
+  background: var(--bwzc-ice) !important;
+  color: var(--bwzc-muted) !important;
+  border: 1px solid var(--bwzc-line);
 }
 
 /* Inputs consistency */
@@ -149,13 +149,13 @@
 .manager-panel .rz-numeric:focus-within {
   outline: none;
   border-color: var(--mp-primary-600) !important;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, .15);
+  box-shadow: 0 0 0 3px rgba(47, 128, 237, .15);
 }
 
 /* Filter toolbar badge alignment */
 .manager-panel .rz-fieldset .rz-badge {
-  background: #f1f5f9;
-  color: #0f172a;
+  background: var(--bwzc-ice);
+  color: var(--bwzc-navy);
   border: 1px solid var(--mp-border);
 }
 
