@@ -13,6 +13,7 @@
 @inject IJSRuntime JS
 @inject PersonApiService PersonApi
 @inject NotificationService NotificationService
+@inject DialogService DialogService
 
 @using Microsoft.AspNetCore.Authorization
 @attribute [Authorize]
@@ -202,7 +203,7 @@ else
                                         <tr>
                                             <td style="text-align:center;vertical-align:bottom;">
                                                 <span class="header-initials"
-                                                      title="@($"{mc.member.FirstName} {mc.member.LastName} - {mc.member.Speciality}{CategoryUsageText(mc.member)}")">
+                                                      title="@($"{mc.member.FirstName} {mc.member.LastName} - {mc.member.Speciality}{CategoryUsageText(mc.member)}{(LooseCount(mc.member.Id) > 0 ? $" · {LooseCount(mc.member.Id)} losse shift(en)" : "")}")">
                                                     @GetInitials(mc.member)
                                                 </span>
                                                 @if (ShowAllSpecialities)
@@ -231,6 +232,9 @@ else
                                     var isDayOff = dayOff != null;
                                     var category = dayOff?.LeaveCategoryId is int catId ? LeaveCategories.FirstOrDefault(c => c.Id == catId) : null;
                                     var cellStyle = category != null ? $"background-color:{category.Color}; border-color:{category.Color}; color:#fff;" : null;
+                                    var isLoose = isDayOff && IsLoose(dayOff!);
+                                    var cellClass = isLoose ? "oval-btn oval-btn-loose" : "oval-btn";
+                                    var cellTitle = string.Join(" · ", new[] { category?.Name, isLoose ? "Losse shift" : null }.Where(t => t != null));
 
                                     @if(CanSaveTeamCalendar)
                                     {
@@ -239,9 +243,9 @@ else
                                                       ButtonStyle="@(isDayOff ? ButtonStyle.Info : ButtonStyle.Warning)"
                                                       Text=""
                                                       Icon="@(isDayOff ? "check" : null)"
-                                                      Class="oval-btn"
+                                                      Class="@cellClass"
                                                       Style="@cellStyle"
-                                                      title="@(category?.Name)"
+                                                      title="@cellTitle"
                                         Click="@(args => OnDayClicked(mc.member.Id, wd))" />
                                     }
                                     else
@@ -251,9 +255,9 @@ else
                                                       ButtonStyle="@(isDayOff ? ButtonStyle.Info : ButtonStyle.Warning)"
                                                       Text=""
                                                       Icon="@(isDayOff ? "check" : null)"
-                                                      Class="oval-btn"
+                                                      Class="@cellClass"
                                                       Style="@cellStyle"
-                                                      title="@(category?.Name)"
+                                                      title="@cellTitle"
                                                       />
                                     }
 
@@ -695,6 +699,41 @@ private void OnDayClicked(int personId, WorkDay day)
     //         selectedDays.Remove(existing);
     // }
 
+    // Per persoon: categorieën met "aansluitend" waarvan de shiften geen ononderbroken reeks in het rooster vormen
+    private List<string> NotConsecutiveWarnings()
+    {
+        var roster = WorkDays.OrderBy(w => w.Date).ThenBy(w => w.Shift == "D" ? 0 : 1).ToList();
+        var warnings = new List<string>();
+
+        foreach (var member in TeamMembers)
+        {
+            foreach (var category in LeaveCategories.Where(c => c.MustBeConsecutive && c.Speciality == member.Speciality))
+            {
+                var positions = roster
+                    .Select((w, i) => (w, i))
+                    .Where(x => selectedDays.Any(d => d.PersonId == member.Id && d.Date.Date == x.w.Date.Date && d.Shift == x.w.Shift && d.LeaveCategoryId == category.Id))
+                    .Select(x => x.i)
+                    .ToList();
+
+                if (positions.Count > 1 && positions.Max() - positions.Min() + 1 != positions.Count)
+                    warnings.Add($"{member.FirstName} {member.LastName}: '{category.Name}' is niet aansluitend");
+            }
+        }
+        return warnings;
+    }
+
+    // Verlof neem je normaal per 2 shiften: dagshift (D) op dag X + nachtshift (N) op dag X+1.
+    // Een losse shift is een aangeduide shift waarvan de partner (voor dezelfde persoon) niet aangeduid is.
+    private bool IsLoose(SelectedDayOffDTO day)
+    {
+        var partnerDate = day.Shift == "D" ? day.Date.Date.AddDays(1) : day.Date.Date.AddDays(-1);
+        var partnerShift = day.Shift == "D" ? "N" : "D";
+        return !selectedDays.Any(d => d.PersonId == day.PersonId && d.Date.Date == partnerDate && d.Shift == partnerShift);
+    }
+
+    private int LooseCount(int personId) =>
+        selectedDays.Count(d => d.PersonId == personId && d.Date.Year == SelectedYear && IsLoose(d));
+
     private async Task SaveTeamDaysOff()
     {
         if (!CanManageCalendar)
@@ -707,6 +746,37 @@ private void OnDayClicked(int personId, WorkDay day)
                 Duration = 3000
             });
             return;
+        }
+
+        // Categorieën die aansluitend moeten zijn: niet opslaan zolang het bij iemand niet aansluit
+        var notConsecutive = NotConsecutiveWarnings();
+        if (notConsecutive.Count > 0)
+        {
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Error,
+                Summary = "Niet opgeslagen: niet aansluitend",
+                Detail = string.Join("; ", notConsecutive),
+                Duration = 8000
+            });
+            return;
+        }
+
+        // Losse shiften mogen, maar enkel bewust: eerst bevestigen
+        var loose = TeamMembers
+            .Select(m => (member: m, count: LooseCount(m.Id)))
+            .Where(x => x.count > 0)
+            .ToList();
+        if (loose.Count > 0)
+        {
+            var list = string.Join(", ", loose.Take(8).Select(x => $"{x.member.FirstName} {x.member.LastName} ({x.count})"))
+                + (loose.Count > 8 ? $" en nog {loose.Count - 8} personen" : "");
+            var confirmed = await DialogService.Confirm(
+                $"Er zijn losse shiften (dag zonder nacht of omgekeerd) bij: {list}. Verlof neem je normaal per 2 shiften. Toch opslaan?",
+                "Losse shiften",
+                new ConfirmOptions { OkButtonText = "Opslaan", CancelButtonText = "Terug" });
+            if (confirmed != true)
+                return;
         }
 
         // Stuur ALLE teamleden mee, ook met lege 'Days' (maakt verwijderen mogelijk)
