@@ -732,17 +732,18 @@ private void OnDayClicked(int personId, WorkDay day)
             return;
         }
 
-        // Categorieën die aansluitend moeten zijn: melding per persoon (opslaan blijft mogelijk)
+        // Categorieën die aansluitend moeten zijn: niet opslaan zolang het bij iemand niet aansluit
         var notConsecutive = NotConsecutiveWarnings();
         if (notConsecutive.Count > 0)
         {
             NotificationService.Notify(new NotificationMessage
             {
-                Severity = NotificationSeverity.Warning,
-                Summary = "Niet aansluitend",
+                Severity = NotificationSeverity.Error,
+                Summary = "Niet opgeslagen: niet aansluitend",
                 Detail = string.Join("; ", notConsecutive),
                 Duration = 8000
             });
+            return;
         }
 
         // Stuur ALLE teamleden mee, ook met lege 'Days' (maakt verwijderen mogelijk)

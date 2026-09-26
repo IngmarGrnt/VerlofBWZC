@@ -560,17 +560,20 @@
 
     private async Task SaveSelectedDays()
     {
-        // Categorieën die aansluitend moeten zijn maar dat niet zijn: melding (opslaan blijft mogelijk)
-        foreach (var c in Categories.Where(c => c.MustBeConsecutive && !IsConsecutive(c.Id)))
+        // Categorieën die aansluitend moeten zijn maar dat niet zijn: niet opslaan
+        var notConsecutive = Categories.Where(c => c.MustBeConsecutive && !IsConsecutive(c.Id)).ToList();
+        foreach (var c in notConsecutive)
         {
             NotificationService.Notify(new NotificationMessage
             {
-                Severity = NotificationSeverity.Warning,
+                Severity = NotificationSeverity.Error,
                 Summary = c.Name,
                 Detail = $"De shiften van '{c.Name}' moeten aansluitend zijn (één ononderbroken reeks werkshiften).",
                 Duration = 6000
             });
         }
+        if (notConsecutive.Count > 0)
+            return;
 
         var persoonId = userId;
         var payload = new

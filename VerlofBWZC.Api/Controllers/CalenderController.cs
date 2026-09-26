@@ -174,10 +174,33 @@ namespace VerlofBWZC.Api.Controllers
 
                     if (catGroup.Count() > category.MaxShifts)
                         return $"Maximaal {category.MaxShifts} shiften als '{category.Name}' in {yearGroup.Key} (nu {catGroup.Count()}).";
+
+                    if (category.MustBeConsecutive && !IsConsecutive(person.Team.Value, yearGroup.Key, catGroup))
+                        return $"De shiften van '{category.Name}' moeten aansluitend zijn (één ononderbroken reeks werkshiften).";
                 }
             }
 
             return null;
+        }
+
+        // Aansluitend: de shiften vormen één reeks in het werkrooster van de ploeg (vrije dagen ertussen tellen niet)
+        private bool IsConsecutive(TeamName team, int year, IEnumerable<DayOff> dayOffs)
+        {
+            var roster = _calendarService.GenerateWorkCalendar(new Team { Name = team }, year)
+                .OrderBy(w => w.Date).ThenBy(w => w.Shift == "D" ? 0 : 1)
+                .ToList();
+
+            var positions = dayOffs
+                .Select(d => roster.FindIndex(w => w.Date.Date == d.Date.Date && (d.Shift == null || w.Shift == d.Shift)))
+                .ToList();
+
+            if (positions.Any(p => p < 0))
+                return false; // shift buiten het rooster
+            if (positions.Count <= 1)
+                return true;
+
+            var distinct = positions.Distinct().ToList();
+            return distinct.Count == positions.Count && distinct.Max() - distinct.Min() + 1 == distinct.Count;
         }
 
         [HttpGet("person-days-off/{personId}")]
