@@ -7,22 +7,43 @@
 @inject DialogService DialogService
 @inject NotificationService NotificationService
 
-@* Loting voor één shift vanuit de teamkalender. Bewaart via api/lottery/draw, dus ook zichtbaar op de loterijpagina. *@
+@* Loting vanuit de teamkalender: standaard per paar (dag + nacht), of enkel de dag- of nachtshift.
+   Bewaart via api/lottery/draw, dus ook zichtbaar op de loterijpagina. *@
 
 <div class="tl">
+    @if (result == null)
+    {
+        <div class="tl-scope" role="group" aria-label="Loting over">
+            @foreach (var s in new[] { Scope.Pair, Scope.Day, Scope.Night })
+            {
+                <button type="button" class="@(scope == s ? "tl-scope-btn tl-scope-active" : "tl-scope-btn")"
+                        aria-pressed="@(scope == s ? "true" : "false")"
+                        @onclick="() => SetScope(s)">
+                    @ScopeLabel(s)
+                </button>
+            }
+        </div>
+    }
+
     <div class="tl-info">
-        <span><strong>@Candidates.Count</strong> personen met verlof</span>
-        <span>dag <strong>@DayCount</strong>/@Quota</span>
-        <span>nacht <strong>@NightCount</strong>/@Quota</span>
-        @if (Candidates.Count > Quota)
+        <span><strong>@Scoped.Count</strong> personen met verlof</span>
+        @if (scope != Scope.Night)
         {
-            <span class="tl-over">@(Candidates.Count - Quota) te veel</span>
+            <span>dag @DayDate.ToString("ddd d/M", Nl): <strong>@DayCount</strong>/@Quota</span>
+        }
+        @if (scope != Scope.Day)
+        {
+            <span>nacht @NightDate.ToString("ddd d/M", Nl): <strong>@NightCount</strong>/@Quota</span>
+        }
+        @if (Scoped.Count > Quota)
+        {
+            <span class="tl-over">@(Scoped.Count - Quota) te veel</span>
         }
     </div>
 
     @if (ExistingDraws.Any())
     {
-        <div class="tl-section-title">Eerdere loting(en) voor deze datum</div>
+        <div class="tl-section-title">Eerdere loting(en)</div>
         @foreach (var d in ExistingDraws)
         {
             <div class="tl-result">
@@ -38,7 +59,7 @@
                 @if (result == null && d.Losers.Any(l => Candidates.Any(c => c.PersonId == l.PersonId)))
                 {
                     <RadzenButton Text="Toepassen" Icon="done_all" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Outlined"
-                                  title="Verliezers van deze loting verliezen hun verlof op deze dag- en nachtshift"
+                                  title="Verliezers van deze loting verliezen hun verlof op de shiften van deze loting"
                                   Click="@(() => Apply(d))" />
                 }
             </div>
@@ -50,19 +71,26 @@
         <div class="tl-section-title">Wie gaat mee in de loting?</div>
         <div class="tl-hint">Niet aangevinkt = houdt zeker verlof (bv. al eerder toegekend).</div>
         <div class="tl-list">
-            @foreach (var c in Candidates)
+            @foreach (var c in Scoped)
             {
                 var isIn = selected.Contains(c.PersonId);
                 <label class="@(isIn ? "tl-person tl-person-in" : "tl-person")">
                     <input type="checkbox" checked="@isIn" @onchange="e => Toggle(c.PersonId, (bool)(e.Value ?? false))" />
                     <span class="tl-person-name">@c.FirstName @c.LastName</span>
-                    <span class="@(c.Shifts == "D+N" ? "tl-shifts" : "tl-shifts tl-shifts-half")"
-                          title="@(c.Shifts == "D+N" ? "Verlof op dag- en nachtshift" : "Enkel verlof op de " + (c.Shifts == "D" ? "dagshift" : "nachtshift"))">@c.Shifts</span>
+                    @if (scope == Scope.Pair)
+                    {
+                        <span class="@(c.Shifts == "D+N" ? "tl-shifts" : "tl-shifts tl-shifts-half")"
+                              title="@(c.Shifts == "D+N" ? "Verlof op dag- en nachtshift" : "Enkel verlof op de " + (c.Shifts == "D" ? "dagshift" : "nachtshift"))">@c.Shifts</span>
+                    }
                     @if (!string.IsNullOrEmpty(c.Category))
                     {
                         <span class="tl-cat" style="@($"border-color:{c.Color}; color:{c.Color};")">@c.Category</span>
                     }
                 </label>
+            }
+            @if (!Scoped.Any())
+            {
+                <span class="tl-hint">Niemand heeft verlof op deze shift.</span>
             }
         </div>
 
@@ -73,17 +101,17 @@
             </label>
             <label>
                 <span>Aantal winnaars (houden verlof)</span>
-                <RadzenNumeric TValue="int" @bind-Value="winnersCount" Min="0" Max="@selected.Count" Style="width:120px" />
+                <RadzenNumeric TValue="int" @bind-Value="winnersCount" Min="0" Max="@SelectedCount" Style="width:120px" />
             </label>
         </div>
         <div class="tl-hint">
-            @(Candidates.Count - selected.Count) zeker + @winnersCount winnaar(s) = @(Candidates.Count - selected.Count + winnersCount) van max @Quota.
+            @(Scoped.Count - SelectedCount) zeker + @winnersCount winnaar(s) = @(Scoped.Count - SelectedCount + winnersCount) van max @Quota.
         </div>
 
         <div class="tl-actions">
             <RadzenButton Text="Annuleren" ButtonStyle="ButtonStyle.Light" Click="@(() => DialogService.Close(false))" />
             <RadzenButton Text="Loting trekken" Icon="casino" ButtonStyle="ButtonStyle.Primary"
-                          Disabled="@(busy || selected.Count == 0)" Click="@DrawAsync" />
+                          Disabled="@(busy || SelectedCount == 0)" Click="@DrawAsync" />
         </div>
     }
     else
@@ -117,7 +145,7 @@
             @if (result.Losers.Any())
             {
                 <RadzenButton Text="Toepassen" Icon="done_all" ButtonStyle="ButtonStyle.Primary"
-                              title="Verliezers verliezen hun verlof op deze dag- en nachtshift"
+                              title="Verliezers verliezen hun verlof op de shiften van deze loting"
                               Click="@(() => Apply(result))" />
             }
         </div>
@@ -135,7 +163,17 @@
         public string Shifts { get; set; } = ""; // "D", "N" of "D+N"
     }
 
-    // Loting gebeurt altijd per paar: dagshift (DayDate) + nachtshift (NightDate = dag erna)
+    // Resultaat voor de teamkalender: deze personen verliezen hun verlof op de shiften van de loting (na bevestiging daar)
+    public class ApplyRequest
+    {
+        public DateTime FromDate { get; set; }
+        public DateTime ToDate { get; set; }
+        public List<LotteryPersonDTO> Losers { get; set; } = new();
+    }
+
+    private enum Scope { Pair, Day, Night }
+
+    // Paar: dagshift (DayDate) + nachtshift (NightDate = dag erna)
     [Parameter] public DateTime DayDate { get; set; }
     [Parameter] public DateTime NightDate { get; set; }
     [Parameter] public int DayCount { get; set; }
@@ -146,29 +184,54 @@
     [Parameter] public int NextDrawNumber { get; set; } = 1;
 
     private static readonly CultureInfo Nl = new("nl-BE");
+    private Scope scope = Scope.Pair;
     private readonly HashSet<int> selected = new();
     private string drawName = "";
     private int winnersCount;
     private bool busy;
     private LotteryDrawDTO? result;
 
+    // Kandidaten binnen de gekozen shift(en)
+    private List<Candidate> Scoped => scope switch
+    {
+        Scope.Day => Candidates.Where(c => c.Shifts.Contains('D')).ToList(),
+        Scope.Night => Candidates.Where(c => c.Shifts.Contains('N')).ToList(),
+        _ => Candidates
+    };
+
+    private int SelectedCount => Scoped.Count(c => selected.Contains(c.PersonId));
+
+    private DateTime FromDate => scope == Scope.Night ? NightDate.Date : DayDate.Date;
+    private DateTime ToDate => scope == Scope.Day ? DayDate.Date : NightDate.Date;
+
+    private string ScopeLabel(Scope s) => s switch
+    {
+        Scope.Day => $"Enkel dag ({DayDate.ToString("ddd d/M", Nl)})",
+        Scope.Night => $"Enkel nacht ({NightDate.ToString("ddd d/M", Nl)})",
+        _ => "Dag + nacht"
+    };
+
     protected override void OnInitialized()
     {
         foreach (var c in Candidates)
             selected.Add(c.PersonId);
-        var dayPart = DayDate.Month == NightDate.Month ? DayDate.ToString("%d", Nl) : DayDate.ToString("d MMM", Nl);
-        drawName = $"Loting {dayPart}–{NightDate.ToString("d MMM yyyy", Nl)} (D+N)";
+        SetScope(Scope.Pair);
+    }
+
+    private void SetScope(Scope s)
+    {
+        scope = s;
+        drawName = s switch
+        {
+            Scope.Day => $"Loting {DayDate.ToString("d MMM yyyy", Nl)} (D)",
+            Scope.Night => $"Loting {NightDate.ToString("d MMM yyyy", Nl)} (N)",
+            _ => $"Loting {(DayDate.Month == NightDate.Month ? DayDate.ToString("%d", Nl) : DayDate.ToString("d MMM", Nl))}–{NightDate.ToString("d MMM yyyy", Nl)} (D+N)"
+        };
         RecalcWinners();
     }
 
-    // Resultaat voor de teamkalender: deze personen verliezen hun verlof op het paar (na bevestiging daar)
-    public class ApplyRequest
-    {
-        public List<LotteryPersonDTO> Losers { get; set; } = new();
-    }
-
     private void Apply(LotteryDrawDTO draw) =>
-        DialogService.Close(new ApplyRequest { Losers = draw.Losers.ToList() });
+        DialogService.Close(new ApplyRequest { FromDate = draw.FromDate.Date, ToDate = draw.ToDate.Date, Losers = draw.Losers.ToList() });
 
     private void Toggle(int personId, bool on)
     {
@@ -178,7 +241,7 @@
 
     // Standaard: zoveel winnaars dat het totaal op het maximum uitkomt
     private void RecalcWinners() =>
-        winnersCount = Math.Clamp(Quota - (Candidates.Count - selected.Count), 0, selected.Count);
+        winnersCount = Math.Clamp(Quota - (Scoped.Count - SelectedCount), 0, SelectedCount);
 
     private async Task DrawAsync()
     {
@@ -186,7 +249,7 @@
         try
         {
             // Schudden (Fisher–Yates), zelfde werkwijze als de loterijpagina
-            var list = Candidates.Where(c => selected.Contains(c.PersonId)).ToList();
+            var list = Scoped.Where(c => selected.Contains(c.PersonId)).ToList();
             var rng = Random.Shared;
             for (int i = list.Count - 1; i > 0; i--)
             {
@@ -198,9 +261,9 @@
             var dto = new LotteryDrawDTO
             {
                 DrawNumber = NextDrawNumber,
-                DrawName = string.IsNullOrWhiteSpace(drawName) ? $"Loting {DayDate:dd-MM-yyyy} (D+N)" : drawName.Trim(),
-                FromDate = DayDate.Date,
-                ToDate = NightDate.Date,
+                DrawName = string.IsNullOrWhiteSpace(drawName) ? $"Loting {FromDate:dd-MM-yyyy}" : drawName.Trim(),
+                FromDate = FromDate,
+                ToDate = ToDate,
                 Winners = list.Take(count).Select(c => new LotteryPersonDTO { PersonId = c.PersonId, FirstName = c.FirstName, LastName = c.LastName }).ToList(),
                 Losers = list.Skip(count).Select(c => new LotteryPersonDTO { PersonId = c.PersonId, FirstName = c.FirstName, LastName = c.LastName }).ToList()
             };

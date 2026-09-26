@@ -721,3 +721,46 @@
     color: #B35C00;
     background: rgba(230, 119, 0, 0.12);
 }
+
+/* Bezet-getal altijd even breed, zodat de lotingknoppen mooi onder elkaar staan */
+.tc-count {
+    display: inline-block;
+    box-sizing: border-box;
+    width: 2.7rem;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.tc-count-over {
+    padding: .1rem 0;
+}
+
+/* Loting-popup: keuze dag + nacht / enkel dag / enkel nacht */
+.tl-scope {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+    margin-bottom: .75rem;
+}
+
+.tl-scope-btn {
+    font: inherit;
+    font-size: .8rem;
+    font-weight: 500;
+    padding: .3rem .8rem;
+    border-radius: 999px;
+    border: 1px solid var(--bwzc-line);
+    background: var(--bwzc-white);
+    color: var(--bwzc-navy);
+    cursor: pointer;
+}
+
+    .tl-scope-btn:hover {
+        border-color: var(--bwzc-navy);
+    }
+
+.tl-scope-active {
+    background: var(--bwzc-navy);
+    border-color: var(--bwzc-navy);
+    color: #fff;
+}

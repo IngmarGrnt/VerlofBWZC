@@ -610,13 +610,17 @@ else
         }
     }
 
-    // Loting toepassen: verliezers verliezen hun verlof op de dag- en nachtshift van het paar, na akkoord
+    // Loting toepassen: verliezers verliezen hun verlof op de shiften van de loting (dag, nacht of beide), na akkoord
     private async Task ApplyLotteryAsync(TeamLotteryDialog.ApplyRequest apply, DateTime day, DateTime night)
     {
+        bool InRange(DateTime date) => date >= apply.FromDate.Date && date <= apply.ToDate.Date;
+        var includeDay = InRange(day);
+        var includeNight = InRange(night);
+
         var loserIds = apply.Losers.Select(l => l.PersonId).ToHashSet();
         var toRemove = selectedDays
             .Where(d => loserIds.Contains(d.PersonId)
-                && ((d.Date.Date == day && d.Shift == "D") || (d.Date.Date == night && d.Shift == "N")))
+                && ((includeDay && d.Date.Date == day && d.Shift == "D") || (includeNight && d.Date.Date == night && d.Shift == "N")))
             .ToList();
 
         if (toRemove.Count == 0)
@@ -628,9 +632,13 @@ else
         var names = string.Join(", ", apply.Losers
             .Where(l => toRemove.Any(d => d.PersonId == l.PersonId))
             .Select(l => $"{l.FirstName} {l.LastName}"));
-        var dayText = day.Month == night.Month ? day.ToString("%d", Nl) : day.ToString("d MMM", Nl);
+        var shiftsText = includeDay && includeNight
+            ? $"{(day.Month == night.Month ? day.ToString("%d", Nl) : day.ToString("d MMM", Nl))}–{night.ToString("d MMM yyyy", Nl)} (dag + nacht)"
+            : includeDay
+                ? $"{day.ToString("d MMM yyyy", Nl)} (dagshift)"
+                : $"{night.ToString("d MMM yyyy", Nl)} (nachtshift)";
         var confirmed = await DialogService.Confirm(
-            $"{names} {(toRemove.Select(d => d.PersonId).Distinct().Count() == 1 ? "verliest" : "verliezen")} hun verlof op {dayText}–{night.ToString("d MMM yyyy", Nl)} (dag + nacht). "
+            $"{names} {(toRemove.Select(d => d.PersonId).Distinct().Count() == 1 ? "verliest" : "verliezen")} hun verlof op {shiftsText}. "
             + (isDirty ? "Ook je andere niet-opgeslagen wijzigingen worden mee opgeslagen. " : "")
             + "Toepassen en opslaan?",
             "Loting toepassen",
@@ -644,6 +652,7 @@ else
 
         await SaveTeamDaysOff();
     }
+
 
 
     // Naar de maand van een datum springen en die rij in beeld brengen
