@@ -414,12 +414,25 @@ else
             TeamOptions = await Http.GetFromJsonAsync<List<string>>("api/meta/teams") ?? new();
             SpecialityOptions = new List<string> { AllSpecialities };
             SpecialityOptions.AddRange(await Http.GetFromJsonAsync<List<string>>("api/meta/specialities") ?? new());
+
+            // Link vanaf de loterijpagina: die ploeg/specialiteit tonen
+            if (!string.IsNullOrEmpty(Ploeg)) SelectedTeam = Ploeg;
+            if (!string.IsNullOrEmpty(Spec)) SelectedSpeciality = Spec;
         }
+
+        if (Jaar is int y && Years.Contains(y))
+            SelectedYear = y;
 
         await LoadPermissions();
         await LoadTeamCalendar();
-        SelectedMonth = SelectedYear == DateTime.Now.Year ? DateTime.Now.Month : 1;
+        SelectedMonth = Maand is >= 1 and <= 12 ? Maand : SelectedYear == DateTime.Now.Year ? DateTime.Now.Month : 1;
     }
+
+    // Optioneel via de link, bv. /teamcalendar?jaar=2027&maand=1 (admin ook &ploeg=...&spec=...)
+    [SupplyParameterFromQuery(Name = "jaar")] public int? Jaar { get; set; }
+    [SupplyParameterFromQuery(Name = "maand")] public int? Maand { get; set; }
+    [SupplyParameterFromQuery(Name = "ploeg")] public string? Ploeg { get; set; }
+    [SupplyParameterFromQuery(Name = "spec")] public string? Spec { get; set; }
 
     private async Task OnTeamOrSpecialityChanged(object value)
     {
@@ -552,7 +565,7 @@ else
     }
 
     // Iedereen met verlof op de dag- en/of nachtshift van het paar
-    private List<TeamLotteryDialog.Candidate> BuildCandidates(DateTime day, DateTime night) =>
+    private List<LotteryForm.Candidate> BuildCandidates(DateTime day, DateTime night) =>
         selectedDays
         .Where(d => (d.Date.Date == day && d.Shift == "D") || (d.Date.Date == night && d.Shift == "N"))
         .GroupBy(d => d.PersonId)
@@ -562,7 +575,7 @@ else
             var catId = g.Select(d => d.LeaveCategoryId).FirstOrDefault(id => id != null);
             var category = catId is int id ? LeaveCategories.FirstOrDefault(c => c.Id == id) : null;
             var shifts = g.Select(d => d.Shift).Distinct().OrderBy(s => s == "D" ? 0 : 1).ToList();
-            return member == null ? null : new TeamLotteryDialog.Candidate
+            return member == null ? null : new LotteryForm.Candidate
             {
                 PersonId = member.Id,
                 FirstName = member.FirstName ?? "",
@@ -577,154 +590,52 @@ else
         .OrderBy(c => c.LastName).ThenBy(c => c.FirstName)
         .ToList();
 
-    // Voor de popup: na het verwijderen van een loting de lijst en tellingen opnieuw opbouwen
-    private TeamLotteryDialog.Snapshot LotterySnapshot(DateTime day, DateTime night) => new()
-    {
-        Candidates = BuildCandidates(day, night),
-        DayCount = ShiftCount(day, "D"),
-        NightCount = ShiftCount(night, "N")
-    };
-
+    // Popup met het gedeelde lotingformulier (zelfde als op de loterijpagina)
     private async Task OpenLottery(WorkDay wd)
     {
         var (day, night) = PairOf(wd);
-
-        var candidates = BuildCandidates(day, night);
-
-        var existing = DrawsFor(day).Concat(DrawsFor(night))
-            .GroupBy(d => d.DrawNumber).Select(g => g.First())
-            .ToList();
-
         var dayText = day.Month == night.Month ? day.ToString("%d", Nl) : day.ToString("d MMMM", Nl);
-        var result = await DialogService.OpenAsync<TeamLotteryDialog>(
-            $"Loting · {dayText}–{night.ToString("d MMMM yyyy", Nl)} · dag + nacht",
+
+        await DialogService.OpenAsync<LotteryForm>(
+            $"Loting · {dayText}–{night.ToString("d MMMM yyyy", Nl)}",
             new Dictionary<string, object>
             {
-                { nameof(TeamLotteryDialog.DayDate), day },
-                { nameof(TeamLotteryDialog.NightDate), night },
-                { nameof(TeamLotteryDialog.DayCount), ShiftCount(day, "D") },
-                { nameof(TeamLotteryDialog.NightCount), ShiftCount(night, "N") },
-                { nameof(TeamLotteryDialog.Quota), DailyQuota },
-                { nameof(TeamLotteryDialog.Candidates), candidates },
-                { nameof(TeamLotteryDialog.ExistingDraws), existing },
-                { nameof(TeamLotteryDialog.NextDrawNumber), Draws.Count == 0 ? 1 : Draws.Max(d => d.DrawNumber) + 1 },
-                { nameof(TeamLotteryDialog.HasUnsavedChanges), isDirty },
-                { nameof(TeamLotteryDialog.OnRestored), new Action<List<RestoredDayOffDTO>>(OnLotteryRestored) },
-                { nameof(TeamLotteryDialog.Refresh), new Func<TeamLotteryDialog.Snapshot>(() => LotterySnapshot(day, night)) }
+                { nameof(LotteryForm.DayDate), day },
+                { nameof(LotteryForm.NightDate), night },
+                { nameof(LotteryForm.Quota), DailyQuota },
+                { nameof(LotteryForm.CanApply), CanSaveTeamCalendar },
+                { nameof(LotteryForm.AllowAddPeople), true },
+                { nameof(LotteryForm.Load), new Func<Task<LotteryForm.Context>>(async () =>
+                    {
+                        await LoadDraws();
+                        return new LotteryForm.Context
+                        {
+                            Candidates = BuildCandidates(day, night),
+                            ExistingDraws = DrawsFor(day).Concat(DrawsFor(night)).GroupBy(d => d.DrawNumber).Select(g => g.First()).ToList(),
+                            TeamMembers = TeamMembers,
+                            NextDrawNumber = Draws.Count == 0 ? 1 : Draws.Max(d => d.DrawNumber) + 1
+                        };
+                    }) },
+                { nameof(LotteryForm.OnRemoved), new Func<List<RestoredDayOffDTO>, Task>(removed =>
+                    {
+                        // Server haalde het verlof al weg: hier ook uit het raster (niet-opgeslagen wijzigingen blijven)
+                        selectedDays.RemoveAll(d => removed.Any(r => r.PersonId == d.PersonId && r.Date.Date == d.Date.Date && r.Shift == d.Shift));
+                        StateHasChanged();
+                        return Task.CompletedTask;
+                    }) },
+                { nameof(LotteryForm.OnRestored), new Func<List<RestoredDayOffDTO>, Task>(restored =>
+                    {
+                        foreach (var r in restored.Where(r => !selectedDays.Any(d => d.PersonId == r.PersonId && d.Date.Date == r.Date.Date && d.Shift == r.Shift)))
+                            selectedDays.Add(new SelectedDayOffDTO { PersonId = r.PersonId, Date = r.Date, Shift = r.Shift, LeaveCategoryId = r.LeaveCategoryId });
+                        StateHasChanged();
+                        return Task.CompletedTask;
+                    }) },
+                { nameof(LotteryForm.OnClose), EventCallback.Factory.Create(this, () => DialogService.Close()) }
             },
-            new DialogOptions { Width = "560px", CloseDialogOnEsc = true });
+            new DialogOptions { Width = "580px", CloseDialogOnEsc = true });
 
-        // Altijd herladen: in de popup kan een loting bewaard of verwijderd zijn
-        if (result is not TeamLotteryDialog.ApplyRequest)
-            await LoadDraws();
-
-        if (result is TeamLotteryDialog.ApplyRequest apply)
-        {
-            await LoadDraws();
-            await ApplyLotteryAsync(apply, day, night);
-        }
+        await LoadDraws();
     }
-
-    // Loting verwijderd in de popup: de server zette het weggehaalde verlof al terug, hier ook tonen
-    private void OnLotteryRestored(List<RestoredDayOffDTO> restored)
-    {
-        foreach (var r in restored)
-        {
-            if (!selectedDays.Any(d => d.PersonId == r.PersonId && d.Date.Date == r.Date.Date && d.Shift == r.Shift))
-                selectedDays.Add(new SelectedDayOffDTO { PersonId = r.PersonId, Date = r.Date, Shift = r.Shift, LeaveCategoryId = r.LeaveCategoryId });
-        }
-        NotificationService.Notify(NotificationSeverity.Info, "Verlof teruggezet",
-            $"{restored.Select(r => r.PersonId).Distinct().Count()} persoon/personen kregen hun verlof terug.");
-        StateHasChanged();
-    }
-
-    // Loting toepassen: verliezers verliezen hun verlof op de shiften van de loting (dag, nacht of beide), na akkoord
-    private async Task ApplyLotteryAsync(TeamLotteryDialog.ApplyRequest apply, DateTime day, DateTime night)
-    {
-        bool InRange(DateTime date) => date >= apply.FromDate.Date && date <= apply.ToDate.Date;
-        var includeDay = InRange(day);
-        var includeNight = InRange(night);
-
-        var loserIds = apply.Losers.Select(l => l.PersonId).ToHashSet();
-        var toRemove = selectedDays
-            .Where(d => loserIds.Contains(d.PersonId)
-                && ((includeDay && d.Date.Date == day && d.Shift == "D") || (includeNight && d.Date.Date == night && d.Shift == "N")))
-            .ToList();
-
-        var names = string.Join(", ", apply.Losers
-            .Where(l => toRemove.Any(d => d.PersonId == l.PersonId))
-            .Select(l => $"{l.FirstName} {l.LastName}"));
-        var shiftsText = includeDay && includeNight
-            ? $"{(day.Month == night.Month ? day.ToString("%d", Nl) : day.ToString("d MMM", Nl))}–{night.ToString("d MMM yyyy", Nl)} (dag + nacht)"
-            : includeDay
-                ? $"{day.ToString("d MMM yyyy", Nl)} (dagshift)"
-                : $"{night.ToString("d MMM yyyy", Nl)} (nachtshift)";
-        if (toRemove.Count == 0)
-        {
-            NotificationService.Notify(NotificationSeverity.Info, apply.Confirmed ? apply.DrawName : "Niets te doen",
-                apply.Losers.Count == 0 ? "Iedereen is winnaar: geen verlof weggehaald." : "De verliezers hebben op deze shiften geen verlof (meer).");
-            return;
-        }
-
-        // Al bevestigd in de popup: geen tweede vraag
-        var confirmed = apply.Confirmed ? true : await DialogService.Confirm(
-            $"{names} {(toRemove.Select(d => d.PersonId).Distinct().Count() == 1 ? "verliest" : "verliezen")} hun verlof op {shiftsText}. "
-            + (isDirty ? "Ook je andere niet-opgeslagen wijzigingen worden mee opgeslagen. " : "")
-            + "Toepassen en opslaan?",
-            "Loting toepassen",
-            new ConfirmOptions { OkButtonText = "Toepassen", CancelButtonText = "Annuleren" });
-        if (confirmed != true)
-            return;
-
-        // Onthouden wat weggehaald wordt (met verlofregel), om terug te zetten als de loting verwijderd wordt
-        var removedInfo = toRemove
-            .GroupBy(d => d.PersonId)
-            .Select(g => new LotteryPersonDTO
-            {
-                PersonId = g.Key,
-                RemovedDay = g.Any(d => d.Shift == "D"),
-                RemovedNight = g.Any(d => d.Shift == "N"),
-                DayLeaveCategoryId = g.FirstOrDefault(d => d.Shift == "D")?.LeaveCategoryId,
-                NightLeaveCategoryId = g.FirstOrDefault(d => d.Shift == "N")?.LeaveCategoryId
-            })
-            .ToList();
-
-        foreach (var d in toRemove)
-            selectedDays.Remove(d);
-        isDirty = true;
-
-        await SaveTeamDaysOff();
-
-        // Enkel als het opslaan gelukt is (isDirty staat dan terug uit)
-        if (!isDirty && apply.DrawNumber > 0)
-        {
-            try
-            {
-                var resp = await Http.PostAsJsonAsync($"api/lottery/draw/{apply.DrawNumber}/applied", removedInfo);
-                if (!resp.IsSuccessStatusCode)
-                    NotificationService.Notify(NotificationSeverity.Warning, "Loting",
-                        "Toegepast, maar niet onthouden wat weggehaald werd: bij verwijderen van de loting komt het verlof niet vanzelf terug.");
-            }
-            catch
-            {
-                NotificationService.Notify(NotificationSeverity.Warning, "Loting", "Toegepast, maar niet onthouden wat weggehaald werd (netwerkfout).");
-            }
-            await LoadDraws();
-        }
-
-        if (apply.Confirmed)
-        {
-            // Resultaat tonen: in de popup was er geen resultaatscherm
-            var winners = apply.Winners.Any() ? string.Join(", ", apply.Winners.Select(w => $"{w.FirstName} {w.LastName}")) : "geen";
-            await DialogService.Alert(
-                $"Winnaars (houden verlof): {winners}. Verliezers (verlof weggehaald op {shiftsText}): {names}."
-                + (isDirty ? " Let op: de teamkalender is nog niet opgeslagen, zie de melding." : ""),
-                apply.DrawName,
-                new AlertOptions { OkButtonText = "OK" });
-        }
-    }
-
-
 
     // Naar de maand van een datum springen en die rij in beeld brengen
     private async Task JumpTo(DateTime? date)

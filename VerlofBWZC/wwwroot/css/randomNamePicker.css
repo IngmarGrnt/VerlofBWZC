@@ -1,61 +1,243 @@
-﻿
-/* RandomNamePicker responsive tweaks for Radzen components */
+/* =========================================================================
+   Loterijpagina (huisstijl: zie theme.css; kop/maanden/formulier uit
+   workCalendar.css en teamCalendar.css). Enkel lp-* klassen: geen invloed
+   op andere pagina's.
+   ========================================================================= */
 
-/* Make inputs fluid on small screens */
-@media (max-width: 768px) {
-  .rz-dropdown,
-  .rz-textbox,
-  .rz-numeric,
-  .rz-checkboxlist {
-    width: 100% !important;
-  }
-}
-
-/* Info bar: allow wrapping and hide long hint on very small screens */
-.rz-p-2.rz-border-radius-6.rz-shadow-2 {
-  flex-wrap: wrap;
-}
-@media (max-width: 640px) {
-  .rz-p-2.rz-border-radius-6.rz-shadow-2 .rz-text-secondary {
-    display: none;
-  }
-}
-
-/* Transfer layout (Available <-> Participants):
-   - Stack listboxes and show transfer buttons in a row on narrow screens */
-@media (max-width: 1024px) {
-  /* Each grid child spans full width when stacked */
-  .rz-listbox {
-    grid-column: 1 / -1 !important;
-  }
-
-  /* The transfer buttons container is the sibling between two listboxes */
-  .rz-listbox + div {
-    grid-column: 1 / -1 !important;
-    display: flex !important;
-    flex-direction: row !important;
-    justify-content: center;
+.lp-kpis {
+    display: flex;
     gap: .5rem;
-  }
+    flex-wrap: wrap;
 }
 
-@media (max-width: 640px) {
-  .rz-listbox + div .rz-button {
-    flex: 1 1 25%;
-    min-width: 60px;
-  }
+.lp-kpi {
+    font-size: .8rem;
+    color: var(--bwzc-navy);
+    background: var(--bwzc-ice);
+    border-radius: var(--bwzc-radius);
+    padding: .4rem .75rem;
 }
 
-/* Reduce ListBox height on very small screens */
-@media (max-width: 480px) {
-  .rz-listbox {
-    height: 260px !important;
-  }
+    .lp-kpi strong {
+        font-weight: 600;
+    }
+
+.lp-red {
+    color: var(--bwzc-red-dark);
 }
 
-/* Compact global spacing on small screens */
-@media (max-width: 768px) {
-  .rz-mb-3 { margin-bottom: .5rem !important; }
-  .rz-mt-3 { margin-top: .5rem !important; }
-  .rz-p-2  { padding: .5rem !important; }
+.lp-orange {
+    color: #B35C00;
+}
+
+/* Twee kolommen: links nieuwe loting, rechts resultaten */
+.lp-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    gap: 1rem;
+    align-items: start;
+}
+
+.lp-card {
+    background: var(--bwzc-white);
+    border: 1px solid var(--bwzc-line);
+    border-radius: var(--bwzc-radius);
+    padding: 1rem;
+}
+
+.lp-step {
+    font-weight: 600;
+    color: var(--bwzc-navy);
+    margin-bottom: .6rem;
+}
+
+.lp-step-2 {
+    margin-top: 1.1rem;
+    padding-top: .9rem;
+    border-top: 1px solid var(--bwzc-line);
+}
+
+.lp-pick-hint {
+    margin-top: .75rem;
+}
+
+/* Shiftparen */
+.lp-pairs {
+    display: flex;
+    flex-direction: column;
+    gap: .3rem;
+    max-height: 290px;
+    overflow: auto;
+}
+
+.lp-pair {
+    font: inherit;
+    font-size: .85rem;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .4rem .6rem;
+    border: 1px solid var(--bwzc-line);
+    border-radius: var(--bwzc-radius);
+    background: var(--bwzc-white);
+    color: var(--bwzc-navy);
+    cursor: pointer;
+    text-align: left;
+}
+
+    .lp-pair:hover {
+        border-color: var(--bwzc-navy);
+    }
+
+    .lp-pair:focus-visible {
+        outline: 2px solid var(--bwzc-blue);
+        outline-offset: 2px;
+    }
+
+.lp-pair-active {
+    border-color: var(--bwzc-navy);
+    background: #F7F9FD;
+    box-shadow: inset 3px 0 0 var(--bwzc-navy);
+}
+
+.lp-pair-date {
+    font-weight: 600;
+    min-width: 7.5rem;
+}
+
+.lp-pair-shifts {
+    font-size: .72rem;
+    font-weight: 600;
+    background: var(--bwzc-ice);
+    border-radius: 999px;
+    padding: .05rem .5rem;
+}
+
+.lp-pair-count {
+    margin-left: auto;
+    display: inline-flex;
+    gap: .25rem;
+}
+
+/* Status van een loting (ook gebruikt in het lotingformulier) */
+.tl-status {
+    display: inline-flex;
+    align-items: center;
+    gap: .2rem;
+    font-size: .7rem;
+    font-weight: 600;
+    border-radius: 999px;
+    padding: .05rem .5rem;
+    margin-left: .35rem;
+    vertical-align: middle;
+}
+
+    .tl-status .rzi {
+        font-size: .85rem;
+    }
+
+.tl-status-done {
+    background: #E3F4EA;
+    color: #1E6B3A;
+}
+
+.tl-status-open {
+    background: #FFF4DB;
+    color: #8A5A00;
+}
+
+/* Resultaten */
+.lp-results-head {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    flex-wrap: wrap;
+    margin-bottom: .75rem;
+}
+
+    .lp-results-head .lp-step {
+        margin-right: auto;
+    }
+
+.lp-search {
+    width: 170px;
+}
+
+.lp-draw {
+    border: 1px solid var(--bwzc-line);
+    border-radius: var(--bwzc-radius);
+    padding: .6rem .7rem;
+    margin-bottom: .5rem;
+}
+
+.lp-draw-open {
+    border-color: #F5D48A;
+    background: #FFFBF1;
+}
+
+.lp-draw-head {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    flex-wrap: wrap;
+    margin-bottom: .4rem;
+}
+
+.lp-draw-title {
+    font: inherit;
+    font-weight: 600;
+    color: var(--bwzc-navy);
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-color: var(--bwzc-line);
+    text-underline-offset: 3px;
+}
+
+    .lp-draw-title:hover {
+        text-decoration-color: var(--bwzc-navy);
+    }
+
+.lp-draw-name {
+    font-size: .75rem;
+    color: var(--bwzc-muted);
+}
+
+.lp-draw-actions {
+    margin-left: auto;
+    display: inline-flex;
+    gap: .3rem;
+}
+
+.lp-draw-people {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .3rem;
+}
+
+.lp-foot {
+    margin-top: .75rem;
+    display: flex;
+    align-items: center;
+    gap: .3rem;
+}
+
+    .lp-foot .rzi {
+        font-size: 1rem;
+    }
+
+/* Handmatig iemand toevoegen in het lotingformulier */
+.tl-add {
+    display: flex;
+    gap: .5rem;
+    align-items: center;
+    margin-bottom: .75rem;
+}
+
+@media (max-width: 1024px) {
+    .lp-grid {
+        grid-template-columns: 1fr;
+    }
 }

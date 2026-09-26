@@ -16,12 +16,14 @@ namespace VerlofBWZC.Api.Controllers
         private readonly VerlofBWZC_DbContext _db;
         private readonly ILogger<LotteryController> _logger;
         private readonly UserContext _me;
+        private readonly CalendarAccessService _access;
 
-        public LotteryController(VerlofBWZC_DbContext db, ILogger<LotteryController> logger, UserContext me)
+        public LotteryController(VerlofBWZC_DbContext db, ILogger<LotteryController> logger, UserContext me, CalendarAccessService access)
         {
             _db = db;
             _logger = logger;
             _me = me;
+            _access = access;
         }
 
         // Personen waarover de gebruiker lotingen mag zien/beheren: null = alle (Admin), anders eigen ploeg + specialiteit
@@ -200,10 +202,12 @@ namespace VerlofBWZC.Api.Controllers
             return Ok(restored);
         }
 
-        // POST: api/lottery/draw/{drawNumber}/applied
-        // Na het toepassen in de teamkalender: onthouden welk verlof bij welke verliezer weggehaald werd
-        [HttpPost("draw/{drawNumber}/applied")]
-        public async Task<IActionResult> MarkApplied(int drawNumber, [FromBody] List<LotteryPersonDTO> removed)
+        // POST: api/lottery/draw/{drawNumber}/apply
+        // Loting toepassen: verliezers verliezen hun verlof op de shift(en) van de loting.
+        // Per ploeg valt op een datum maar één shift (D op dag X, N op dag X+1), dus alle verlof binnen de periode.
+        // Wat weggehaald wordt, wordt onthouden om terug te zetten als de loting verwijderd wordt.
+        [HttpPost("draw/{drawNumber}/apply")]
+        public async Task<ActionResult<List<RestoredDayOffDTO>>> ApplyDraw(int drawNumber)
         {
             var draw = await _db.LotteryDraws
                 .Include(d => d.Winners)
@@ -217,25 +221,45 @@ namespace VerlofBWZC.Api.Controllers
             if (!AllAllowed(participants, await AllowedPersonIdsAsync()))
                 return Forbid();
 
-            foreach (var r in removed ?? new())
+            // Zelfde recht als opslaan in de teamkalender
+            if (!_me.IsAdmin)
             {
-                var loser = draw.Losers.FirstOrDefault(l => l.PersonId == r.PersonId);
-                if (loser == null) continue;
-
-                if (r.RemovedDay)
-                {
-                    loser.RemovedDay = true;
-                    loser.DayLeaveCategoryId = r.DayLeaveCategoryId;
-                }
-                if (r.RemovedNight)
-                {
-                    loser.RemovedNight = true;
-                    loser.NightLeaveCategoryId = r.NightLeaveCategoryId;
-                }
+                var own = await _me.GetTeamAsync();
+                if (own.Team == null || own.Speciality == null)
+                    return Forbid();
+                var perms = await _access.GetPermissionsAsync(User, own.Team.Value, own.Speciality.Value, draw.FromDate.Year);
+                if (!perms.CanSaveTeamCalendar)
+                    return Forbid();
             }
 
+            var loserIds = draw.Losers.Select(l => l.PersonId).ToList();
+            var from = draw.FromDate.Date;
+            var to = draw.ToDate.Date;
+            var dayOffs = await _db.DayOffs
+                .Where(d => loserIds.Contains(d.PersonId) && d.Date >= from && d.Date < to.AddDays(1))
+                .ToListAsync();
+
+            var removed = new List<RestoredDayOffDTO>();
+            foreach (var d in dayOffs)
+            {
+                var loser = draw.Losers.First(l => l.PersonId == d.PersonId);
+                if (d.Shift == "N")
+                {
+                    loser.RemovedNight = true;
+                    loser.NightLeaveCategoryId = d.LeaveCategoryId;
+                }
+                else
+                {
+                    loser.RemovedDay = true;
+                    loser.DayLeaveCategoryId = d.LeaveCategoryId;
+                }
+                removed.Add(new RestoredDayOffDTO { PersonId = d.PersonId, Date = d.Date.Date, Shift = d.Shift ?? "", LeaveCategoryId = d.LeaveCategoryId });
+            }
+
+            _db.DayOffs.RemoveRange(dayOffs);
             await _db.SaveChangesAsync();
-            return NoContent();
+
+            return Ok(removed);
         }
     }
 }

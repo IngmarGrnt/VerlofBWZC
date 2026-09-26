@@ -42,6 +42,7 @@ builder.Services.AddScoped<PersonApiService>();
 builder.Services.AddScoped<IClientCleanupService, ClientCleanupService>();
 builder.Services.AddScoped<DemoModeService>();
 builder.Services.AddScoped<CurrentPersonService>();
+builder.Services.AddScoped<LotteryApiService>();
 
 
 
