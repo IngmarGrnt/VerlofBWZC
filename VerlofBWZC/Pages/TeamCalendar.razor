@@ -241,11 +241,11 @@ else
                             </td>
                             <td class="tc-col-count">
                                 <span class="@(count > DailyQuota ? "tc-count tc-count-over" : count == DailyQuota ? "tc-count tc-count-full" : "tc-count")">@count/@DailyQuota</span>
-                                @if (CanManageCalendar && (count > DailyQuota || HasDraw(wd.Date)))
+                                @if (CanManageCalendar && (PairOverQuota(wd) || HasDraw(wd.Date)))
                                 {
                                     var hasDraw = HasDraw(wd.Date);
                                     <button type="button" class="@(hasDraw ? "tc-lottery-btn tc-lottery-done" : "tc-lottery-btn")"
-                                            title="@(hasDraw ? "Loting gedaan: resultaat bekijken of opnieuw loten" : "Wie heeft verlof? Loting houden")"
+                                            title="@(hasDraw ? "Loting gedaan: resultaat bekijken of opnieuw loten" : "Wie heeft verlof? Loting houden (dag + nacht)")"
                                             aria-label="Loting"
                                             @onclick="() => OpenLottery(wd)">
                                         <i class="rzi">@(hasDraw ? "task_alt" : "casino")</i>
@@ -538,21 +538,41 @@ else
 
     private bool HasDraw(DateTime date) => DrawsFor(date).Any();
 
+    // Een loting gaat altijd over een paar: dagshift op dag X + nachtshift op dag X+1
+    private static (DateTime Day, DateTime Night) PairOf(WorkDay wd) =>
+        wd.Shift == "D" ? (wd.Date.Date, wd.Date.Date.AddDays(1)) : (wd.Date.Date.AddDays(-1), wd.Date.Date);
+
+    private int ShiftCount(DateTime date, string shift) =>
+        selectedDays.Count(d => d.Date.Date == date && d.Shift == shift);
+
+    private bool PairOverQuota(WorkDay wd)
+    {
+        var (day, night) = PairOf(wd);
+        return ShiftCount(day, "D") > DailyQuota || ShiftCount(night, "N") > DailyQuota;
+    }
+
     private async Task OpenLottery(WorkDay wd)
     {
+        var (day, night) = PairOf(wd);
+
+        // Iedereen met verlof op de dag- en/of nachtshift van het paar
         var candidates = selectedDays
-            .Where(d => d.Date.Date == wd.Date.Date && d.Shift == wd.Shift)
-            .Select(d =>
+            .Where(d => (d.Date.Date == day && d.Shift == "D") || (d.Date.Date == night && d.Shift == "N"))
+            .GroupBy(d => d.PersonId)
+            .Select(g =>
             {
-                var member = TeamMembers.FirstOrDefault(m => m.Id == d.PersonId);
-                var category = d.LeaveCategoryId is int catId ? LeaveCategories.FirstOrDefault(c => c.Id == catId) : null;
+                var member = TeamMembers.FirstOrDefault(m => m.Id == g.Key);
+                var catId = g.Select(d => d.LeaveCategoryId).FirstOrDefault(id => id != null);
+                var category = catId is int id ? LeaveCategories.FirstOrDefault(c => c.Id == id) : null;
+                var shifts = g.Select(d => d.Shift).Distinct().OrderBy(s => s == "D" ? 0 : 1).ToList();
                 return member == null ? null : new TeamLotteryDialog.Candidate
                 {
                     PersonId = member.Id,
                     FirstName = member.FirstName ?? "",
                     LastName = member.LastName ?? "",
                     Category = category?.Name,
-                    Color = category?.Color
+                    Color = category?.Color,
+                    Shifts = string.Join("+", shifts)
                 };
             })
             .Where(c => c != null)
@@ -560,15 +580,22 @@ else
             .OrderBy(c => c.LastName).ThenBy(c => c.FirstName)
             .ToList();
 
+        var existing = DrawsFor(day).Concat(DrawsFor(night))
+            .GroupBy(d => d.DrawNumber).Select(g => g.First())
+            .ToList();
+
+        var dayText = day.Month == night.Month ? day.ToString("%d", Nl) : day.ToString("d MMMM", Nl);
         var result = await DialogService.OpenAsync<TeamLotteryDialog>(
-            $"Loting · {Capitalize(wd.Date.ToString("dddd d MMMM yyyy", Nl))} · {(wd.Shift == "D" ? "dagshift" : "nachtshift")}",
+            $"Loting · {dayText}–{night.ToString("d MMMM yyyy", Nl)} · dag + nacht",
             new Dictionary<string, object>
             {
-                { nameof(TeamLotteryDialog.Date), wd.Date },
-                { nameof(TeamLotteryDialog.Shift), wd.Shift },
+                { nameof(TeamLotteryDialog.DayDate), day },
+                { nameof(TeamLotteryDialog.NightDate), night },
+                { nameof(TeamLotteryDialog.DayCount), ShiftCount(day, "D") },
+                { nameof(TeamLotteryDialog.NightCount), ShiftCount(night, "N") },
                 { nameof(TeamLotteryDialog.Quota), DailyQuota },
                 { nameof(TeamLotteryDialog.Candidates), candidates },
-                { nameof(TeamLotteryDialog.ExistingDraws), DrawsFor(wd.Date) },
+                { nameof(TeamLotteryDialog.ExistingDraws), existing },
                 { nameof(TeamLotteryDialog.NextDrawNumber), Draws.Count == 0 ? 1 : Draws.Max(d => d.DrawNumber) + 1 }
             },
             new DialogOptions { Width = "560px", CloseDialogOnEsc = true });
@@ -576,6 +603,7 @@ else
         if (result is true)
             await LoadDraws();
     }
+
 
     // Naar de maand van een datum springen en die rij in beeld brengen
     private async Task JumpTo(DateTime? date)

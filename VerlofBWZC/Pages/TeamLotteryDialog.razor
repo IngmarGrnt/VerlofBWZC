@@ -12,8 +12,12 @@
 <div class="tl">
     <div class="tl-info">
         <span><strong>@Candidates.Count</strong> personen met verlof</span>
-        <span>max <strong>@Quota</strong></span>
-        <span class="tl-over">@(Candidates.Count - Quota) te veel</span>
+        <span>dag <strong>@DayCount</strong>/@Quota</span>
+        <span>nacht <strong>@NightCount</strong>/@Quota</span>
+        @if (Candidates.Count > Quota)
+        {
+            <span class="tl-over">@(Candidates.Count - Quota) te veel</span>
+        }
     </div>
 
     @if (ExistingDraws.Any())
@@ -46,6 +50,8 @@
                 <label class="@(isIn ? "tl-person tl-person-in" : "tl-person")">
                     <input type="checkbox" checked="@isIn" @onchange="e => Toggle(c.PersonId, (bool)(e.Value ?? false))" />
                     <span class="tl-person-name">@c.FirstName @c.LastName</span>
+                    <span class="@(c.Shifts == "D+N" ? "tl-shifts" : "tl-shifts tl-shifts-half")"
+                          title="@(c.Shifts == "D+N" ? "Verlof op dag- en nachtshift" : "Enkel verlof op de " + (c.Shifts == "D" ? "dagshift" : "nachtshift"))">@c.Shifts</span>
                     @if (!string.IsNullOrEmpty(c.Category))
                     {
                         <span class="tl-cat" style="@($"border-color:{c.Color}; color:{c.Color};")">@c.Category</span>
@@ -114,15 +120,20 @@
         public string LastName { get; set; } = "";
         public string? Category { get; set; }
         public string? Color { get; set; }
+        public string Shifts { get; set; } = ""; // "D", "N" of "D+N"
     }
 
-    [Parameter] public DateTime Date { get; set; }
-    [Parameter] public string Shift { get; set; } = "D";
+    // Loting gebeurt altijd per paar: dagshift (DayDate) + nachtshift (NightDate = dag erna)
+    [Parameter] public DateTime DayDate { get; set; }
+    [Parameter] public DateTime NightDate { get; set; }
+    [Parameter] public int DayCount { get; set; }
+    [Parameter] public int NightCount { get; set; }
     [Parameter] public int Quota { get; set; }
     [Parameter] public List<Candidate> Candidates { get; set; } = new();
     [Parameter] public List<LotteryDrawDTO> ExistingDraws { get; set; } = new();
     [Parameter] public int NextDrawNumber { get; set; } = 1;
 
+    private static readonly CultureInfo Nl = new("nl-BE");
     private readonly HashSet<int> selected = new();
     private string drawName = "";
     private int winnersCount;
@@ -133,7 +144,8 @@
     {
         foreach (var c in Candidates)
             selected.Add(c.PersonId);
-        drawName = $"Loting {Date.ToString("ddd d MMM yyyy", new CultureInfo("nl-BE"))} {Shift}";
+        var dayPart = DayDate.Month == NightDate.Month ? DayDate.ToString("%d", Nl) : DayDate.ToString("d MMM", Nl);
+        drawName = $"Loting {dayPart}–{NightDate.ToString("d MMM yyyy", Nl)} (D+N)";
         RecalcWinners();
     }
 
@@ -165,9 +177,9 @@
             var dto = new LotteryDrawDTO
             {
                 DrawNumber = NextDrawNumber,
-                DrawName = string.IsNullOrWhiteSpace(drawName) ? $"Loting {Date:dd-MM-yyyy} {Shift}" : drawName.Trim(),
-                FromDate = Date.Date,
-                ToDate = Date.Date,
+                DrawName = string.IsNullOrWhiteSpace(drawName) ? $"Loting {DayDate:dd-MM-yyyy} (D+N)" : drawName.Trim(),
+                FromDate = DayDate.Date,
+                ToDate = NightDate.Date,
                 Winners = list.Take(count).Select(c => new LotteryPersonDTO { PersonId = c.PersonId, FirstName = c.FirstName, LastName = c.LastName }).ToList(),
                 Losers = list.Skip(count).Select(c => new LotteryPersonDTO { PersonId = c.PersonId, FirstName = c.FirstName, LastName = c.LastName }).ToList()
             };

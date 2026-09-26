@@ -707,3 +707,17 @@
         grid-template-columns: 1fr;
     }
 }
+
+.tl-shifts {
+    font-size: .72rem;
+    font-weight: 600;
+    color: var(--bwzc-navy);
+    background: var(--bwzc-ice);
+    border-radius: 999px;
+    padding: .05rem .5rem;
+}
+
+.tl-shifts-half {
+    color: #B35C00;
+    background: rgba(230, 119, 0, 0.12);
+}
