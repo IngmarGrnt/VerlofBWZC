@@ -32,9 +32,17 @@ namespace VerlofBWZC.DataAccess.Entities
         [System.ComponentModel.DataAnnotations.MaxLength(10)]
         public string? Initials { get; set; }
 
+        // Login-beveiliging: tijdelijk wachtwoord moet gewijzigd worden, blokkering na foute pogingen,
+        // aantal PBKDF2-herhalingen van de huidige hash (oude hashes worden bij login omgezet)
+        public bool MustChangePassword { get; set; }
+        public int FailedLoginCount { get; set; }
+        public DateTime? LockoutUntilUtc { get; set; }
+        public int PasswordIterations { get; set; } = 100_000;
+
 
         // Many-to-many relationship
         public ICollection<DayOff> DayOffs { get; set; }
     }
 }
+
 

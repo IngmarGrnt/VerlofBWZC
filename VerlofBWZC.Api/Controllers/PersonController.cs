@@ -2,6 +2,7 @@ using AutoMapper;
 using AutoMapper.QueryableExtensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using VerlofBWZC.Api.Helpers;
 using VerlofBWZC.Api.Services;
@@ -101,44 +102,154 @@ namespace VerlofBWZC.Api.Controllers
 
         [HttpPost]
         [Authorize(Roles = "Admin")]
-        public async Task<ActionResult<PersonBaseDTO>> CreatePerson(PersonCreateDTO personDTO)
+        public async Task<ActionResult<TemporaryPasswordDTO>> CreatePerson(PersonCreateDTO personDTO)
         {
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            if (string.IsNullOrWhiteSpace(personDTO.Password))
-                return BadRequest("Wachtwoord is verplicht.");
-
-            PasswordHelper.CreatePasswordHash(personDTO.Password, out string hash, out string salt);
+            // Geen vast of zelfgekozen wachtwoord meer: een willekeurig tijdelijk wachtwoord dat de persoon
+            // bij de eerste login moet wijzigen. Het wordt enkel nu één keer teruggegeven.
+            var temporary = PasswordHelper.GenerateTemporaryPassword();
+            PasswordHelper.CreatePasswordHash(temporary, out string hash, out string salt);
             personDTO.PasswordHash = hash;
             personDTO.Salt = salt;
             var person = _mapper.Map<Person>(personDTO);
+            person.PasswordIterations = PasswordHelper.CurrentIterations;
+            person.MustChangePassword = true;
             person.LeaveAllowance ??= PersonDefaults.LeaveAllowance;
             // Initialen: ingevuld of volgens de standaardregel op de achternaam
             person.Initials = PersonInitials.Normalize(personDTO.Initials, personDTO.LastName);
             if (await InitialsConflictAsync(person) is string createConflict)
                 return BadRequest(createConflict);
             _context.Persons.Add(person);
-            await _context.SaveChangesAsync();
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateException)
+            {
+                return BadRequest("Dit e-mailadres is al in gebruik.");
+            }
 
-            // Map naar een veilige DTO zonder wachtwoordvelden
-            var responseDto = _mapper.Map<PersonBaseDTO>(person);
-            return CreatedAtAction(nameof(GetPerson), new { id = person.Id }, responseDto);
+            return CreatedAtAction(nameof(GetPerson), new { id = person.Id }, new TemporaryPasswordDTO { PersonId = person.Id, TemporaryPassword = temporary });
         }
+
+        private const int MaxFailedLogins = 5;
+        private static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(15);
 
         [HttpPost("login")]
         [AllowAnonymous]
+        [EnableRateLimiting("login")]
         public async Task<IActionResult> Login([FromBody] LoginDTO loginDto)
         {
-            Person person = await _context.Persons.SingleOrDefaultAsync(p => p.Email == loginDto.Email);
+            const string invalid = "Ongeldige gebruikersnaam of wachtwoord.";
+            var email = loginDto.Email?.Trim() ?? "";
+            Person? person = await _context.Persons.SingleOrDefaultAsync(p => p.Email == email);
             if (person == null)
-                return Unauthorized("Ongeldige gebruikersnaam of wachtwoord.");
+            {
+                // Evenveel rekenwerk als bij een bestaand account, zodat de responstijd niet verraadt of het e-mailadres bestaat
+                PasswordHelper.VerifyPassword(loginDto.Password ?? "", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=", "AAAAAAAAAAAAAAAAAAAAAA==", PasswordHelper.CurrentIterations);
+                return Unauthorized(invalid);
+            }
 
-            if (!PasswordHelper.VerifyPassword(loginDto.Password, person.PasswordHash, person.Salt))
-                return Unauthorized("Ongeldige gebruikersnaam of wachtwoord.");
+            if (person.LockoutUntilUtc is DateTime until && until > DateTime.UtcNow)
+                return Unauthorized($"Te veel foute pogingen. Probeer het opnieuw over {Math.Max(1, (int)Math.Ceiling((until - DateTime.UtcNow).TotalMinutes))} minuten.");
+
+            if (!PasswordHelper.VerifyPassword(loginDto.Password ?? "", person.PasswordHash, person.Salt, person.PasswordIterations))
+            {
+                person.FailedLoginCount++;
+                if (person.FailedLoginCount >= MaxFailedLogins)
+                {
+                    person.LockoutUntilUtc = DateTime.UtcNow.Add(LockoutDuration);
+                    person.FailedLoginCount = 0;
+                    await _context.SaveChangesAsync();
+                    return Unauthorized($"Te veel foute pogingen. Je account is {LockoutDuration.TotalMinutes:0} minuten geblokkeerd.");
+                }
+                await _context.SaveChangesAsync();
+                return Unauthorized(invalid);
+            }
+
+            person.FailedLoginCount = 0;
+            person.LockoutUntilUtc = null;
+
+            // Oude, zwakkere hash omzetten nu we het wachtwoord kennen
+            if (person.PasswordIterations < PasswordHelper.CurrentIterations)
+            {
+                PasswordHelper.CreatePasswordHash(loginDto.Password!, out var newHash, out var newSalt);
+                person.PasswordHash = newHash;
+                person.Salt = newSalt;
+                person.PasswordIterations = PasswordHelper.CurrentIterations;
+            }
+
+            // Zwak of standaardwachtwoord (bv. het vroegere vaste wachtwoord): eerst een nieuw kiezen
+            if (PasswordPolicy.Validate(loginDto.Password, person.Email, person.FirstName, person.LastName) != null)
+                person.MustChangePassword = true;
+
+            await _context.SaveChangesAsync();
 
             string token = JwtTokenHelper.GenerateJwtToken(person, _configuration);
-            return Ok(new { token });
+            return Ok(new LoginResultDTO { Token = token, MustChangePassword = person.MustChangePassword });
+        }
+
+        // Zelf je wachtwoord wijzigen: huidig wachtwoord verplicht. Ook toegelaten met het beperkte token.
+        [HttpPost("change-password")]
+        [EnableRateLimiting("login")]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDTO dto)
+        {
+            if (_me.IsDemo)
+                return Forbid();
+
+            var person = await _context.Persons.FindAsync(_me.Id);
+            if (person == null)
+                return Unauthorized();
+
+            if (!PasswordHelper.VerifyPassword(dto.CurrentPassword ?? "", person.PasswordHash, person.Salt, person.PasswordIterations))
+                return BadRequest("Het huidige wachtwoord is niet juist.");
+
+            if (PasswordPolicy.Validate(dto.NewPassword, person.Email, person.FirstName, person.LastName) is string policyError)
+                return BadRequest(policyError);
+
+            if (dto.NewPassword == dto.CurrentPassword)
+                return BadRequest("Kies een ander wachtwoord dan het huidige.");
+
+            PasswordHelper.CreatePasswordHash(dto.NewPassword, out var hash, out var salt);
+            person.PasswordHash = hash;
+            person.Salt = salt;
+            person.PasswordIterations = PasswordHelper.CurrentIterations;
+            person.MustChangePassword = false;
+            person.FailedLoginCount = 0;
+            person.LockoutUntilUtc = null;
+            person.LastUpdate = DateTime.Now;
+            await _context.SaveChangesAsync();
+
+            // Nieuw, volwaardig token
+            return Ok(new LoginResultDTO { Token = JwtTokenHelper.GenerateJwtToken(person, _configuration), MustChangePassword = false });
+        }
+
+        // Admin (iedereen) of Manager (eigen ploeg en specialiteit, geen Admin): nieuw tijdelijk wachtwoord
+        [HttpPost("{id}/reset-password")]
+        [Authorize(Roles = "Admin,Manager")]
+        public async Task<ActionResult<TemporaryPasswordDTO>> ResetPassword(int id)
+        {
+            var person = await _context.Persons.FindAsync(id);
+            if (person == null)
+                return _me.IsAdmin ? NotFound() : Forbid();
+
+            if (!_me.IsAdmin && (person.Role == Role.Admin || !await _me.CanManageTeamAsync(person.Team, person.Speciality)))
+                return Forbid();
+
+            var temporary = PasswordHelper.GenerateTemporaryPassword();
+            PasswordHelper.CreatePasswordHash(temporary, out var hash, out var salt);
+            person.PasswordHash = hash;
+            person.Salt = salt;
+            person.PasswordIterations = PasswordHelper.CurrentIterations;
+            person.MustChangePassword = true;
+            person.FailedLoginCount = 0;
+            person.LockoutUntilUtc = null;
+            person.LastUpdate = DateTime.Now;
+            await _context.SaveChangesAsync();
+
+            return Ok(new TemporaryPasswordDTO { PersonId = person.Id, TemporaryPassword = temporary });
         }
 
         // Demo modus: een admin bekijkt de app als een gekozen rol, ploeg en specialiteit (enkel lezen)
@@ -251,7 +362,8 @@ namespace VerlofBWZC.Api.Controllers
             }
             else if (_me.IsManager && await _me.CanManageTeamAsync(person.Team, person.Speciality))
             {
-                // Manager, eigen ploeg + specialiteit: naam, e-mail, rol (nooit Admin), verlofaantal en wachtwoord.
+                // Manager, eigen ploeg + specialiteit: naam, initialen, e-mail, rol (nooit Admin) en verlofaantal.
+                // Wachtwoord: enkel resetten naar een tijdelijk wachtwoord (reset-password).
                 // Admin-accounts en ploeg/specialiteit/graad blijven onaangeroerd.
                 if (person.Role == Role.Admin)
                     return Forbid();
@@ -268,9 +380,8 @@ namespace VerlofBWZC.Api.Controllers
             }
             else if (_me.Id == id)
             {
-                // Iedereen: enkel het eigen wachtwoord wijzigen
-                if (string.IsNullOrEmpty(personDto.Password))
-                    return BadRequest("Enkel het wachtwoord kan gewijzigd worden.");
+                // Eigen wachtwoord wijzigen gaat via api/person/change-password (met huidig wachtwoord)
+                return BadRequest("Wijzig je wachtwoord via Wachtwoord wijzigen.");
             }
             else
             {
@@ -281,12 +392,6 @@ namespace VerlofBWZC.Api.Controllers
             if ((person.Initials, person.Team, person.Speciality) != before && await InitialsConflictAsync(person) is string conflict)
                 return BadRequest(conflict);
 
-            if (!string.IsNullOrEmpty(personDto.Password))
-            {
-                PasswordHelper.CreatePasswordHash(personDto.Password, out string hash, out string salt);
-                person.PasswordHash = hash;
-                person.Salt = salt;
-            }
             person.LastUpdate = DateTime.Now;
 
             try

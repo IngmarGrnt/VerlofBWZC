@@ -13,6 +13,9 @@ namespace VerlofBWZC.Api.Helpers
 {
     public static class JwtTokenHelper
     {
+        // Claim op een beperkt token: de gebruiker moet eerst een nieuw wachtwoord kiezen (zie Program.cs)
+        public const string PasswordChangeClaim = "pwd_change";
+
         public static string GenerateJwtToken(Person person, IConfiguration config)
         {
             var claims = new List<Claim>
@@ -22,6 +25,13 @@ namespace VerlofBWZC.Api.Helpers
                         new Claim(JwtRegisteredClaimNames.Email, person.Email),
                         new Claim(ClaimTypes.Role, person.Role?.ToString() ?? string.Empty),
                     };
+
+            if (person.MustChangePassword)
+            {
+                // Beperkt en kort geldig: enkel het wachtwoord wijzigen is toegelaten
+                claims.Add(new Claim(PasswordChangeClaim, "true"));
+                return WriteToken(claims, config, TimeSpan.FromMinutes(15));
+            }
 
             return WriteToken(claims, config);
         }
@@ -43,7 +53,7 @@ namespace VerlofBWZC.Api.Helpers
             return WriteToken(claims, config);
         }
 
-        private static string WriteToken(List<Claim> claims, IConfiguration config)
+        private static string WriteToken(List<Claim> claims, IConfiguration config, TimeSpan? lifetime = null)
         {
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(config["Jwt:Key"]));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -52,7 +62,7 @@ namespace VerlofBWZC.Api.Helpers
                 issuer: config["Jwt:Issuer"],
                 audience: config["Jwt:Audience"],
                 claims: claims,
-                expires: DateTime.UtcNow.AddHours(1),
+                expires: DateTime.UtcNow.Add(lifetime ?? TimeSpan.FromHours(1)),
                 signingCredentials: creds
             );
 

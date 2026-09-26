@@ -88,5 +88,8 @@ namespace VerlofBWZC.Handler
 
         // Demo modus: admin bekijkt de app als een andere rol/ploeg/specialiteit
         public static bool IsDemo(string? token) => GetClaim(token, "demo") == "true";
+
+        // Beperkt token na een tijdelijk of zwak wachtwoord: eerst een nieuw wachtwoord kiezen
+        public static bool MustChangePassword(string? token) => GetClaim(token, "pwd_change") == "true";
     }
 }

@@ -32,3 +32,29 @@
         padding-top: 16px;
     }
 }
+
+/* Wachtwoord wijzigen */
+.pw-intro {
+    font-size: .9rem;
+    color: #8A5A00;
+    background: #FFF4DB;
+    border-radius: 8px;
+    padding: .6rem .75rem;
+}
+
+.pw-label {
+    display: block;
+    font-size: .82rem;
+    color: var(--bwzc-muted);
+    margin-bottom: .2rem;
+}
+
+.pw-hint {
+    font-size: .78rem;
+    color: var(--bwzc-muted);
+    margin-top: .3rem;
+}
+
+.pw-ok {
+    color: #1E6B3A;
+}
