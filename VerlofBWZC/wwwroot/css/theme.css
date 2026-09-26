@@ -203,3 +203,16 @@ a { color: var(--bwzc-blue); }
         margin-inline-start: 0 !important;
     }
 }
+
+/* Vraag bij niet-opgeslagen wijzigingen (werk- en teamkalender) */
+.uc-text {
+    margin: 0 0 1rem;
+    color: var(--bwzc-ink);
+}
+
+.uc-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: .5rem;
+    flex-wrap: wrap;
+}
