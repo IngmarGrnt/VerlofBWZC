@@ -792,3 +792,22 @@
     color: var(--bwzc-navy);
     margin-bottom: .35rem;
 }
+
+.tl-apply-now {
+    display: flex;
+    align-items: flex-start;
+    gap: .4rem;
+    margin-top: .5rem;
+    font-weight: 500;
+    color: var(--bwzc-navy);
+    cursor: pointer;
+}
+
+    .tl-apply-now input {
+        accent-color: var(--bwzc-navy);
+        margin-top: .2rem;
+    }
+
+.tl-warn-text {
+    color: #B35C00;
+}

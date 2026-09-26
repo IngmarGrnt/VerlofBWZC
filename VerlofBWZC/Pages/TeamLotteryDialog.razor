@@ -112,15 +112,20 @@
         {
             <!-- Bevestiging vóór het trekken en bewaren -->
             <div class="tl-confirm">
-                <div class="tl-confirm-title"><i class="rzi">help_outline</i> Loting trekken en bewaren?</div>
+                <div class="tl-confirm-title"><i class="rzi">help_outline</i> @(applyNow ? "Loting trekken, bewaren en toepassen?" : "Loting trekken en bewaren?")</div>
                 <div>
                     <strong>@drawName</strong> · @ScopeLabel(scope)<br />
                     @SelectedCount deelnemer(s), @winnersCount winnaar(s)@(Scoped.Count - SelectedCount > 0 ? $", {Scoped.Count - SelectedCount} houden zeker verlof" : "").
                 </div>
-                <div class="tl-hint">De loting wordt bewaard en verschijnt op de loterijpagina (daar kan je ze wissen). Het verlof zelf verandert pas als je daarna op Toepassen klikt.</div>
+                <label class="tl-apply-now"><input type="checkbox" checked="@applyNow" @onchange="e => applyNow = (bool)(e.Value ?? false)" /> Meteen toepassen in de teamkalender (verliezers verliezen hun verlof en de teamkalender wordt opgeslagen)</label>
+                @if (applyNow && HasUnsavedChanges)
+                {
+                    <div class="tl-hint tl-warn-text">Je hebt nog andere niet-opgeslagen wijzigingen in de teamkalender; die worden mee opgeslagen.</div>
+                }
+                <div class="tl-hint">De loting wordt bewaard en verschijnt ook op de loterijpagina (daar kan je ze wissen).</div>
                 <div class="tl-actions">
                     <RadzenButton Text="Terug" ButtonStyle="ButtonStyle.Light" Click="@(() => confirming = false)" />
-                    <RadzenButton Text="Ja, trekken en bewaren" Icon="casino" ButtonStyle="ButtonStyle.Primary"
+                    <RadzenButton Text="@(applyNow ? "Ja, trekken en toepassen" : "Ja, trekken en bewaren")" Icon="casino" ButtonStyle="ButtonStyle.Primary"
                                   Disabled="@busy" Click="@DrawAsync" />
                 </div>
             </div>
@@ -189,6 +194,9 @@
         public DateTime FromDate { get; set; }
         public DateTime ToDate { get; set; }
         public List<LotteryPersonDTO> Losers { get; set; } = new();
+        public List<LotteryPersonDTO> Winners { get; set; } = new();
+        public string DrawName { get; set; } = "";
+        public bool Confirmed { get; set; } // al bevestigd in de popup: geen tweede vraag in de teamkalender
     }
 
     private enum Scope { Pair, Day, Night }
@@ -202,6 +210,7 @@
     [Parameter] public List<Candidate> Candidates { get; set; } = new();
     [Parameter] public List<LotteryDrawDTO> ExistingDraws { get; set; } = new();
     [Parameter] public int NextDrawNumber { get; set; } = 1;
+    [Parameter] public bool HasUnsavedChanges { get; set; }
 
     private static readonly CultureInfo Nl = new("nl-BE");
     private Scope scope = Scope.Pair;
@@ -210,6 +219,7 @@
     private int winnersCount;
     private bool busy;
     private bool confirming;
+    private bool applyNow = true;
     private LotteryDrawDTO? result;
 
     // Kandidaten binnen de gekozen shift(en)
@@ -294,6 +304,16 @@
             var resp = await Http.PostAsJsonAsync("api/lottery/draw", dto);
             if (resp.IsSuccessStatusCode)
             {
+                if (applyNow)
+                {
+                    // Al bevestigd: meteen laten toepassen in de teamkalender
+                    DialogService.Close(new ApplyRequest
+                    {
+                        FromDate = dto.FromDate, ToDate = dto.ToDate, DrawName = dto.DrawName,
+                        Winners = dto.Winners, Losers = dto.Losers, Confirmed = true
+                    });
+                    return;
+                }
                 result = dto;
                 NotificationService.Notify(NotificationSeverity.Success, "Loting bewaard", $"{dto.DrawName}: {dto.Winners.Count} winnaar(s).");
             }

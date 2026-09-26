@@ -596,7 +596,8 @@ else
                 { nameof(TeamLotteryDialog.Quota), DailyQuota },
                 { nameof(TeamLotteryDialog.Candidates), candidates },
                 { nameof(TeamLotteryDialog.ExistingDraws), existing },
-                { nameof(TeamLotteryDialog.NextDrawNumber), Draws.Count == 0 ? 1 : Draws.Max(d => d.DrawNumber) + 1 }
+                { nameof(TeamLotteryDialog.NextDrawNumber), Draws.Count == 0 ? 1 : Draws.Max(d => d.DrawNumber) + 1 },
+                { nameof(TeamLotteryDialog.HasUnsavedChanges), isDirty }
             },
             new DialogOptions { Width = "560px", CloseDialogOnEsc = true });
 
@@ -623,12 +624,6 @@ else
                 && ((includeDay && d.Date.Date == day && d.Shift == "D") || (includeNight && d.Date.Date == night && d.Shift == "N")))
             .ToList();
 
-        if (toRemove.Count == 0)
-        {
-            NotificationService.Notify(NotificationSeverity.Info, "Niets te doen", "De verliezers hebben op deze shiften geen verlof (meer).");
-            return;
-        }
-
         var names = string.Join(", ", apply.Losers
             .Where(l => toRemove.Any(d => d.PersonId == l.PersonId))
             .Select(l => $"{l.FirstName} {l.LastName}"));
@@ -637,7 +632,15 @@ else
             : includeDay
                 ? $"{day.ToString("d MMM yyyy", Nl)} (dagshift)"
                 : $"{night.ToString("d MMM yyyy", Nl)} (nachtshift)";
-        var confirmed = await DialogService.Confirm(
+        if (toRemove.Count == 0)
+        {
+            NotificationService.Notify(NotificationSeverity.Info, apply.Confirmed ? apply.DrawName : "Niets te doen",
+                apply.Losers.Count == 0 ? "Iedereen is winnaar: geen verlof weggehaald." : "De verliezers hebben op deze shiften geen verlof (meer).");
+            return;
+        }
+
+        // Al bevestigd in de popup: geen tweede vraag
+        var confirmed = apply.Confirmed ? true : await DialogService.Confirm(
             $"{names} {(toRemove.Select(d => d.PersonId).Distinct().Count() == 1 ? "verliest" : "verliezen")} hun verlof op {shiftsText}. "
             + (isDirty ? "Ook je andere niet-opgeslagen wijzigingen worden mee opgeslagen. " : "")
             + "Toepassen en opslaan?",
@@ -651,6 +654,17 @@ else
         isDirty = true;
 
         await SaveTeamDaysOff();
+
+        if (apply.Confirmed)
+        {
+            // Resultaat tonen: in de popup was er geen resultaatscherm
+            var winners = apply.Winners.Any() ? string.Join(", ", apply.Winners.Select(w => $"{w.FirstName} {w.LastName}")) : "geen";
+            await DialogService.Alert(
+                $"Winnaars (houden verlof): {winners}. Verliezers (verlof weggehaald op {shiftsText}): {names}."
+                + (isDirty ? " Let op: de teamkalender is nog niet opgeslagen, zie de melding." : ""),
+                apply.DrawName,
+                new AlertOptions { OkButtonText = "OK" });
+        }
     }
 
 
