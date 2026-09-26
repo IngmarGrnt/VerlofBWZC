@@ -764,3 +764,31 @@
     border-color: var(--bwzc-navy);
     color: #fff;
 }
+
+/* Loting-popup: bevestiging voor het trekken en bewaren */
+.tl-confirm {
+    margin-top: .75rem;
+    padding: .75rem .9rem;
+    border: 1px solid var(--bwzc-navy);
+    border-radius: var(--bwzc-radius);
+    background: #F7F9FD;
+    font-size: .88rem;
+    color: var(--bwzc-ink);
+}
+
+    .tl-confirm .tl-hint {
+        margin-top: .4rem;
+    }
+
+    .tl-confirm .tl-actions {
+        margin-top: .6rem;
+    }
+
+.tl-confirm-title {
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    font-weight: 600;
+    color: var(--bwzc-navy);
+    margin-bottom: .35rem;
+}

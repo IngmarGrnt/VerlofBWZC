@@ -108,11 +108,31 @@
             @(Scoped.Count - SelectedCount) zeker + @winnersCount winnaar(s) = @(Scoped.Count - SelectedCount + winnersCount) van max @Quota.
         </div>
 
-        <div class="tl-actions">
-            <RadzenButton Text="Annuleren" ButtonStyle="ButtonStyle.Light" Click="@(() => DialogService.Close(false))" />
-            <RadzenButton Text="Loting trekken" Icon="casino" ButtonStyle="ButtonStyle.Primary"
-                          Disabled="@(busy || SelectedCount == 0)" Click="@DrawAsync" />
-        </div>
+        @if (confirming)
+        {
+            <!-- Bevestiging vóór het trekken en bewaren -->
+            <div class="tl-confirm">
+                <div class="tl-confirm-title"><i class="rzi">help_outline</i> Loting trekken en bewaren?</div>
+                <div>
+                    <strong>@drawName</strong> · @ScopeLabel(scope)<br />
+                    @SelectedCount deelnemer(s), @winnersCount winnaar(s)@(Scoped.Count - SelectedCount > 0 ? $", {Scoped.Count - SelectedCount} houden zeker verlof" : "").
+                </div>
+                <div class="tl-hint">De loting wordt bewaard en verschijnt op de loterijpagina (daar kan je ze wissen). Het verlof zelf verandert pas als je daarna op Toepassen klikt.</div>
+                <div class="tl-actions">
+                    <RadzenButton Text="Terug" ButtonStyle="ButtonStyle.Light" Click="@(() => confirming = false)" />
+                    <RadzenButton Text="Ja, trekken en bewaren" Icon="casino" ButtonStyle="ButtonStyle.Primary"
+                                  Disabled="@busy" Click="@DrawAsync" />
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="tl-actions">
+                <RadzenButton Text="Annuleren" ButtonStyle="ButtonStyle.Light" Click="@(() => DialogService.Close(false))" />
+                <RadzenButton Text="Loting trekken" Icon="casino" ButtonStyle="ButtonStyle.Primary"
+                              Disabled="@(busy || SelectedCount == 0)" Click="@(() => confirming = true)" />
+            </div>
+        }
     }
     else
     {
@@ -189,6 +209,7 @@
     private string drawName = "";
     private int winnersCount;
     private bool busy;
+    private bool confirming;
     private LotteryDrawDTO? result;
 
     // Kandidaten binnen de gekozen shift(en)
@@ -221,6 +242,7 @@
     private void SetScope(Scope s)
     {
         scope = s;
+        confirming = false;
         drawName = s switch
         {
             Scope.Day => $"Loting {DayDate.ToString("d MMM yyyy", Nl)} (D)",
@@ -236,6 +258,7 @@
     private void Toggle(int personId, bool on)
     {
         if (on) selected.Add(personId); else selected.Remove(personId);
+        confirming = false;
         RecalcWinners();
     }
 
@@ -288,6 +311,7 @@
         finally
         {
             busy = false;
+            confirming = false;
         }
     }
 }
