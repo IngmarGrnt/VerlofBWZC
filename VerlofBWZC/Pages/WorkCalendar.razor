@@ -18,6 +18,7 @@
 @inject NotificationService NotificationService
 @inject IJSRuntime JS
 @inject PersonApiService PersonApi
+@inject DialogService DialogService
 
 <PageTitle>Werkkalender</PageTitle>
 
@@ -116,6 +117,14 @@
                     <div class="@(notConsecutive ? "wc-stat-note wc-over" : "wc-stat-note")">@(notConsecutive ? "niet aansluitend" : c.MaxShifts - used >= 0 ? $"nog {c.MaxShifts - used} over" : "")</div>
                 </div>
             }
+            @if (LooseShifts.Count > 0)
+            {
+                <div class="wc-stat wc-stat-warn" title="Verlof neem je normaal per 2 shiften: een dagshift met de nachtshift erna.">
+                    <div class="wc-stat-label"><i class="rzi wc-warn-icon">warning</i>Losse shiften</div>
+                    <div class="wc-stat-value">@LooseShifts.Count</div>
+                    <div class="wc-stat-note wc-warn">zonder dag- of nachtshift erbij</div>
+                </div>
+            }
         </div>
 
         <!-- Aanduiden als + legende -->
@@ -176,11 +185,12 @@
                             var holidayName = PublicHolidayName(day.Date);
                             var schoolName = holidayName == null ? SchoolHolidayName(day.Date) : null;
                             var isWeekend = day.Date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
+                            var isLoose = selected != null && IsLoose(selected);
 
                             <button type="button"
-                                    class="@ChipClass(selected != null, category != null, isWeekend)"
+                                    class="@(ChipClass(selected != null, category != null, isWeekend) + (isLoose ? " wc-chip-loose" : ""))"
                                     style="@(category != null ? $"background:{category.Color}; border-color:{category.Color};" : null)"
-                                    title="@ChipTitle(day, category, holidayName, schoolName)"
+                                    title="@(ChipTitle(day, category, holidayName, schoolName) + (isLoose ? " · Losse shift" : ""))"
                                     aria-pressed="@(selected != null ? "true" : "false")"
                                     @onclick="() => OnDayClicked(day)">
                                 <span class="wc-chip-day">@day.Date.ToString("dd")</span>
@@ -320,6 +330,20 @@
             .ToList();
         return positions.Count <= 1 || positions.Max() - positions.Min() + 1 == positions.Count;
     }
+
+    // Verlof neem je normaal per 2 shiften: dagshift (D) op dag X + nachtshift (N) op dag X+1.
+    // Een losse shift is een aangeduide shift waarvan de partner niet aangeduid is.
+    private bool IsLoose(WorkDay day)
+    {
+        var partnerDate = day.Shift == "D" ? day.Date.Date.AddDays(1) : day.Date.Date.AddDays(-1);
+        var partnerShift = day.Shift == "D" ? "N" : "D";
+        return !selectedDays.Any(d => d.Date.Date == partnerDate && d.Shift == partnerShift);
+    }
+
+    private List<WorkDay> LooseShifts => selectedDays
+        .Where(d => d.Date.Year == SelectedYear && IsLoose(d))
+        .OrderBy(d => d.Date).ThenBy(d => d.Shift == "D" ? 0 : 1)
+        .ToList();
 
     private static int Percent(int value, int max) => max <= 0 ? 0 : Math.Min(100, (int)Math.Round(100.0 * value / max));
 
@@ -574,6 +598,20 @@
         }
         if (notConsecutive.Count > 0)
             return;
+
+        // Losse shiften mogen, maar enkel bewust: eerst bevestigen
+        var loose = LooseShifts;
+        if (loose.Count > 0)
+        {
+            var list = string.Join(", ", loose.Take(8).Select(d => $"{d.Date.ToString("d MMM", Nl)} {d.Shift}"))
+                + (loose.Count > 8 ? $" en nog {loose.Count - 8}" : "");
+            var confirmed = await DialogService.Confirm(
+                $"Je hebt {loose.Count} losse {(loose.Count == 1 ? "shift" : "shiften")} ({list}). Verlof neem je normaal per 2 shiften: een dagshift met de nachtshift erna. Toch opslaan?",
+                "Losse shiften",
+                new ConfirmOptions { OkButtonText = "Opslaan", CancelButtonText = "Terug" });
+            if (confirmed != true)
+                return;
+        }
 
         var persoonId = userId;
         var payload = new

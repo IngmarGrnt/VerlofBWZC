@@ -188,3 +188,9 @@
     background: var(--rz-base-200);
 }
 
+
+/* Losse shift (dag zonder nacht of omgekeerd) */
+.oval-btn.oval-btn-loose {
+    outline: 2px dashed #E67700;
+    outline-offset: 1px;
+}

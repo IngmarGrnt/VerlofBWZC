@@ -499,3 +499,26 @@
             margin-left: auto;
         }
 }
+
+/* --- Losse shiften (dag zonder nacht of omgekeerd) --- */
+.wc-chip-loose {
+    outline: 2px dashed #E67700;
+    outline-offset: 2px;
+}
+
+.wc-stat-warn {
+    background: rgba(230, 119, 0, 0.10);
+    box-shadow: inset 0 0 0 1px rgba(230, 119, 0, 0.40);
+}
+
+.wc-warn {
+    color: #B35C00;
+    font-weight: 600;
+}
+
+.wc-warn-icon {
+    font-size: 1rem;
+    color: #E67700;
+    vertical-align: -3px;
+    margin-right: .25rem;
+}
