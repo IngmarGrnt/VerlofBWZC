@@ -113,6 +113,7 @@ namespace VerlofBWZC.Api.Controllers
             personDTO.PasswordHash = hash;
             personDTO.Salt = salt;
             var person = _mapper.Map<Person>(personDTO);
+            person.LeaveAllowance ??= PersonDefaults.LeaveAllowance;
             // Initialen: ingevuld of volgens de standaardregel op de achternaam
             person.Initials = PersonInitials.Normalize(personDTO.Initials, personDTO.LastName);
             if (await InitialsConflictAsync(person) is string createConflict)
