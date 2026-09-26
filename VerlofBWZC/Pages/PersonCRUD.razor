@@ -54,7 +54,20 @@ else
 
             <RadzenDataGridColumn TItem="PersonBaseDTO" Property="Initials" Title="Initialen" Width="110px"
                                   FilterOperator="FilterOperator.Contains">
-                <Template Context="person">@PersonInitials.For(person)</Template>
+                <Template Context="person">
+                    @{ var dup = SameInitials(person); }
+                    @if (dup.Any())
+                    {
+                        @* Bestaande dubbele initialen in dezelfde ploeg en specialiteit: aanpassen *@
+                        <span class="pc-initials-dup" title="@($"Ook gebruikt door {string.Join(", ", dup.Select(p => $"{p.FirstName} {p.LastName}"))} in dezelfde ploeg en specialiteit")">
+                            @PersonInitials.For(person) <i class="rzi">warning</i>
+                        </span>
+                    }
+                    else
+                    {
+                        @PersonInitials.For(person)
+                    }
+                </Template>
                 <EditTemplate Context="person">
                     @* Leeg laten = standaardregel op de achternaam *@
                     <RadzenTextBox @bind-Value="person.Initials" MaxLength="@PersonInitials.MaxLength" Style="width:100%" Name="Initials"
@@ -210,6 +223,7 @@ else
 
 @code {
     private List<PersonBaseDTO> persons = new();
+    private Dictionary<int, string> originalInitials = new();
     private PersonBaseDTO newPerson = new();
     private RadzenDataGrid<PersonBaseDTO> grid;
 
@@ -245,6 +259,7 @@ else
     private async Task LoadPersons()
     {
         persons = await PersonApi.GetAllPersonsAsync();
+        originalInitials = persons.ToDictionary(p => p.Id, p => PersonInitials.For(p));
         StateHasChanged();
     }
 
@@ -265,23 +280,29 @@ else
         await grid.EditRow(person);
     }
 
+    // Andere personen in dezelfde ploeg en specialiteit met dezelfde initialen
+    private List<PersonBaseDTO> SameInitials(PersonBaseDTO person) => persons
+        .Where(p => p != person && p.Id != person.Id && p.Team == person.Team && p.Speciality == person.Speciality)
+        .Where(p => string.Equals(PersonInitials.For(p), PersonInitials.For(person), StringComparison.OrdinalIgnoreCase))
+        .ToList();
+
     private async Task SaveRow(PersonBaseDTO person)
     {
-        // Initialen opschonen (leeg = standaardregel) en waarschuwen als ze al gebruikt worden in dezelfde ploeg/specialiteit
+        // Initialen opschonen (leeg = standaardregel); binnen dezelfde ploeg en specialiteit moeten ze uniek zijn
         person.Initials = PersonInitials.Normalize(person.Initials, person.LastName);
-        var sameInitials = persons
-            .Where(p => p != person && p.Id != person.Id && p.Team == person.Team && p.Speciality == person.Speciality)
-            .Where(p => string.Equals(PersonInitials.For(p), person.Initials, StringComparison.OrdinalIgnoreCase))
-            .ToList();
-        if (sameInitials.Any())
+        var sameInitials = SameInitials(person);
+        // Enkel tegenhouden als de initialen (of de persoon) nieuw zijn; bestaande dubbels blokkeren andere aanpassingen niet
+        var changed = person == newPerson || !originalInitials.TryGetValue(person.Id, out var orig) || orig != person.Initials;
+        if (changed && sameInitials.Any())
         {
-            var names = string.Join(", ", sameInitials.Select(p => $"{p.FirstName} {p.LastName}"));
-            var goOn = await DialogService.Confirm(
-                $"De initialen {person.Initials} worden in dezelfde ploeg en specialiteit al gebruikt door {names}. Toch opslaan?",
-                "Dubbele initialen",
-                new ConfirmOptions { OkButtonText = "Toch opslaan", CancelButtonText = "Terug" });
-            if (goOn != true)
-                return;
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Error,
+                Summary = "Dubbele initialen",
+                Detail = $"De initialen {person.Initials} worden in dezelfde ploeg en specialiteit al gebruikt door {string.Join(", ", sameInitials.Select(p => $"{p.FirstName} {p.LastName}"))}. Kies andere initialen.",
+                Duration = 7000
+            });
+            return; // rij blijft in bewerking
         }
 
         if (person == newPerson)

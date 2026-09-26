@@ -115,6 +115,8 @@ namespace VerlofBWZC.Api.Controllers
             var person = _mapper.Map<Person>(personDTO);
             // Initialen: ingevuld of volgens de standaardregel op de achternaam
             person.Initials = PersonInitials.Normalize(personDTO.Initials, personDTO.LastName);
+            if (await InitialsConflictAsync(person) is string createConflict)
+                return BadRequest(createConflict);
             _context.Persons.Add(person);
             await _context.SaveChangesAsync();
 
@@ -229,6 +231,9 @@ namespace VerlofBWZC.Api.Controllers
             if (person == null)
                 return _me.IsAdmin ? NotFound() : Forbid();
 
+            // Om enkel te controleren als initialen, ploeg of specialiteit wijzigen
+            var before = (person.Initials, person.Team, person.Speciality);
+
             if (_me.IsAdmin)
             {
                 // Admin: alle velden
@@ -271,6 +276,10 @@ namespace VerlofBWZC.Api.Controllers
                 return Forbid();
             }
 
+            // Zelfde initialen binnen dezelfde ploeg en specialiteit mag niet
+            if ((person.Initials, person.Team, person.Speciality) != before && await InitialsConflictAsync(person) is string conflict)
+                return BadRequest(conflict);
+
             if (!string.IsNullOrEmpty(personDto.Password))
             {
                 PasswordHelper.CreatePasswordHash(personDto.Password, out string hash, out string salt);
@@ -288,6 +297,22 @@ namespace VerlofBWZC.Api.Controllers
                 return BadRequest("Dit e-mailadres is al in gebruik.");
             }
             return NoContent();
+        }
+
+        // Initialen moeten uniek zijn binnen dezelfde ploeg en specialiteit (daarbuiten mag hetzelfde)
+        private async Task<string?> InitialsConflictAsync(Person p)
+        {
+            if (string.IsNullOrEmpty(p.Initials) || p.Team == null || p.Speciality == null)
+                return null;
+
+            var others = await _context.Persons
+                .Where(o => o.Id != p.Id && o.Team == p.Team && o.Speciality == p.Speciality && o.Initials == p.Initials)
+                .Select(o => o.FirstName + " " + o.LastName)
+                .ToListAsync();
+
+            return others.Count == 0
+                ? null
+                : $"De initialen {p.Initials} worden in dezelfde ploeg en specialiteit al gebruikt door {string.Join(", ", others)}. Kies andere initialen.";
         }
 
         [HttpDelete("{id}")]
