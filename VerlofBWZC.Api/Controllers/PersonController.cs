@@ -8,6 +8,7 @@ using VerlofBWZC.Api.Services;
 using VerlofBWZC.DataAccess;
 using VerlofBWZC.DataAccess.Entities;
 using VerlofBWZC.DataAccess.Enums;
+using VerlofBWZC.DataContracts;
 using VerlofBWZC.DataContracts.DTO;
 
 
@@ -112,6 +113,8 @@ namespace VerlofBWZC.Api.Controllers
             personDTO.PasswordHash = hash;
             personDTO.Salt = salt;
             var person = _mapper.Map<Person>(personDTO);
+            // Initialen: ingevuld of volgens de standaardregel op de achternaam
+            person.Initials = PersonInitials.Normalize(personDTO.Initials, personDTO.LastName);
             _context.Persons.Add(person);
             await _context.SaveChangesAsync();
 
@@ -238,6 +241,7 @@ namespace VerlofBWZC.Api.Controllers
                 person.Grade = Enum.TryParse<Grade>(personDto.Grade, out var grade) ? grade : null;
                 person.Role = Enum.TryParse<Role>(personDto.Role, out var role) ? role : null;
                 person.LeaveAllowance = personDto.LeaveAllowance is >= 0 ? personDto.LeaveAllowance : null;
+                person.Initials = PersonInitials.Normalize(personDto.Initials, personDto.LastName);
             }
             else if (_me.IsManager && await _me.CanManageTeamAsync(person.Team, person.Speciality))
             {
@@ -254,6 +258,7 @@ namespace VerlofBWZC.Api.Controllers
                     person.Email = personDto.Email.Trim();
                 person.Role = newRole;
                 person.LeaveAllowance = personDto.LeaveAllowance is >= 0 ? personDto.LeaveAllowance : null;
+                person.Initials = PersonInitials.Normalize(personDto.Initials, personDto.LastName);
             }
             else if (_me.Id == id)
             {

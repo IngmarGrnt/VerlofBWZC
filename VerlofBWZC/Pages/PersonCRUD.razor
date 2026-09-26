@@ -4,6 +4,7 @@
 @using System.Text.Json
 @using System.Linq.Expressions
 @using System.Net.Http.Json
+@using VerlofBWZC.DataContracts
 @using VerlofBWZC.DataContracts.DTO
 @using VerlofBWZC.Services
 @inject HttpClient Http
@@ -23,7 +24,7 @@
 }
 else
 {
-    <p class="rz-text-secondary">Personen van je eigen ploeg en specialiteit. Je kan naam, e-mail, rol (geen Admin), verlofaantal en wachtwoord aanpassen.</p>
+    <p class="rz-text-secondary">Personen van je eigen ploeg en specialiteit. Je kan naam, initialen, e-mail, rol (geen Admin), verlofaantal en wachtwoord aanpassen.</p>
 }
 
 <div class="responsive-datagrid-container">
@@ -48,6 +49,17 @@ else
                                   FilterOperator="FilterOperator.Contains">
                 <EditTemplate Context="person">
                     <RadzenTextBox @bind-Value="person.LastName" Style="width:100%" Name="LastName" />
+                </EditTemplate>
+            </RadzenDataGridColumn>
+
+            <RadzenDataGridColumn TItem="PersonBaseDTO" Property="Initials" Title="Initialen" Width="110px"
+                                  FilterOperator="FilterOperator.Contains">
+                <Template Context="person">@PersonInitials.For(person)</Template>
+                <EditTemplate Context="person">
+                    @* Leeg laten = standaardregel op de achternaam *@
+                    <RadzenTextBox @bind-Value="person.Initials" MaxLength="@PersonInitials.MaxLength" Style="width:100%" Name="Initials"
+                                   Placeholder="@PersonInitials.FromLastName(person.LastName)"
+                                   title="Leeg laten = standaard volgens de achternaam" />
                 </EditTemplate>
             </RadzenDataGridColumn>
 
@@ -255,6 +267,23 @@ else
 
     private async Task SaveRow(PersonBaseDTO person)
     {
+        // Initialen opschonen (leeg = standaardregel) en waarschuwen als ze al gebruikt worden in dezelfde ploeg/specialiteit
+        person.Initials = PersonInitials.Normalize(person.Initials, person.LastName);
+        var sameInitials = persons
+            .Where(p => p != person && p.Id != person.Id && p.Team == person.Team && p.Speciality == person.Speciality)
+            .Where(p => string.Equals(PersonInitials.For(p), person.Initials, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        if (sameInitials.Any())
+        {
+            var names = string.Join(", ", sameInitials.Select(p => $"{p.FirstName} {p.LastName}"));
+            var goOn = await DialogService.Confirm(
+                $"De initialen {person.Initials} worden in dezelfde ploeg en specialiteit al gebruikt door {names}. Toch opslaan?",
+                "Dubbele initialen",
+                new ConfirmOptions { OkButtonText = "Toch opslaan", CancelButtonText = "Terug" });
+            if (goOn != true)
+                return;
+        }
+
         if (person == newPerson)
         {
             var createDto = new PersonCreateDTO
@@ -267,6 +296,7 @@ else
                 Grade = person.Grade,
                 Role = person.Role,
                 LeaveAllowance = person.LeaveAllowance,
+                Initials = person.Initials,
                 Password = "Root1234",
             };
             await PersonApi.CreatePersonAsync(createDto);
@@ -284,6 +314,7 @@ else
                 Grade = person.Grade,
                 Role = person.Role,
                 LeaveAllowance = person.LeaveAllowance,
+                Initials = person.Initials,
             };
             var ok = await PersonApi.UpdatePersonAsync(person.Id, updateDto);
             if (ok)
@@ -339,6 +370,7 @@ else
             Grade = person.Grade,
             Role = person.Role,
             LeaveAllowance = person.LeaveAllowance,
+            Initials = person.Initials,
             Password = newPassword
         };
         var result = await PersonApi.UpdatePersonAsync(person.Id, updateDto);
