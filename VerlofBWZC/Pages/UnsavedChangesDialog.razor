@@ -1,0 +1,28 @@
+@using Radzen
+@using Radzen.Blazor
+@inject DialogService DialogService
+
+@* Vraag bij niet-opgeslagen wijzigingen: opslaan, niet opslaan of terug. Resultaat: "save", "discard" of null. *@
+
+<div class="uc">
+    <p class="uc-text">@Message</p>
+    <div class="uc-actions">
+        <RadzenButton Text="Annuleren" ButtonStyle="ButtonStyle.Light" Click="@(() => DialogService.Close(null))" />
+        <RadzenButton Text="Niet opslaan" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Outlined" Click="@(() => DialogService.Close("discard"))" />
+        <RadzenButton Text="Opslaan" Icon="save" ButtonStyle="ButtonStyle.Primary" Click="@(() => DialogService.Close("save"))" />
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Message { get; set; } = "Je hebt niet-opgeslagen wijzigingen.";
+
+    // Toont de vraag; geeft "save", "discard" of null (annuleren) terug
+    public static async Task<string?> AskAsync(DialogService dialogs, string message)
+    {
+        var result = await dialogs.OpenAsync<UnsavedChangesDialog>(
+            "Niet-opgeslagen wijzigingen",
+            new Dictionary<string, object> { { nameof(Message), message } },
+            new DialogOptions { Width = "460px", CloseDialogOnEsc = true, ShowClose = true });
+        return result as string;
+    }
+}

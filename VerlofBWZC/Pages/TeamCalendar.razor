@@ -446,7 +446,7 @@ else
         var year = SelectedYear + delta;
         if (year < Years.Min() || year > Years.Max()) return;
 
-        if (isDirty && !await JS.InvokeAsync<bool>("confirm", "Je hebt niet-opgeslagen wijzigingen. Toch van jaar wisselen?"))
+        if (!await CanLeaveAsync("Je hebt niet-opgeslagen wijzigingen. Wil je ze opslaan voor je van jaar wisselt?"))
             return;
 
         SelectedYear = year;
@@ -455,9 +455,27 @@ else
         SelectedMonth = SelectedYear == DateTime.Now.Year ? DateTime.Now.Month : 1;
     }
 
+
+    // Niet-opgeslagen wijzigingen: opslaan, niet opslaan of annuleren. true = mag verder.
+    private async Task<bool> CanLeaveAsync(string question)
+    {
+        if (!isDirty) return true;
+        var choice = await UnsavedChangesDialog.AskAsync(DialogService, question);
+        if (choice == "discard")
+        {
+            isDirty = false; // wijzigingen laten vallen
+            return true;
+        }
+        if (choice == "save")
+        {
+            await SaveTeamDaysOff();
+            return !isDirty; // enkel verder als het opslaan gelukt is
+        }
+        return false;
+    }
     private async Task OnBeforeInternalNavigation(LocationChangingContext context)
     {
-        if (isDirty && !await JS.InvokeAsync<bool>("confirm", "Je hebt niet-opgeslagen wijzigingen. Pagina toch verlaten?"))
+        if (!await CanLeaveAsync("Je hebt niet-opgeslagen wijzigingen. Wil je ze opslaan voor je de pagina verlaat?"))
             context.PreventNavigation();
     }
 
