@@ -85,6 +85,23 @@
                     <div class="wc-stat-note">verlofshiften aangeduid</div>
                 }
             </div>
+            @if (QuarterLimits != null)
+            {
+                @for (var q = 1; q <= 3; q++)
+                {
+                    var quarter = q;
+                    var usedQ = QuarterUsage(quarter);
+                    var maxQ = QuarterLimits.MaxFor(quarter);
+                    <div class="@(usedQ > maxQ ? "wc-stat wc-stat-over" : "wc-stat")">
+                        <div class="wc-stat-label">KW@(quarter) <span class="wc-stat-period">@QuarterPeriod(quarter)</span></div>
+                        <div class="wc-stat-value">@usedQ <span class="wc-stat-of">/ @maxQ</span></div>
+                        <div class="wc-bar"><div class="@(usedQ > maxQ ? "wc-bar-fill wc-bar-over" : "wc-bar-fill")" style="@($"width:{Percent(usedQ, maxQ)}%")"></div></div>
+                        <div class="@(usedQ > maxQ ? "wc-stat-note wc-over" : "wc-stat-note")">
+                            @(usedQ > maxQ ? $"{usedQ - maxQ} boven het maximum" : $"nog {maxQ - usedQ} over")
+                        </div>
+                    </div>
+                }
+            }
             @foreach (var c in Categories)
             {
                 var used = CategoryUsage(c.Id);
@@ -231,7 +248,16 @@
     // Verlofaantal per jaar (ingesteld bij Personen); null = geen limiet
     private int? LeaveAllowance;
 
-    private void WarnIfOverAllowance()
+    // Kwartaalmaxima (KW1 jan-apr, KW2 mei-aug, KW3 sep-dec), ingesteld bij Verlofregels (standaard 14/16/14)
+    private QuarterLimitDTO? QuarterLimits;
+
+    private int QuarterUsage(int quarter) =>
+        selectedDays.Count(d => d.Date.Year == SelectedYear && QuarterLimitDTO.QuarterOf(d.Date) == quarter);
+
+    private static string QuarterPeriod(int quarter) => quarter switch { 1 => "jan–apr", 2 => "mei–aug", _ => "sep–dec" };
+
+    // Waarschuwingen na het aanduiden van een shift: verlofaantal en kwartaalmaximum (opslaan blijft mogelijk)
+    private void WarnIfOverLimits(DateTime date)
     {
         if (LeaveAllowance is int max && SelectedYearDayOffCount > max)
         {
@@ -242,6 +268,35 @@
                 Detail = $"Je hebt {SelectedYearDayOffCount} verlofshiften aangeduid in {SelectedYear}, maar je verlofaantal is {max}.",
                 Duration = 5000
             });
+        }
+
+        if (QuarterLimits != null && date.Year == SelectedYear)
+        {
+            var quarter = QuarterLimitDTO.QuarterOf(date);
+            var used = QuarterUsage(quarter);
+            var maxQ = QuarterLimits.MaxFor(quarter);
+            if (used > maxQ)
+            {
+                NotificationService.Notify(new NotificationMessage
+                {
+                    Severity = NotificationSeverity.Warning,
+                    Summary = $"KW{quarter} overschreden",
+                    Detail = $"Je hebt {used} verlofshiften in KW{quarter} ({QuarterPeriod(quarter)}), het maximum is {maxQ}.",
+                    Duration = 5000
+                });
+            }
+        }
+    }
+
+    private async Task LoadQuarterLimits()
+    {
+        try
+        {
+            QuarterLimits = await Http.GetFromJsonAsync<QuarterLimitDTO>($"api/quarter-limits/mine?year={SelectedYear}");
+        }
+        catch
+        {
+            QuarterLimits = null;
         }
     }
 
@@ -306,6 +361,7 @@
         // Permissions ophalen op basis van claims (team/speciality) en huidig jaar
         await LoadPermissions();
         await LoadCategories();
+        await LoadQuarterLimits();
 
         await LoadHolidaysAndVacations();
         // Verlofdagen ophalen
@@ -395,6 +451,7 @@
         await LoadHolidaysAndVacations();
         await LoadPermissions();
         await LoadCategories();
+        await LoadQuarterLimits();
         StateHasChanged();
     }
 
@@ -444,7 +501,7 @@
             if (existing == null)
             {
                 selectedDays.Add(new WorkDay { Date = day.Date, Shift = day.Shift });
-                WarnIfOverAllowance();
+                WarnIfOverLimits(day.Date);
             }
             else
                 selectedDays.Remove(existing);
@@ -476,7 +533,7 @@
         if (existing == null)
         {
             selectedDays.Add(new WorkDay { Date = day.Date, Shift = day.Shift, LeaveCategoryId = category.Id });
-            WarnIfOverAllowance();
+            WarnIfOverLimits(day.Date);
         }
         else
             existing.LeaveCategoryId = category.Id;
