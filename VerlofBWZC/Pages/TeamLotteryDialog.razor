@@ -69,7 +69,7 @@
     @if (result == null)
     {
         <div class="tl-section-title">Wie gaat mee in de loting?</div>
-        <div class="tl-hint">Niet aangevinkt = houdt zeker verlof (bv. al eerder toegekend).</div>
+        <div class="tl-hint">Niet aangevinkt = houdt zeker verlof. Verlof uit een verlofregel (bv. Groot verlof) is standaard niet aangevinkt.</div>
         <div class="tl-list">
             @foreach (var c in Scoped)
             {
@@ -244,7 +244,8 @@
 
     protected override void OnInitialized()
     {
-        foreach (var c in Candidates)
+        // Standaard doet enkel gewoon verlof mee; verlof uit een verlofregel (categorie) houdt zeker verlof
+        foreach (var c in Candidates.Where(c => string.IsNullOrEmpty(c.Category)))
             selected.Add(c.PersonId);
         SetScope(Scope.Pair);
     }
