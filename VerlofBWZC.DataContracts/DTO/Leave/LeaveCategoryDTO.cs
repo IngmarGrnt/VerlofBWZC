@@ -11,5 +11,8 @@ namespace VerlofBWZC.DataContracts.DTO.Leave
         public int MaxShifts { get; set; }
         public string Color { get; set; } = "#E8590C";
         public int SortOrder { get; set; }
+
+        // Shiften moeten aansluitend zijn (één ononderbroken reeks in het werkrooster)
+        public bool MustBeConsecutive { get; set; }
     }
 }

@@ -695,6 +695,29 @@ private void OnDayClicked(int personId, WorkDay day)
     //         selectedDays.Remove(existing);
     // }
 
+    // Per persoon: categorieën met "aansluitend" waarvan de shiften geen ononderbroken reeks in het rooster vormen
+    private List<string> NotConsecutiveWarnings()
+    {
+        var roster = WorkDays.OrderBy(w => w.Date).ThenBy(w => w.Shift == "D" ? 0 : 1).ToList();
+        var warnings = new List<string>();
+
+        foreach (var member in TeamMembers)
+        {
+            foreach (var category in LeaveCategories.Where(c => c.MustBeConsecutive && c.Speciality == member.Speciality))
+            {
+                var positions = roster
+                    .Select((w, i) => (w, i))
+                    .Where(x => selectedDays.Any(d => d.PersonId == member.Id && d.Date.Date == x.w.Date.Date && d.Shift == x.w.Shift && d.LeaveCategoryId == category.Id))
+                    .Select(x => x.i)
+                    .ToList();
+
+                if (positions.Count > 1 && positions.Max() - positions.Min() + 1 != positions.Count)
+                    warnings.Add($"{member.FirstName} {member.LastName}: '{category.Name}' is niet aansluitend");
+            }
+        }
+        return warnings;
+    }
+
     private async Task SaveTeamDaysOff()
     {
         if (!CanManageCalendar)
@@ -707,6 +730,19 @@ private void OnDayClicked(int personId, WorkDay day)
                 Duration = 3000
             });
             return;
+        }
+
+        // Categorieën die aansluitend moeten zijn: melding per persoon (opslaan blijft mogelijk)
+        var notConsecutive = NotConsecutiveWarnings();
+        if (notConsecutive.Count > 0)
+        {
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Warning,
+                Summary = "Niet aansluitend",
+                Detail = string.Join("; ", notConsecutive),
+                Duration = 8000
+            });
         }
 
         // Stuur ALLE teamleden mee, ook met lege 'Days' (maakt verwijderen mogelijk)

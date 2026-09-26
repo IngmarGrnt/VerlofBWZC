@@ -105,11 +105,15 @@
             @foreach (var c in Categories)
             {
                 var used = CategoryUsage(c.Id);
-                <div class="wc-stat">
-                    <div class="wc-stat-label"><span class="wc-swatch" style="@($"background:{c.Color}")"></span>@c.Name</div>
+                var notConsecutive = c.MustBeConsecutive && !IsConsecutive(c.Id);
+                <div class="@(notConsecutive ? "wc-stat wc-stat-over" : "wc-stat")">
+                    <div class="wc-stat-label" title="@(c.MustBeConsecutive ? "Deze shiften moeten aansluitend zijn" : null)"><span class="wc-swatch" style="@($"background:{c.Color}")"></span>@c.Name@if (c.MustBeConsecutive)
+                        {
+                            <span class="wc-stat-period">aansluitend</span>
+                        }</div>
                     <div class="wc-stat-value">@used <span class="wc-stat-of">/ @c.MaxShifts</span></div>
                     <div class="wc-bar"><div class="wc-bar-fill" style="@($"width:{Percent(used, c.MaxShifts)}%; background:{c.Color}")"></div></div>
-                    <div class="wc-stat-note">@(c.MaxShifts - used >= 0 ? $"nog {c.MaxShifts - used} over" : "")</div>
+                    <div class="@(notConsecutive ? "wc-stat-note wc-over" : "wc-stat-note")">@(notConsecutive ? "niet aansluitend" : c.MaxShifts - used >= 0 ? $"nog {c.MaxShifts - used} over" : "")</div>
                 </div>
             }
         </div>
@@ -302,6 +306,20 @@
 
     private int CategoryUsage(int categoryId) =>
         selectedDays.Count(d => d.LeaveCategoryId == categoryId && d.Date.Year == SelectedYear);
+
+    // Aansluitend: alle shiften van de categorie vormen één reeks in het werkrooster (vrije dagen ertussen tellen niet)
+    private bool IsConsecutive(int categoryId)
+    {
+        var roster = monthGroups.SelectMany(m => m.WorkDays)
+            .OrderBy(w => w.Date).ThenBy(w => w.Shift == "D" ? 0 : 1)
+            .ToList();
+        var positions = roster
+            .Select((w, i) => (w, i))
+            .Where(x => selectedDays.Any(d => d.Date == x.w.Date && d.Shift == x.w.Shift && d.LeaveCategoryId == categoryId))
+            .Select(x => x.i)
+            .ToList();
+        return positions.Count <= 1 || positions.Max() - positions.Min() + 1 == positions.Count;
+    }
 
     private static int Percent(int value, int max) => max <= 0 ? 0 : Math.Min(100, (int)Math.Round(100.0 * value / max));
 
@@ -542,6 +560,18 @@
 
     private async Task SaveSelectedDays()
     {
+        // Categorieën die aansluitend moeten zijn maar dat niet zijn: melding (opslaan blijft mogelijk)
+        foreach (var c in Categories.Where(c => c.MustBeConsecutive && !IsConsecutive(c.Id)))
+        {
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Warning,
+                Summary = c.Name,
+                Detail = $"De shiften van '{c.Name}' moeten aansluitend zijn (één ononderbroken reeks werkshiften).",
+                Duration = 6000
+            });
+        }
+
         var persoonId = userId;
         var payload = new
         {

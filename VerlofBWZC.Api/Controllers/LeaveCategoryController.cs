@@ -154,6 +154,7 @@ namespace VerlofBWZC.Api.Controllers
             entity.MaxShifts = dto.MaxShifts;
             entity.Color = dto.Color!.ToUpperInvariant();
             entity.SortOrder = dto.SortOrder;
+            entity.MustBeConsecutive = dto.MustBeConsecutive;
             entity.LastUpdate = DateTime.Now;
             return null;
         }
@@ -167,7 +168,8 @@ namespace VerlofBWZC.Api.Controllers
             Name = c.Name,
             MaxShifts = c.MaxShifts,
             Color = c.Color,
-            SortOrder = c.SortOrder
+            SortOrder = c.SortOrder,
+            MustBeConsecutive = c.MustBeConsecutive
         };
     }
 }

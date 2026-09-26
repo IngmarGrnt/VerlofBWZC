@@ -78,6 +78,13 @@
                 <RadzenNumeric TValue="int" @bind-Value="editing.SortOrder" Min="0" Max="99" Style="width:100px" />
             </div>
             <div>
+                <label>Aansluitend</label>
+                <div style="display:flex; align-items:center; gap:.4rem; height:2.25rem;">
+                    <RadzenCheckBox TValue="bool" @bind-Value="editing.MustBeConsecutive" Name="consecutive" />
+                    <RadzenLabel Text="Shiften moeten een ononderbroken reeks zijn" Component="consecutive" />
+                </div>
+            </div>
+            <div>
                 <label>Kleur</label>
                 <div style="display:flex; align-items:center; gap:.35rem;">
                     @foreach (var color in palette)
@@ -113,6 +120,9 @@
             </Template>
         </RadzenDataGridColumn>
         <RadzenDataGridColumn TItem="LeaveCategoryDTO" Property="MaxShifts" Title="Max. shiften" Width="120px" />
+        <RadzenDataGridColumn TItem="LeaveCategoryDTO" Property="MustBeConsecutive" Title="Aansluitend" Width="120px">
+            <Template Context="r">@(r.MustBeConsecutive ? "Ja" : "Nee")</Template>
+        </RadzenDataGridColumn>
         <RadzenDataGridColumn TItem="LeaveCategoryDTO" Property="SortOrder" Title="Volgorde" Width="100px" />
         <RadzenDataGridColumn TItem="LeaveCategoryDTO" Title="" Width="120px" Sortable="false">
             <Template Context="r">
@@ -176,7 +186,7 @@
     private void StartEdit(LeaveCategoryDTO r) => editing = new LeaveCategoryDTO
     {
         Id = r.Id, Team = r.Team, Speciality = r.Speciality, Year = r.Year,
-        Name = r.Name, MaxShifts = r.MaxShifts, Color = r.Color, SortOrder = r.SortOrder
+        Name = r.Name, MaxShifts = r.MaxShifts, Color = r.Color, SortOrder = r.SortOrder, MustBeConsecutive = r.MustBeConsecutive
     };
 
     private async Task Save()
@@ -199,7 +209,7 @@
                 var dto = new LeaveCategoryDTO
                 {
                     Team = team, Speciality = spec, Year = editing.Year, Name = editing.Name,
-                    MaxShifts = editing.MaxShifts, Color = editing.Color, SortOrder = editing.SortOrder
+                    MaxShifts = editing.MaxShifts, Color = editing.Color, SortOrder = editing.SortOrder, MustBeConsecutive = editing.MustBeConsecutive
                 };
                 var resp = await Http.PostAsJsonAsync("api/leave-categories/rules", dto);
                 if (!resp.IsSuccessStatusCode)

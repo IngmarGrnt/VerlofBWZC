@@ -14,5 +14,8 @@ namespace VerlofBWZC.DataAccess.Entities
         public int MaxShifts { get; set; }
         public string Color { get; set; } = "#E8590C";
         public int SortOrder { get; set; }
+
+        // De shiften van deze categorie moeten één ononderbroken reeks werkshiften vormen (bv. 8 x Groot verlof)
+        public bool MustBeConsecutive { get; set; }
     }
 }
