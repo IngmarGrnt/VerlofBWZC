@@ -210,10 +210,6 @@ else
                                 <span class="tc-spec">@ShortSpeciality(member.Speciality)</span>
                             }
                             <span class="tc-used">@used@(allowance is int al ? $"/{al}" : "")</span>
-                            @if (LotteryStats.TryGetValue(member.Id, out var ls))
-                            {
-                                <span class="tc-lottery-rec" title="Lotingen @SelectedYear: @ls.Won gewonnen, @ls.Lost verloren"><span class="tl-record-w">@ls.Won</span>–<span class="tl-record-l">@ls.Lost</span></span>
-                            }
                         </th>
                     }
                 </tr>
