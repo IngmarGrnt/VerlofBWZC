@@ -4,8 +4,8 @@
     "exclude": [ "/_framework/*", "/_content/*", "/css/*", "/js/*", "/lib/*", "*.{png,jpg,ico,svg,json,webmanifest,wasm,dll,dat,blat,js,css}" ]
   },
   "mimeTypes": {
-    "wasm": "application/wasm",
-    "dat": "application/octet-stream",
-    "blat": "application/octet-stream"
+    ".wasm": "application/wasm",
+    ".dat": "application/octet-stream",
+    ".blat": "application/octet-stream"
   }
 }

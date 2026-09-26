@@ -9,9 +9,8 @@ var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
-// Laad extra configuratie
-builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
-                     .AddJsonFile("appsettings.Development.json", optional: true, reloadOnChange: false);
+// appsettings.json en appsettings.{Environment}.json worden al geladen door CreateDefault;
+// zo wordt appsettings.Development.json enkel lokaal gebruikt en niet in productie.
 
 // AuthZ
 builder.Services.AddAuthorizationCore();
