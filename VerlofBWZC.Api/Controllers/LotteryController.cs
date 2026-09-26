@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VerlofBWZC.Api.Services;
 using VerlofBWZC.DataAccess.Entities;
+using VerlofBWZC.DataAccess.Enums;
 using VerlofBWZC.DataContracts.DTO.Lottery;
 
 namespace VerlofBWZC.Api.Controllers
@@ -70,7 +71,11 @@ namespace VerlofBWZC.Api.Controllers
                 {
                     PersonId = l.PersonId,
                     FirstName = l.FirstName,
-                    LastName = l.LastName
+                    LastName = l.LastName,
+                    RemovedDay = l.RemovedDay,
+                    RemovedNight = l.RemovedNight,
+                    DayLeaveCategoryId = l.DayLeaveCategoryId,
+                    NightLeaveCategoryId = l.NightLeaveCategoryId
                 }).ToList()
             }).ToList();
 
@@ -119,7 +124,8 @@ namespace VerlofBWZC.Api.Controllers
                 _db.LotteryDraws.Add(entity);
                 await _db.SaveChangesAsync();
 
-                return Ok();
+                // Het (eventueel aangepaste) volgnummer teruggeven, zodat de loting nadien toegepast kan worden
+                return Ok(drawNumber);
             }
             catch (Exception ex)
             {
@@ -143,9 +149,92 @@ namespace VerlofBWZC.Api.Controllers
             if (!AllAllowed(participants, await AllowedPersonIdsAsync()))
                 return Forbid();
 
+            // Toegepaste loting: het weggehaalde verlof van de verliezers terugzetten (met hun verlofregel)
+            var restored = new List<RestoredDayOffDTO>();
+            foreach (var loser in draw.Losers)
+            {
+                if (loser.RemovedDay)
+                    restored.Add(new RestoredDayOffDTO { PersonId = loser.PersonId, Date = draw.FromDate.Date, Shift = "D", LeaveCategoryId = loser.DayLeaveCategoryId });
+                if (loser.RemovedNight)
+                    restored.Add(new RestoredDayOffDTO { PersonId = loser.PersonId, Date = draw.ToDate.Date, Shift = "N", LeaveCategoryId = loser.NightLeaveCategoryId });
+            }
+
+            var personIds = restored.Select(r => r.PersonId).Distinct().ToList();
+            var dates = restored.Select(r => r.Date).Distinct().ToList();
+            var existing = await _db.DayOffs
+                .Where(d => personIds.Contains(d.PersonId) && dates.Contains(d.Date.Date))
+                .ToListAsync();
+            var categoryIds = restored.Where(r => r.LeaveCategoryId != null).Select(r => r.LeaveCategoryId!.Value).Distinct().ToList();
+            var validCategoryIds = (await _db.LeaveCategories
+                .Where(c => categoryIds.Contains(c.Id))
+                .Select(c => c.Id)
+                .ToListAsync()).ToHashSet();
+
+            foreach (var r in restored.ToList())
+            {
+                // Intussen opnieuw aangeduid: niet dubbel toevoegen
+                if (existing.Any(d => d.PersonId == r.PersonId && d.Date.Date == r.Date && d.Shift == r.Shift))
+                {
+                    restored.Remove(r);
+                    continue;
+                }
+                if (r.LeaveCategoryId is int catId && !validCategoryIds.Contains(catId))
+                    r.LeaveCategoryId = null; // verlofregel intussen verwijderd: gewoon verlof
+
+                _db.DayOffs.Add(new DayOff
+                {
+                    PersonId = r.PersonId,
+                    Date = r.Date,
+                    Shift = r.Shift,
+                    LeaveCategoryId = r.LeaveCategoryId,
+                    Description = "",
+                    Status = DayOffstatus.Approved,
+                    LastUpdate = DateTime.Now,
+                    IsDeleted = false
+                });
+            }
+
             _db.LotteryDraws.Remove(draw);
             await _db.SaveChangesAsync();
 
+            return Ok(restored);
+        }
+
+        // POST: api/lottery/draw/{drawNumber}/applied
+        // Na het toepassen in de teamkalender: onthouden welk verlof bij welke verliezer weggehaald werd
+        [HttpPost("draw/{drawNumber}/applied")]
+        public async Task<IActionResult> MarkApplied(int drawNumber, [FromBody] List<LotteryPersonDTO> removed)
+        {
+            var draw = await _db.LotteryDraws
+                .Include(d => d.Winners)
+                .Include(d => d.Losers)
+                .FirstOrDefaultAsync(d => d.DrawNumber == drawNumber);
+
+            if (draw == null)
+                return NotFound();
+
+            var participants = draw.Winners.Select(w => w.PersonId).Concat(draw.Losers.Select(l => l.PersonId));
+            if (!AllAllowed(participants, await AllowedPersonIdsAsync()))
+                return Forbid();
+
+            foreach (var r in removed ?? new())
+            {
+                var loser = draw.Losers.FirstOrDefault(l => l.PersonId == r.PersonId);
+                if (loser == null) continue;
+
+                if (r.RemovedDay)
+                {
+                    loser.RemovedDay = true;
+                    loser.DayLeaveCategoryId = r.DayLeaveCategoryId;
+                }
+                if (r.RemovedNight)
+                {
+                    loser.RemovedNight = true;
+                    loser.NightLeaveCategoryId = r.NightLeaveCategoryId;
+                }
+            }
+
+            await _db.SaveChangesAsync();
             return NoContent();
         }
     }

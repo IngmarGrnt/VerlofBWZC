@@ -73,7 +73,7 @@
                     <!-- Bevestiging voor het verwijderen -->
                     <div class="tl-confirm tl-confirm-danger">
                         <div class="tl-confirm-title"><i class="rzi">delete</i> Loting "@d.DrawName" verwijderen?</div>
-                        <div class="tl-hint">De loting verdwijnt ook van de loterijpagina. Verlof dat al werd weggehaald bij het toepassen, komt niet vanzelf terug.</div>
+                        <div class="tl-hint">De loting verdwijnt ook van de loterijpagina. Was ze toegepast, dan krijgen de verliezers hun verlof terug (met hun verlofregel).</div>
                         <div class="tl-actions">
                             <RadzenButton Text="Terug" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" Click="@(() => pendingDelete = null)" />
                             <RadzenButton Text="Ja, verwijderen" Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small"
@@ -90,7 +90,7 @@
         <div class="tl-section-title">Wie gaat mee in de loting?</div>
         <div class="tl-hint">Niet aangevinkt = houdt zeker verlof. Verlof uit een verlofregel (bv. Groot verlof) is standaard niet aangevinkt.</div>
         <div class="tl-list">
-            @foreach (var c in Scoped)
+            @foreach (var c in Scoped.OrderBy(c => string.IsNullOrEmpty(c.Category)))
             {
                 var isIn = selected.Contains(c.PersonId);
                 <label class="@(isIn ? "tl-person tl-person-in" : "tl-person")">
@@ -210,6 +210,7 @@
     // Resultaat voor de teamkalender: deze personen verliezen hun verlof op de shiften van de loting (na bevestiging daar)
     public class ApplyRequest
     {
+        public int DrawNumber { get; set; }
         public DateTime FromDate { get; set; }
         public DateTime ToDate { get; set; }
         public List<LotteryPersonDTO> Losers { get; set; } = new();
@@ -230,6 +231,7 @@
     [Parameter] public List<LotteryDrawDTO> ExistingDraws { get; set; } = new();
     [Parameter] public int NextDrawNumber { get; set; } = 1;
     [Parameter] public bool HasUnsavedChanges { get; set; }
+    [Parameter] public Action<List<RestoredDayOffDTO>>? OnRestored { get; set; }
 
     private static readonly CultureInfo Nl = new("nl-BE");
     private Scope scope = Scope.Pair;
@@ -250,6 +252,9 @@
             if (resp.IsSuccessStatusCode)
             {
                 ExistingDraws.Remove(draw);
+                var restored = await resp.Content.ReadFromJsonAsync<List<RestoredDayOffDTO>>() ?? new();
+                if (restored.Count > 0)
+                    OnRestored?.Invoke(restored);
                 NotificationService.Notify(NotificationSeverity.Success, "Loting verwijderd", draw.DrawName);
             }
             else
@@ -313,7 +318,7 @@
     }
 
     private void Apply(LotteryDrawDTO draw) =>
-        DialogService.Close(new ApplyRequest { FromDate = draw.FromDate.Date, ToDate = draw.ToDate.Date, Losers = draw.Losers.ToList() });
+        DialogService.Close(new ApplyRequest { DrawNumber = draw.DrawNumber, FromDate = draw.FromDate.Date, ToDate = draw.ToDate.Date, Losers = draw.Losers.ToList() });
 
     private void Toggle(int personId, bool on)
     {
@@ -354,12 +359,17 @@
             var resp = await Http.PostAsJsonAsync("api/lottery/draw", dto);
             if (resp.IsSuccessStatusCode)
             {
+                // De server kan het volgnummer aanpassen (uniek houden)
+                try { dto.DrawNumber = await resp.Content.ReadFromJsonAsync<int>(); } catch { }
+            }
+            if (resp.IsSuccessStatusCode)
+            {
                 if (applyNow)
                 {
                     // Al bevestigd: meteen laten toepassen in de teamkalender
                     DialogService.Close(new ApplyRequest
                     {
-                        FromDate = dto.FromDate, ToDate = dto.ToDate, DrawName = dto.DrawName,
+                        DrawNumber = dto.DrawNumber, FromDate = dto.FromDate, ToDate = dto.ToDate, DrawName = dto.DrawName,
                         Winners = dto.Winners, Losers = dto.Losers, Confirmed = true
                     });
                     return;

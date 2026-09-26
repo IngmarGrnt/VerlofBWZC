@@ -597,7 +597,8 @@ else
                 { nameof(TeamLotteryDialog.Candidates), candidates },
                 { nameof(TeamLotteryDialog.ExistingDraws), existing },
                 { nameof(TeamLotteryDialog.NextDrawNumber), Draws.Count == 0 ? 1 : Draws.Max(d => d.DrawNumber) + 1 },
-                { nameof(TeamLotteryDialog.HasUnsavedChanges), isDirty }
+                { nameof(TeamLotteryDialog.HasUnsavedChanges), isDirty },
+                { nameof(TeamLotteryDialog.OnRestored), new Action<List<RestoredDayOffDTO>>(OnLotteryRestored) }
             },
             new DialogOptions { Width = "560px", CloseDialogOnEsc = true });
 
@@ -610,6 +611,19 @@ else
             await LoadDraws();
             await ApplyLotteryAsync(apply, day, night);
         }
+    }
+
+    // Loting verwijderd in de popup: de server zette het weggehaalde verlof al terug, hier ook tonen
+    private void OnLotteryRestored(List<RestoredDayOffDTO> restored)
+    {
+        foreach (var r in restored)
+        {
+            if (!selectedDays.Any(d => d.PersonId == r.PersonId && d.Date.Date == r.Date.Date && d.Shift == r.Shift))
+                selectedDays.Add(new SelectedDayOffDTO { PersonId = r.PersonId, Date = r.Date, Shift = r.Shift, LeaveCategoryId = r.LeaveCategoryId });
+        }
+        NotificationService.Notify(NotificationSeverity.Info, "Verlof teruggezet",
+            $"{restored.Select(r => r.PersonId).Distinct().Count()} persoon/personen kregen hun verlof terug.");
+        StateHasChanged();
     }
 
     // Loting toepassen: verliezers verliezen hun verlof op de shiften van de loting (dag, nacht of beide), na akkoord
@@ -650,11 +664,41 @@ else
         if (confirmed != true)
             return;
 
+        // Onthouden wat weggehaald wordt (met verlofregel), om terug te zetten als de loting verwijderd wordt
+        var removedInfo = toRemove
+            .GroupBy(d => d.PersonId)
+            .Select(g => new LotteryPersonDTO
+            {
+                PersonId = g.Key,
+                RemovedDay = g.Any(d => d.Shift == "D"),
+                RemovedNight = g.Any(d => d.Shift == "N"),
+                DayLeaveCategoryId = g.FirstOrDefault(d => d.Shift == "D")?.LeaveCategoryId,
+                NightLeaveCategoryId = g.FirstOrDefault(d => d.Shift == "N")?.LeaveCategoryId
+            })
+            .ToList();
+
         foreach (var d in toRemove)
             selectedDays.Remove(d);
         isDirty = true;
 
         await SaveTeamDaysOff();
+
+        // Enkel als het opslaan gelukt is (isDirty staat dan terug uit)
+        if (!isDirty && apply.DrawNumber > 0)
+        {
+            try
+            {
+                var resp = await Http.PostAsJsonAsync($"api/lottery/draw/{apply.DrawNumber}/applied", removedInfo);
+                if (!resp.IsSuccessStatusCode)
+                    NotificationService.Notify(NotificationSeverity.Warning, "Loting",
+                        "Toegepast, maar niet onthouden wat weggehaald werd: bij verwijderen van de loting komt het verlof niet vanzelf terug.");
+            }
+            catch
+            {
+                NotificationService.Notify(NotificationSeverity.Warning, "Loting", "Toegepast, maar niet onthouden wat weggehaald werd (netwerkfout).");
+            }
+            await LoadDraws();
+        }
 
         if (apply.Confirmed)
         {
