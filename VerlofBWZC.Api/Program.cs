@@ -24,7 +24,6 @@ var allowedOrigins = originsSection.Get<string[]>();
 
 // Add services to the container.
 builder.Services.AddControllers();
-builder.Services.AddOpenApi();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddAutoMapperConfiguration();
