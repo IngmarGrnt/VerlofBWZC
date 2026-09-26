@@ -551,34 +551,45 @@ else
         return ShiftCount(day, "D") > DailyQuota || ShiftCount(night, "N") > DailyQuota;
     }
 
+    // Iedereen met verlof op de dag- en/of nachtshift van het paar
+    private List<TeamLotteryDialog.Candidate> BuildCandidates(DateTime day, DateTime night) =>
+        selectedDays
+        .Where(d => (d.Date.Date == day && d.Shift == "D") || (d.Date.Date == night && d.Shift == "N"))
+        .GroupBy(d => d.PersonId)
+        .Select(g =>
+        {
+            var member = TeamMembers.FirstOrDefault(m => m.Id == g.Key);
+            var catId = g.Select(d => d.LeaveCategoryId).FirstOrDefault(id => id != null);
+            var category = catId is int id ? LeaveCategories.FirstOrDefault(c => c.Id == id) : null;
+            var shifts = g.Select(d => d.Shift).Distinct().OrderBy(s => s == "D" ? 0 : 1).ToList();
+            return member == null ? null : new TeamLotteryDialog.Candidate
+            {
+                PersonId = member.Id,
+                FirstName = member.FirstName ?? "",
+                LastName = member.LastName ?? "",
+                Category = category?.Name,
+                Color = category?.Color,
+                Shifts = string.Join("+", shifts)
+            };
+        })
+        .Where(c => c != null)
+        .Select(c => c!)
+        .OrderBy(c => c.LastName).ThenBy(c => c.FirstName)
+        .ToList();
+
+    // Voor de popup: na het verwijderen van een loting de lijst en tellingen opnieuw opbouwen
+    private TeamLotteryDialog.Snapshot LotterySnapshot(DateTime day, DateTime night) => new()
+    {
+        Candidates = BuildCandidates(day, night),
+        DayCount = ShiftCount(day, "D"),
+        NightCount = ShiftCount(night, "N")
+    };
+
     private async Task OpenLottery(WorkDay wd)
     {
         var (day, night) = PairOf(wd);
 
-        // Iedereen met verlof op de dag- en/of nachtshift van het paar
-        var candidates = selectedDays
-            .Where(d => (d.Date.Date == day && d.Shift == "D") || (d.Date.Date == night && d.Shift == "N"))
-            .GroupBy(d => d.PersonId)
-            .Select(g =>
-            {
-                var member = TeamMembers.FirstOrDefault(m => m.Id == g.Key);
-                var catId = g.Select(d => d.LeaveCategoryId).FirstOrDefault(id => id != null);
-                var category = catId is int id ? LeaveCategories.FirstOrDefault(c => c.Id == id) : null;
-                var shifts = g.Select(d => d.Shift).Distinct().OrderBy(s => s == "D" ? 0 : 1).ToList();
-                return member == null ? null : new TeamLotteryDialog.Candidate
-                {
-                    PersonId = member.Id,
-                    FirstName = member.FirstName ?? "",
-                    LastName = member.LastName ?? "",
-                    Category = category?.Name,
-                    Color = category?.Color,
-                    Shifts = string.Join("+", shifts)
-                };
-            })
-            .Where(c => c != null)
-            .Select(c => c!)
-            .OrderBy(c => c.LastName).ThenBy(c => c.FirstName)
-            .ToList();
+        var candidates = BuildCandidates(day, night);
 
         var existing = DrawsFor(day).Concat(DrawsFor(night))
             .GroupBy(d => d.DrawNumber).Select(g => g.First())
@@ -598,7 +609,8 @@ else
                 { nameof(TeamLotteryDialog.ExistingDraws), existing },
                 { nameof(TeamLotteryDialog.NextDrawNumber), Draws.Count == 0 ? 1 : Draws.Max(d => d.DrawNumber) + 1 },
                 { nameof(TeamLotteryDialog.HasUnsavedChanges), isDirty },
-                { nameof(TeamLotteryDialog.OnRestored), new Action<List<RestoredDayOffDTO>>(OnLotteryRestored) }
+                { nameof(TeamLotteryDialog.OnRestored), new Action<List<RestoredDayOffDTO>>(OnLotteryRestored) },
+                { nameof(TeamLotteryDialog.Refresh), new Func<TeamLotteryDialog.Snapshot>(() => LotterySnapshot(day, night)) }
             },
             new DialogOptions { Width = "560px", CloseDialogOnEsc = true });
 

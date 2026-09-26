@@ -29,11 +29,11 @@
         <span><strong>@Scoped.Count</strong> personen met verlof</span>
         @if (scope != Scope.Night)
         {
-            <span>dag @DayDate.ToString("ddd d/M", Nl): <strong>@DayCount</strong>/@Quota</span>
+            <span>dag @DayDate.ToString("ddd d/M", Nl): <strong>@dayCount</strong>/@Quota</span>
         }
         @if (scope != Scope.Day)
         {
-            <span>nacht @NightDate.ToString("ddd d/M", Nl): <strong>@NightCount</strong>/@Quota</span>
+            <span>nacht @NightDate.ToString("ddd d/M", Nl): <strong>@nightCount</strong>/@Quota</span>
         }
         @if (Scoped.Count > Quota)
         {
@@ -56,7 +56,7 @@
                 {
                     <span class="tl-tag tl-tag-lose">@l.FirstName @l.LastName</span>
                 }
-                @if (result == null && d.Losers.Any(l => Candidates.Any(c => c.PersonId == l.PersonId)))
+                @if (result == null && d.Losers.Any(l => cands.Any(c => c.PersonId == l.PersonId)))
                 {
                     <RadzenButton Text="Toepassen" Icon="done_all" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Outlined"
                                   title="Verliezers van deze loting verliezen hun verlof op de shiften van deze loting"
@@ -124,7 +124,7 @@
             </label>
         </div>
         <div class="tl-hint">
-            @(Scoped.Count - SelectedCount) zeker + @winnersCount winnaar(s) = @(Scoped.Count - SelectedCount + winnersCount) van max @Quota.
+            @winnersCount winnaar(s) uit @SelectedCount deelnemer(s) (max per shift: @Quota)@(Scoped.Count - SelectedCount > 0 ? $"; {Scoped.Count - SelectedCount} houden zeker verlof (verlofregel of niet aangevinkt)" : "").
         </div>
 
         @if (confirming)
@@ -255,6 +255,17 @@
                 var restored = await resp.Content.ReadFromJsonAsync<List<RestoredDayOffDTO>>() ?? new();
                 if (restored.Count > 0)
                     OnRestored?.Invoke(restored);
+
+                // Iedereen die (weer) verlof heeft opnieuw in de lijst, klaar voor een nieuwe loting
+                if (Refresh != null)
+                {
+                    var snap = Refresh();
+                    cands = snap.Candidates;
+                    dayCount = snap.DayCount;
+                    nightCount = snap.NightCount;
+                    ResetSelection();
+                    RecalcWinners();
+                }
                 NotificationService.Notify(NotificationSeverity.Success, "Loting verwijderd", draw.DrawName);
             }
             else
@@ -279,9 +290,9 @@
     // Kandidaten binnen de gekozen shift(en)
     private List<Candidate> Scoped => scope switch
     {
-        Scope.Day => Candidates.Where(c => c.Shifts.Contains('D')).ToList(),
-        Scope.Night => Candidates.Where(c => c.Shifts.Contains('N')).ToList(),
-        _ => Candidates
+        Scope.Day => cands.Where(c => c.Shifts.Contains('D')).ToList(),
+        Scope.Night => cands.Where(c => c.Shifts.Contains('N')).ToList(),
+        _ => cands
     };
 
     private int SelectedCount => Scoped.Count(c => selected.Contains(c.PersonId));
@@ -296,12 +307,36 @@
         _ => "Dag + nacht"
     };
 
+    // Actuele lijst en tellingen (kunnen wijzigen als een loting verwijderd wordt en verlof terugkomt)
+    private List<Candidate> cands = new();
+    private int dayCount;
+    private int nightCount;
+
+    public class Snapshot
+    {
+        public List<Candidate> Candidates { get; set; } = new();
+        public int DayCount { get; set; }
+        public int NightCount { get; set; }
+    }
+
+    // Levert de actuele gegevens uit de teamkalender
+    [Parameter] public Func<Snapshot>? Refresh { get; set; }
+
     protected override void OnInitialized()
     {
-        // Standaard doet enkel gewoon verlof mee; verlof uit een verlofregel (categorie) houdt zeker verlof
-        foreach (var c in Candidates.Where(c => string.IsNullOrEmpty(c.Category)))
-            selected.Add(c.PersonId);
+        cands = Candidates;
+        dayCount = DayCount;
+        nightCount = NightCount;
+        ResetSelection();
         SetScope(Scope.Pair);
+    }
+
+    // Standaard doet enkel gewoon verlof mee; verlof uit een verlofregel (categorie) houdt zeker verlof
+    private void ResetSelection()
+    {
+        selected.Clear();
+        foreach (var c in cands.Where(c => string.IsNullOrEmpty(c.Category)))
+            selected.Add(c.PersonId);
     }
 
     private void SetScope(Scope s)
@@ -327,9 +362,9 @@
         RecalcWinners();
     }
 
-    // Standaard: zoveel winnaars dat het totaal op het maximum uitkomt
+    // Standaard: evenveel winnaars als het maximum per shift (nooit meer dan er deelnemers zijn)
     private void RecalcWinners() =>
-        winnersCount = Math.Clamp(Quota - (Scoped.Count - SelectedCount), 0, SelectedCount);
+        winnersCount = Math.Clamp(Quota, 0, SelectedCount);
 
     private async Task DrawAsync()
     {
