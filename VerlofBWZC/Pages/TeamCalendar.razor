@@ -602,6 +602,47 @@ else
 
         if (result is true)
             await LoadDraws();
+
+        if (result is TeamLotteryDialog.ApplyRequest apply)
+        {
+            await LoadDraws();
+            await ApplyLotteryAsync(apply, day, night);
+        }
+    }
+
+    // Loting toepassen: verliezers verliezen hun verlof op de dag- en nachtshift van het paar, na akkoord
+    private async Task ApplyLotteryAsync(TeamLotteryDialog.ApplyRequest apply, DateTime day, DateTime night)
+    {
+        var loserIds = apply.Losers.Select(l => l.PersonId).ToHashSet();
+        var toRemove = selectedDays
+            .Where(d => loserIds.Contains(d.PersonId)
+                && ((d.Date.Date == day && d.Shift == "D") || (d.Date.Date == night && d.Shift == "N")))
+            .ToList();
+
+        if (toRemove.Count == 0)
+        {
+            NotificationService.Notify(NotificationSeverity.Info, "Niets te doen", "De verliezers hebben op deze shiften geen verlof (meer).");
+            return;
+        }
+
+        var names = string.Join(", ", apply.Losers
+            .Where(l => toRemove.Any(d => d.PersonId == l.PersonId))
+            .Select(l => $"{l.FirstName} {l.LastName}"));
+        var dayText = day.Month == night.Month ? day.ToString("%d", Nl) : day.ToString("d MMM", Nl);
+        var confirmed = await DialogService.Confirm(
+            $"{names} {(toRemove.Select(d => d.PersonId).Distinct().Count() == 1 ? "verliest" : "verliezen")} hun verlof op {dayText}–{night.ToString("d MMM yyyy", Nl)} (dag + nacht). "
+            + (isDirty ? "Ook je andere niet-opgeslagen wijzigingen worden mee opgeslagen. " : "")
+            + "Toepassen en opslaan?",
+            "Loting toepassen",
+            new ConfirmOptions { OkButtonText = "Toepassen", CancelButtonText = "Annuleren" });
+        if (confirmed != true)
+            return;
+
+        foreach (var d in toRemove)
+            selectedDays.Remove(d);
+        isDirty = true;
+
+        await SaveTeamDaysOff();
     }
 
 

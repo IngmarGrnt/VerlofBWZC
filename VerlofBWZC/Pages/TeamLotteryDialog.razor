@@ -35,6 +35,12 @@
                 {
                     <span class="tl-tag tl-tag-lose">@l.FirstName @l.LastName</span>
                 }
+                @if (result == null && d.Losers.Any(l => Candidates.Any(c => c.PersonId == l.PersonId)))
+                {
+                    <RadzenButton Text="Toepassen" Icon="done_all" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Outlined"
+                                  title="Verliezers van deze loting verliezen hun verlof op deze dag- en nachtshift"
+                                  Click="@(() => Apply(d))" />
+                }
             </div>
         }
     }
@@ -107,7 +113,13 @@
         </div>
         <div class="tl-hint">De loting is bewaard en staat ook op de loterijpagina.</div>
         <div class="tl-actions">
-            <RadzenButton Text="Sluiten" ButtonStyle="ButtonStyle.Primary" Click="@(() => DialogService.Close(true))" />
+            <RadzenButton Text="Sluiten" ButtonStyle="ButtonStyle.Light" Click="@(() => DialogService.Close(true))" />
+            @if (result.Losers.Any())
+            {
+                <RadzenButton Text="Toepassen" Icon="done_all" ButtonStyle="ButtonStyle.Primary"
+                              title="Verliezers verliezen hun verlof op deze dag- en nachtshift"
+                              Click="@(() => Apply(result))" />
+            }
         </div>
     }
 </div>
@@ -148,6 +160,15 @@
         drawName = $"Loting {dayPart}–{NightDate.ToString("d MMM yyyy", Nl)} (D+N)";
         RecalcWinners();
     }
+
+    // Resultaat voor de teamkalender: deze personen verliezen hun verlof op het paar (na bevestiging daar)
+    public class ApplyRequest
+    {
+        public List<LotteryPersonDTO> Losers { get; set; } = new();
+    }
+
+    private void Apply(LotteryDrawDTO draw) =>
+        DialogService.Close(new ApplyRequest { Losers = draw.Losers.ToList() });
 
     private void Toggle(int personId, bool on)
     {
