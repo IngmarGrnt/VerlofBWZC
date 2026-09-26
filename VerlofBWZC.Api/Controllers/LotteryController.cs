@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using VerlofBWZC.Api.Services;
 using VerlofBWZC.DataAccess.Entities;
 using VerlofBWZC.DataContracts.DTO.Lottery;
 
@@ -13,23 +14,44 @@ namespace VerlofBWZC.Api.Controllers
     {
         private readonly VerlofBWZC_DbContext _db;
         private readonly ILogger<LotteryController> _logger;
+        private readonly UserContext _me;
 
-        public LotteryController(VerlofBWZC_DbContext db, ILogger<LotteryController> logger)
+        public LotteryController(VerlofBWZC_DbContext db, ILogger<LotteryController> logger, UserContext me)
         {
             _db = db;
             _logger = logger;
+            _me = me;
         }
+
+        // Personen waarover de gebruiker lotingen mag zien/beheren: null = alle (Admin), anders eigen ploeg + specialiteit
+        private async Task<HashSet<int>?> AllowedPersonIdsAsync()
+        {
+            if (_me.IsAdmin)
+                return null;
+
+            var own = await _me.GetTeamAsync();
+            var ids = await _db.Persons
+                .Where(p => p.Team == own.Team && p.Speciality == own.Speciality)
+                .Select(p => p.Id)
+                .ToListAsync();
+            return ids.ToHashSet();
+        }
+
+        private static bool AllAllowed(IEnumerable<int> personIds, HashSet<int>? allowed) =>
+            allowed == null || (personIds.Any() && personIds.All(allowed.Contains));
 
         // GET: api/lottery/draws
         [HttpGet("draws")]
         public async Task<ActionResult<IEnumerable<LotteryDrawDTO>>> GetDraws()
         {
-            var draws = await _db.LotteryDraws
+            var allowed = await AllowedPersonIdsAsync();
+            var draws = (await _db.LotteryDraws
                 .Include(d => d.Winners)
                 .Include(d => d.Losers)
                 .OrderBy(d => d.DrawNumber)
                 .ThenBy(d => d.CreatedAtUtc)
-                .ToListAsync();
+                .ToListAsync())
+                .Where(d => AllAllowed(d.Winners.Select(w => w.PersonId).Concat(d.Losers.Select(l => l.PersonId)), allowed));
 
             var result = draws.Select(d => new LotteryDrawDTO
             {
@@ -62,11 +84,20 @@ namespace VerlofBWZC.Api.Controllers
             if (dto == null)
                 return BadRequest("Body is leeg.");
 
+            var participants = (dto.Winners ?? new()).Select(w => w.PersonId).Concat((dto.Losers ?? new()).Select(l => l.PersonId));
+            if (!AllAllowed(participants, await AllowedPersonIdsAsync()))
+                return Forbid();
+
+            // Volgnummer uniek houden (managers zien enkel de lotingen van hun eigen ploeg)
+            var drawNumber = dto.DrawNumber;
+            if (await _db.LotteryDraws.AnyAsync(d => d.DrawNumber == drawNumber))
+                drawNumber = (await _db.LotteryDraws.MaxAsync(d => (int?)d.DrawNumber) ?? 0) + 1;
+
             try
             {
                 var entity = new LotteryDraw
                 {
-                    DrawNumber = dto.DrawNumber,
+                    DrawNumber = drawNumber,
                     DrawName = dto.DrawName ?? string.Empty,
                     FromDate = dto.FromDate,
                     ToDate = dto.ToDate,
@@ -107,6 +138,10 @@ namespace VerlofBWZC.Api.Controllers
 
             if (draw == null)
                 return NotFound();
+
+            var participants = draw.Winners.Select(w => w.PersonId).Concat(draw.Losers.Select(l => l.PersonId));
+            if (!AllAllowed(participants, await AllowedPersonIdsAsync()))
+                return Forbid();
 
             _db.LotteryDraws.Remove(draw);
             await _db.SaveChangesAsync();

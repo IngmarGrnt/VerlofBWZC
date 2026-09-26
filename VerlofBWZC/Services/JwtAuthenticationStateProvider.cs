@@ -49,7 +49,11 @@ namespace VerlofBWZC.Services
 
         private async Task SafeRemoveToken()
         {
-            try { await _js.InvokeVoidAsync("localStorage.removeItem", "authToken"); }
+            try
+            {
+                await _js.InvokeVoidAsync("localStorage.removeItem", "authToken");
+                await _js.InvokeVoidAsync("localStorage.removeItem", "adminToken"); // demo modus
+            }
             catch { /* ignore */ }
         }
 

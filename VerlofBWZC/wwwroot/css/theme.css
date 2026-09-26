@@ -139,3 +139,26 @@ a { color: var(--bwzc-blue); }
     padding-top: 1.5rem;
     padding-bottom: 2rem;
 }
+
+/* Demo modus: balk bovenaan de pagina */
+.demo-banner {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+    padding: .6rem 1rem;
+    border-radius: var(--bwzc-radius);
+    background: #FFF4DB;
+    border: 1px solid #F5D48A;
+    color: #6B4600;
+    font-size: .9rem;
+}
+
+    .demo-banner .bi {
+        font-size: 1.1rem;
+    }
+
+    .demo-banner .rz-button {
+        margin-left: auto;
+    }

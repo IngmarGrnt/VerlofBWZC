@@ -1,0 +1,62 @@
+@using Radzen
+@using Radzen.Blazor
+@using VerlofBWZC.Services
+@inject HttpClient Http
+@inject DemoModeService Demo
+@inject DialogService DialogService
+
+<p class="rz-text-secondary" style="margin-top:0;">
+    Bekijk de app zoals een medewerker met deze rol, ploeg en specialiteit hem ziet.
+    In demo modus kan je <strong>niets opslaan</strong>. Stoppen doe je via de balk bovenaan.
+</p>
+
+<RadzenStack Gap="0.75rem">
+    <div>
+        <label>Rol</label>
+        <RadzenDropDown TValue="string" Data="@roles" @bind-Value="role" Style="width:100%" />
+    </div>
+    <div>
+        <label>Ploeg</label>
+        <RadzenDropDown TValue="string" Data="@teams" @bind-Value="team" Style="width:100%" />
+    </div>
+    <div>
+        <label>Specialiteit</label>
+        <RadzenDropDown TValue="string" Data="@specialities" @bind-Value="speciality" Style="width:100%" />
+    </div>
+    @if (!string.IsNullOrEmpty(error))
+    {
+        <div class="rz-color-danger">@error</div>
+    }
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="0.5rem">
+        <RadzenButton Text="Annuleren" ButtonStyle="ButtonStyle.Light" Click="@(() => DialogService.Close())" />
+        <RadzenButton Text="Demo starten" Icon="visibility" ButtonStyle="ButtonStyle.Primary" Click="@Start"
+                      Disabled="@(string.IsNullOrEmpty(role) || string.IsNullOrEmpty(team) || string.IsNullOrEmpty(speciality) || busy)" />
+    </RadzenStack>
+</RadzenStack>
+
+@code {
+    private List<string> roles = new();
+    private List<string> teams = new();
+    private List<string> specialities = new();
+    private string? role = "Manager";
+    private string? team;
+    private string? speciality;
+    private string? error;
+    private bool busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        roles = await Http.GetFromJsonAsync<List<string>>("api/meta/roles") ?? new();
+        teams = await Http.GetFromJsonAsync<List<string>>("api/meta/teams") ?? new();
+        specialities = await Http.GetFromJsonAsync<List<string>>("api/meta/specialities") ?? new();
+        team = teams.FirstOrDefault(t => t == "Ploeg1") ?? teams.FirstOrDefault();
+        speciality = specialities.FirstOrDefault();
+    }
+
+    private async Task Start()
+    {
+        busy = true;
+        error = await Demo.StartAsync(role!, team!, speciality!);
+        busy = false;
+    }
+}

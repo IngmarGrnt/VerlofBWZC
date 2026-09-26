@@ -10,13 +10,21 @@
 @inject PersonApiService PersonApi
 @inject NotificationService NotificationService
 @inject DialogService DialogService
+@inject CurrentPersonService CurrentPerson
 
 @using Microsoft.AspNetCore.Authorization
-@attribute [Authorize(Roles = "Admin")]
+@attribute [Authorize(Roles = "Admin,Manager")]
 
 <h1>Personenbeheer</h1>
 
-<RadzenButton Icon="add_circle" Text="Nieuwe persoon" Style="margin-bottom: 10px" Click="@AddPerson" />
+@if (isAdmin)
+{
+    <RadzenButton Icon="add_circle" Text="Nieuwe persoon" Style="margin-bottom: 10px" Click="@AddPerson" />
+}
+else
+{
+    <p class="rz-text-secondary">Personen van je eigen ploeg en specialiteit. Je kan naam, e-mail, rol (geen Admin), verlofaantal en wachtwoord aanpassen.</p>
+}
 
 <div class="responsive-datagrid-container">
     <RadzenDataGrid TItem="PersonBaseDTO" Data="@persons" @ref="grid"
@@ -63,11 +71,18 @@
                 </FilterTemplate>
                 <Template Context="person">@person.Team</Template>
                 <EditTemplate Context="person">
+                    @if (isAdmin)
+                    {
                     <RadzenDropDown Data="@TeamOptions"
                                     @bind-Value="person.Team"
                                     AllowFiltering="true"
                                     FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
                                     Style="width:100%" />
+                    }
+                    else
+                    {
+                        @person.Team
+                    }
                 </EditTemplate>
             </RadzenDataGridColumn>
 
@@ -84,11 +99,18 @@
                 </FilterTemplate>
                 <Template Context="person">@person.Speciality</Template>
                 <EditTemplate Context="person">
+                    @if (isAdmin)
+                    {
                     <RadzenDropDown Data="@SpecialityOptions"
                                     @bind-Value="person.Speciality"
                                     AllowFiltering="true"
                                     FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
                                     Style="width:100%" />
+                    }
+                    else
+                    {
+                        @person.Speciality
+                    }
                 </EditTemplate>
             </RadzenDataGridColumn>
 
@@ -105,11 +127,18 @@
                 </FilterTemplate>
                 <Template Context="person">@person.Grade</Template>
                 <EditTemplate Context="person">
+                    @if (isAdmin)
+                    {
                     <RadzenDropDown Data="@GradeOptions"
                                     @bind-Value="person.Grade"
                                     AllowFiltering="true"
                                     FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
                                     Style="width:100%" />
+                    }
+                    else
+                    {
+                        @person.Grade
+                    }
                 </EditTemplate>
             </RadzenDataGridColumn>
 
@@ -126,7 +155,7 @@
                 </FilterTemplate>
                 <Template Context="person">@person.Role</Template>
                 <EditTemplate Context="person">
-                    <RadzenDropDown Data="@RoleOptions"
+                    <RadzenDropDown Data="@EditableRoleOptions"
                                     @bind-Value="person.Role"
                                     AllowFiltering="true"
                                     FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
@@ -143,9 +172,19 @@
 
             <RadzenDataGridColumn TItem="PersonBaseDTO" Context="person">
                 <Template Context="person">
-                    <RadzenButton Icon="edit" Click="@(() => EditRow(person))" Style="margin-right: 5px" />
-                    <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Click="@(() => DeletePerson(person))" Style="margin-right: 5px" />
-                    <RadzenButton Icon="lock" ButtonStyle="ButtonStyle.Info" Click="@(() => OpenPasswordDialog(person))" />
+                    @* Manager: geen Admin-accounts aanpassen, niemand verwijderen *@
+                    @if (isAdmin || person.Role != "Admin")
+                    {
+                        <RadzenButton Icon="edit" Click="@(() => EditRow(person))" Style="margin-right: 5px" />
+                    }
+                    @if (isAdmin)
+                    {
+                        <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Click="@(() => DeletePerson(person))" Style="margin-right: 5px" />
+                    }
+                    @if (isAdmin || person.Role != "Admin")
+                    {
+                        <RadzenButton Icon="lock" ButtonStyle="ButtonStyle.Info" Click="@(() => OpenPasswordDialog(person))" />
+                    }
                 </Template>
                 <EditTemplate Context="person">
                     <RadzenButton Icon="save" ButtonStyle="ButtonStyle.Primary" Click="@(() => SaveRow(person))" Style="margin-right: 5px" />
@@ -172,8 +211,13 @@
     private string? filterGrade;
     private string? filterRole;
 
+    // Admin: alles; Manager: eigen ploeg + specialiteit, rol nooit Admin (de API controleert dit ook)
+    private bool isAdmin;
+    private IEnumerable<string> EditableRoleOptions => isAdmin ? RoleOptions : RoleOptions.Where(r => r != "Admin");
+
     protected override async Task OnInitializedAsync()
     {
+        isAdmin = CurrentPersonService.IsAdmin(await CurrentPerson.GetAsync());
         await LoadMetaAsync();
         await LoadPersons();
     }
@@ -241,8 +285,11 @@
                 Role = person.Role,
                 LeaveAllowance = person.LeaveAllowance,
             };
-            await PersonApi.UpdatePersonAsync(person.Id, updateDto);
-            NotificationService.Notify(NotificationSeverity.Success, "Aangepast", "Persoon succesvol aangepast");
+            var ok = await PersonApi.UpdatePersonAsync(person.Id, updateDto);
+            if (ok)
+                NotificationService.Notify(NotificationSeverity.Success, "Aangepast", "Persoon aangepast.");
+            else
+                NotificationService.Notify(NotificationSeverity.Error, "Niet aangepast", "Aanpassen mislukt (geen toegang of e-mailadres al in gebruik).");
         }
         await grid.UpdateRow(person);
         await LoadPersons();

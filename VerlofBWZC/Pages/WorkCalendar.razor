@@ -564,9 +564,11 @@
         else
         {
             // Bij een validatiefout (bv. te veel shiften in een categorie) de reden van de server tonen
-            var reason = response.StatusCode == System.Net.HttpStatusCode.BadRequest
+            // 400 (validatie) of 403 (bv. demo modus): de reden van de server tonen als die er is
+            var serverText = response.StatusCode is System.Net.HttpStatusCode.BadRequest or System.Net.HttpStatusCode.Forbidden
                 ? await response.Content.ReadAsStringAsync()
-                : "Opslaan van verlofdagen mislukt.";
+                : null;
+            var reason = string.IsNullOrWhiteSpace(serverText) ? "Opslaan van verlofdagen mislukt." : serverText;
             NotificationService.Notify(new NotificationMessage
             {
                 Severity = NotificationSeverity.Error,

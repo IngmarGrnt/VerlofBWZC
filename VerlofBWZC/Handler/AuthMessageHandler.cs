@@ -115,6 +115,7 @@ namespace VerlofBWZC.Services
             try
             {
                 await _js.InvokeVoidAsync("localStorage.removeItem", "authToken");
+                await _js.InvokeVoidAsync("localStorage.removeItem", "adminToken"); // demo modus
             }
             catch
             {

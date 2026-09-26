@@ -62,5 +62,31 @@ namespace VerlofBWZC.Handler
 
             return null;
         }
+
+        // Losse string-claim uit de token (bv. "team", "speciality", "demo")
+        public static string? GetClaim(string? token, string name)
+        {
+            if (string.IsNullOrEmpty(token)) return null;
+            var parts = token.Split('.');
+            if (parts.Length != 3) return null;
+            var payload = parts[1].Replace('-', '+').Replace('_', '/');
+            switch (payload.Length % 4)
+            {
+                case 2: payload += "=="; break;
+                case 3: payload += "="; break;
+            }
+            try
+            {
+                using var doc = JsonDocument.Parse(Encoding.UTF8.GetString(Convert.FromBase64String(payload)));
+                return doc.RootElement.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        // Demo modus: admin bekijkt de app als een andere rol/ploeg/specialiteit
+        public static bool IsDemo(string? token) => GetClaim(token, "demo") == "true";
     }
 }

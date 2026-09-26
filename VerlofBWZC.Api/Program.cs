@@ -32,6 +32,8 @@ builder.Services.AddDbContext<VerlofBWZC_DbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddScoped<CalendarAccessService>();
 builder.Services.AddScoped<LeaveCategoryService>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<UserContext>();
 
 
 // Use allowed origins from configuration
@@ -132,6 +134,21 @@ app.UseCors();
 
 
 app.UseAuthentication();
+
+// Demo modus (admin bekijkt de app als andere rol/ploeg/specialiteit): enkel lezen, nooit opslaan
+app.Use(async (context, next) =>
+{
+    var isDemo = context.User.FindFirst(UserContext.DemoClaim)?.Value == "true";
+    var method = context.Request.Method;
+    if (isDemo && !HttpMethods.IsGet(method) && !HttpMethods.IsHead(method) && !HttpMethods.IsOptions(method))
+    {
+        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+        await context.Response.WriteAsync("Demo modus: alleen bekijken, opslaan is niet mogelijk.");
+        return;
+    }
+    await next();
+});
+
 app.UseAuthorization();
 
 app.MapControllers();

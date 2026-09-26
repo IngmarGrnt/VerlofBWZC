@@ -8,6 +8,8 @@
 @inject HttpClient Http
 @inject NotificationService Notifications
 @inject DialogService DialogService
+@inject VerlofBWZC.Services.CurrentPersonService CurrentPerson
+@using VerlofBWZC.Services
 
 <h3>Verlofregels</h3>
 <p class="rz-text-secondary" style="max-width:900px;">
@@ -20,11 +22,11 @@
 <RadzenStack Orientation="Orientation.Horizontal" Wrap="FlexWrap.Wrap" Gap="0.5rem" AlignItems="AlignItems.End" Style="margin-bottom:1rem">
     <div>
         <label>Ploeg</label>
-        <RadzenDropDown TValue="string" Data="@teams" @bind-Value="teamFilter" AllowClear="true" Placeholder="Alle" Style="width:160px" />
+        <RadzenDropDown TValue="string" Data="@teams" @bind-Value="teamFilter" AllowClear="@isAdmin" Placeholder="Alle" Style="width:160px" />
     </div>
     <div>
         <label>Specialiteit</label>
-        <RadzenDropDown TValue="string" Data="@specialities" @bind-Value="specialityFilter" AllowClear="true" Placeholder="Alle" Style="width:200px" />
+        <RadzenDropDown TValue="string" Data="@specialities" @bind-Value="specialityFilter" AllowClear="@isAdmin" Placeholder="Alle" Style="width:200px" />
     </div>
     <RadzenButton Icon="add" Text="Categorie toevoegen" Click="@StartCreate" Disabled="@(editing != null)" />
 </RadzenStack>
@@ -121,87 +123,6 @@
     </Columns>
 </RadzenDataGrid>
 
-<!-- Kwartaalmaxima -->
-<h3 style="margin-top:2.5rem;">Kwartaalmaxima</h3>
-<p class="rz-text-secondary" style="max-width:900px;">
-    Maximum aantal verlofshiften per kwartaal: KW1 januari–april, KW2 mei–augustus, KW3 september–december.
-    Waar niets is ingesteld gelden <strong>14 / 16 / 14</strong>. Medewerkers zien de tellers in hun werkkalender en krijgen een melding als ze erover gaan.
-</p>
-
-<RadzenButton Icon="add" Text="Kwartaalregel toevoegen" Click="@StartCreateQuarter" Disabled="@(editingQuarter != null)" Style="margin-bottom:1rem" />
-
-@if (editingQuarter != null)
-{
-    <RadzenCard Style="margin-bottom:1rem; max-width:900px;">
-        <h5>@(editingQuarter.Id == 0 ? "Nieuwe kwartaalregel" : "Kwartaalregel wijzigen")</h5>
-        <RadzenStack Orientation="Orientation.Horizontal" Wrap="FlexWrap.Wrap" Gap="1rem">
-            @if (editingQuarter.Id == 0)
-            {
-                <div>
-                    <label>Ploeg(en)</label>
-                    <RadzenDropDown TValue="IEnumerable<string>" Data="@teams" @bind-Value="quarterTeams" Multiple="true" Chips="true" Style="width:260px" />
-                </div>
-                <div>
-                    <label>Specialiteit(en)</label>
-                    <RadzenDropDown TValue="IEnumerable<string>" Data="@specialities" @bind-Value="quarterSpecialities" Multiple="true" Chips="true" Style="width:320px" />
-                </div>
-            }
-            else
-            {
-                <div>
-                    <label>Ploeg</label>
-                    <RadzenDropDown TValue="string" Data="@teams" @bind-Value="editingQuarter.Team" Style="width:160px" />
-                </div>
-                <div>
-                    <label>Specialiteit</label>
-                    <RadzenDropDown TValue="string" Data="@specialities" @bind-Value="editingQuarter.Speciality" Style="width:200px" />
-                </div>
-            }
-            <div>
-                <label>Jaar (leeg = alle jaren)</label>
-                <RadzenDropDown TValue="int?" Data="@years" @bind-Value="editingQuarter.Year" AllowClear="true" Placeholder="Alle jaren" Style="width:160px" />
-            </div>
-        </RadzenStack>
-        <RadzenStack Orientation="Orientation.Horizontal" Wrap="FlexWrap.Wrap" Gap="1rem" Style="margin-top:1rem">
-            <div>
-                <label>KW1 (jan–apr)</label>
-                <RadzenNumeric TValue="int" @bind-Value="editingQuarter.Q1Max" Min="0" Max="250" Style="width:120px" />
-            </div>
-            <div>
-                <label>KW2 (mei–aug)</label>
-                <RadzenNumeric TValue="int" @bind-Value="editingQuarter.Q2Max" Min="0" Max="250" Style="width:120px" />
-            </div>
-            <div>
-                <label>KW3 (sep–dec)</label>
-                <RadzenNumeric TValue="int" @bind-Value="editingQuarter.Q3Max" Min="0" Max="250" Style="width:120px" />
-            </div>
-        </RadzenStack>
-        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Style="margin-top:1rem">
-            <RadzenButton Icon="save" Text="Opslaan" Click="@SaveQuarter" />
-            <RadzenButton Icon="close" Text="Annuleren" ButtonStyle="ButtonStyle.Light" Click="@(() => editingQuarter = null)" />
-        </RadzenStack>
-    </RadzenCard>
-}
-
-<RadzenDataGrid TItem="QuarterLimitDTO" Data="@FilteredQuarterRules" AllowSorting="true" EmptyText="Nog geen kwartaalregels: overal gelden 14 / 16 / 14.">
-    <Columns>
-        <RadzenDataGridColumn TItem="QuarterLimitDTO" Property="Team" Title="Ploeg" Width="110px" />
-        <RadzenDataGridColumn TItem="QuarterLimitDTO" Property="Speciality" Title="Specialiteit" Width="150px" />
-        <RadzenDataGridColumn TItem="QuarterLimitDTO" Property="Year" Title="Jaar" Width="100px">
-            <Template Context="r">@(r.Year?.ToString() ?? "Alle jaren")</Template>
-        </RadzenDataGridColumn>
-        <RadzenDataGridColumn TItem="QuarterLimitDTO" Property="Q1Max" Title="KW1 (jan–apr)" Width="130px" />
-        <RadzenDataGridColumn TItem="QuarterLimitDTO" Property="Q2Max" Title="KW2 (mei–aug)" Width="130px" />
-        <RadzenDataGridColumn TItem="QuarterLimitDTO" Property="Q3Max" Title="KW3 (sep–dec)" Width="130px" />
-        <RadzenDataGridColumn TItem="QuarterLimitDTO" Title="" Width="120px" Sortable="false">
-            <Template Context="r">
-                <RadzenButton Icon="edit" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Click="@(() => StartEditQuarter(r))" Disabled="@(editingQuarter != null)" />
-                <RadzenButton Icon="delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger" Click="@(() => DeleteQuarter(r))" Disabled="@(editingQuarter != null)" />
-            </Template>
-        </RadzenDataGridColumn>
-    </Columns>
-</RadzenDataGrid>
-
 @code {
     private List<LeaveCategoryDTO> rules = new();
     private List<string> teams = new();
@@ -221,105 +142,26 @@
         .Where(r => teamFilter == null || r.Team == teamFilter)
         .Where(r => specialityFilter == null || r.Speciality == specialityFilter);
 
-    // Kwartaalmaxima
-    private List<QuarterLimitDTO> quarterRules = new();
-    private QuarterLimitDTO? editingQuarter;
-    private IEnumerable<string> quarterTeams = Array.Empty<string>();
-    private IEnumerable<string> quarterSpecialities = Array.Empty<string>();
-
-    private IEnumerable<QuarterLimitDTO> FilteredQuarterRules => quarterRules
-        .Where(r => teamFilter == null || r.Team == teamFilter)
-        .Where(r => specialityFilter == null || r.Speciality == specialityFilter);
-
     protected override async Task OnInitializedAsync()
     {
         teams = await Http.GetFromJsonAsync<List<string>>("api/meta/teams") ?? new();
         specialities = await Http.GetFromJsonAsync<List<string>>("api/meta/specialities") ?? new();
+
+        // Manager: enkel zijn eigen ploeg en specialiteit (de API controleert dit ook)
+        var me = await CurrentPerson.GetAsync();
+        isAdmin = CurrentPersonService.IsAdmin(me);
+        if (!isAdmin && me != null)
+        {
+            teams = new List<string> { me.Team };
+            specialities = new List<string> { me.Speciality };
+            teamFilter = me.Team;
+            specialityFilter = me.Speciality;
+        }
+
         await LoadRules();
-        await LoadQuarterRules();
     }
 
-    private async Task LoadQuarterRules()
-        => quarterRules = await Http.GetFromJsonAsync<List<QuarterLimitDTO>>("api/quarter-limits/rules") ?? new();
-
-    private void StartCreateQuarter()
-    {
-        editingQuarter = new QuarterLimitDTO(); // standaard 14 / 16 / 14
-        quarterTeams = teamFilter != null ? new[] { teamFilter } : Array.Empty<string>();
-        quarterSpecialities = specialityFilter != null ? new[] { specialityFilter } : Array.Empty<string>();
-    }
-
-    private void StartEditQuarter(QuarterLimitDTO r) => editingQuarter = new QuarterLimitDTO
-    {
-        Id = r.Id, Team = r.Team, Speciality = r.Speciality, Year = r.Year,
-        Q1Max = r.Q1Max, Q2Max = r.Q2Max, Q3Max = r.Q3Max
-    };
-
-    private async Task SaveQuarter()
-    {
-        if (editingQuarter == null) return;
-
-        if (editingQuarter.Id == 0)
-        {
-            if (!quarterTeams.Any() || !quarterSpecialities.Any())
-            {
-                Notify(NotificationSeverity.Warning, "Kies minstens één ploeg en één specialiteit.");
-                return;
-            }
-
-            var created = 0;
-            foreach (var team in quarterTeams)
-            foreach (var spec in quarterSpecialities)
-            {
-                var dto = new QuarterLimitDTO
-                {
-                    Team = team, Speciality = spec, Year = editingQuarter.Year,
-                    Q1Max = editingQuarter.Q1Max, Q2Max = editingQuarter.Q2Max, Q3Max = editingQuarter.Q3Max
-                };
-                var resp = await Http.PostAsJsonAsync("api/quarter-limits/rules", dto);
-                if (!resp.IsSuccessStatusCode)
-                {
-                    Notify(NotificationSeverity.Error, await resp.Content.ReadAsStringAsync());
-                    await LoadQuarterRules();
-                    return;
-                }
-                created++;
-            }
-            Notify(NotificationSeverity.Success, $"{created} kwartaalregel(s) toegevoegd.");
-        }
-        else
-        {
-            var resp = await Http.PutAsJsonAsync($"api/quarter-limits/rules/{editingQuarter.Id}", editingQuarter);
-            if (!resp.IsSuccessStatusCode)
-            {
-                Notify(NotificationSeverity.Error, await resp.Content.ReadAsStringAsync());
-                return;
-            }
-            Notify(NotificationSeverity.Success, "Kwartaalregel bijgewerkt.");
-        }
-
-        editingQuarter = null;
-        await LoadQuarterRules();
-    }
-
-    private async Task DeleteQuarter(QuarterLimitDTO r)
-    {
-        var ok = await DialogService.Confirm(
-            $"Kwartaalregel voor {r.Team}/{r.Speciality} verwijderen? Daarna gelden weer 14 / 16 / 14.",
-            "Verwijderen", new ConfirmOptions { OkButtonText = "Verwijderen", CancelButtonText = "Annuleren" });
-        if (ok != true) return;
-
-        var resp = await Http.DeleteAsync($"api/quarter-limits/rules/{r.Id}");
-        if (resp.IsSuccessStatusCode)
-        {
-            Notify(NotificationSeverity.Success, "Kwartaalregel verwijderd.");
-            await LoadQuarterRules();
-        }
-        else
-        {
-            Notify(NotificationSeverity.Error, "Verwijderen mislukt.");
-        }
-    }
+    private bool isAdmin;
 
     private async Task LoadRules()
         => rules = await Http.GetFromJsonAsync<List<LeaveCategoryDTO>>("api/leave-categories/rules") ?? new();

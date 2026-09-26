@@ -18,6 +18,7 @@ namespace VerlofBWZC.Api.Controllers
         private readonly CalendarHelper _calendarService;
         private readonly CalendarAccessService _access;
         private readonly LeaveCategoryService _leaveCategories;
+        private readonly UserContext _me;
 
         // DTO voor de request body
         public class AddDayOffRequest
@@ -28,12 +29,13 @@ namespace VerlofBWZC.Api.Controllers
             public DayOffstatus? Status { get; set; }
         }
 
-        public CalenderController(VerlofBWZC_DbContext context, CalendarHelper calendarService, CalendarAccessService access, LeaveCategoryService leaveCategories)
+        public CalenderController(VerlofBWZC_DbContext context, CalendarHelper calendarService, CalendarAccessService access, LeaveCategoryService leaveCategories, UserContext me)
         {
             _context = context;
             _calendarService = calendarService;
             _access = access;
             _leaveCategories = leaveCategories;
+            _me = me;
         }
 
         [HttpGet]
@@ -48,7 +50,7 @@ namespace VerlofBWZC.Api.Controllers
         [HttpPost("add-dayoff")]
         public async Task<IActionResult> AddMultipleDayOffs([FromBody] AddMultipleDayOffsRequest request)
         {
-            if (!User.IsSelfOrAdminOrManager(request.PersoonId))
+            if (!await CanAccessPersonAsync(request.PersoonId))
                 return Forbid();
 
             // Controleer of de persoon bestaat
@@ -181,7 +183,7 @@ namespace VerlofBWZC.Api.Controllers
         [HttpGet("person-days-off/{personId}")]
         public async Task<IActionResult> GetDaysOffForPerson(int personId)
         {
-            if (!User.IsSelfOrAdminOrManager(personId))
+            if (!await CanAccessPersonAsync(personId))
                 return Forbid();
             var person = await _context.Persons.FindAsync(personId);
             if (person == null)
@@ -223,16 +225,13 @@ namespace VerlofBWZC.Api.Controllers
                 return Forbid();
 
             // Een manager mag enkel personen van zijn eigen team en specialiteit aanpassen
-            if (!User.IsAdmin())
+            if (!_me.IsAdmin)
             {
-                var me = await GetCurrentPersonAsync();
-                if (me == null)
-                    return Forbid();
-
+                var own = await _me.GetTeamAsync();
                 var ids = request.Persons.Select(p => p.PersoonId).Distinct().ToList();
                 var allowedCount = await _context.Persons
-                    .CountAsync(p => ids.Contains(p.Id) && p.Team == me.Team && p.Speciality == me.Speciality);
-                if (allowedCount != ids.Count)
+                    .CountAsync(p => ids.Contains(p.Id) && p.Team == own.Team && p.Speciality == own.Speciality);
+                if (own.Team == null || allowedCount != ids.Count)
                     return Forbid();
             }
 
@@ -303,23 +302,32 @@ namespace VerlofBWZC.Api.Controllers
             return Ok();
         }
 
-        private async Task<Person?> GetCurrentPersonAsync()
+        // Jezelf, Admin, of een Manager voor iemand van zijn ploeg en specialiteit
+        private async Task<bool> CanAccessPersonAsync(int personId)
         {
-            var userId = User.GetUserId();
-            return userId == null ? null : await _context.Persons.AsNoTracking().FirstOrDefaultAsync(p => p.Id == userId);
+            if (_me.Id == personId || _me.IsAdmin)
+                return true;
+            if (!_me.IsManager)
+                return false;
+
+            var target = await _context.Persons.AsNoTracking()
+                .Where(p => p.Id == personId)
+                .Select(p => new { p.Team, p.Speciality })
+                .FirstOrDefaultAsync();
+            return target != null && await _me.CanManageTeamAsync(target.Team, target.Speciality);
         }
 
         // Rechten uit de CalendarAccessRules (Manager Paneel) van het team/specialiteit van de ingelogde gebruiker
         private async Task<bool> HasPermissionAsync(int year, Func<CalendarPermissionsDTO, bool> pick)
         {
-            if (User.IsAdmin())
+            if (_me.IsAdmin)
                 return true;
 
-            var me = await GetCurrentPersonAsync();
-            if (me?.Team == null || me.Speciality == null)
+            var own = await _me.GetTeamAsync();
+            if (own.Team == null || own.Speciality == null)
                 return false;
 
-            var perms = await _access.GetPermissionsAsync(User, me.Team.Value, me.Speciality.Value, year);
+            var perms = await _access.GetPermissionsAsync(User, own.Team.Value, own.Speciality.Value, year);
             return pick(perms);
         }
         //public class WorkDay

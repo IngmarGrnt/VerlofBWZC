@@ -22,6 +22,12 @@
                         Placeholder="Selecteer een jaar"
                         Style="width:180px"
                         Change="OnYearChanged" />
+        @if (isAdmin)
+        {
+            @* Admin: elke ploeg en specialiteit; anderen hun eigen ploeg *@
+            <RadzenDropDown TValue="string" @bind-Value="SelectedTeam" Data="@TeamOptions" Placeholder="Ploeg" Style="width:160px" Change="@(async _ => await LoadQuarterlyData())" />
+            <RadzenDropDown TValue="string" @bind-Value="SelectedSpeciality" Data="@SpecialityOptions" Placeholder="Specialiteit" Style="width:200px" Change="@(async _ => await LoadQuarterlyData())" />
+        }
 
        @*  <RadzenButton Text="Ververs" Icon="refresh" Click="@LoadQuarterlyData" /> *@
     </RadzenStack>
@@ -109,8 +115,28 @@ else
     private int ShiftsWith7Off { get; set; }
     private int ShiftsWith8Off { get; set; }
     private int ShiftsCount { get; set; }
+    private bool isAdmin;
+    private string? SelectedTeam;
+    private string? SelectedSpeciality;
+    private List<string> TeamOptions = new();
+    private List<string> SpecialityOptions = new();
+
     protected override async Task OnInitializedAsync()
     {
+        // Standaard de eigen ploeg en specialiteit (in demo modus de gekozen waarden)
+        var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
+        var userId = JwtUtils.GetUserIdFromToken(token);
+        var person = await PersonApi.GetPersonByIdAsync(int.Parse(userId));
+        SelectedTeam = person?.Team;
+        SelectedSpeciality = person?.Speciality;
+        isAdmin = string.Equals(person?.Role, "Admin", StringComparison.OrdinalIgnoreCase);
+
+        if (isAdmin)
+        {
+            TeamOptions = await Http.GetFromJsonAsync<List<string>>("api/meta/teams") ?? new();
+            SpecialityOptions = await Http.GetFromJsonAsync<List<string>>("api/meta/specialities") ?? new();
+        }
+
         await LoadQuarterlyData();
     }
         
@@ -127,11 +153,8 @@ else
     {
         PersonQuarterCounts = null;
 
-        var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
-        var userId = JwtUtils.GetUserIdFromToken(token);
-        var person = await PersonApi.GetPersonByIdAsync(int.Parse(userId));
-        var teamName = person?.Team;
-        var speciality = person?.Speciality;
+        var teamName = SelectedTeam;
+        var speciality = SelectedSpeciality;
 
         TeamMembers = await Http.GetFromJsonAsync<List<PersonBaseDTO>>($"api/person/team/{teamName}/{speciality}") ?? new List<PersonBaseDTO>();
 

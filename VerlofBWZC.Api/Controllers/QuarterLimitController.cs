@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using VerlofBWZC.Api.Helpers;
+using VerlofBWZC.Api.Services;
 using VerlofBWZC.DataAccess;
 using VerlofBWZC.DataAccess.Entities;
 using VerlofBWZC.DataAccess.Enums;
@@ -14,20 +14,21 @@ namespace VerlofBWZC.Api.Controllers
     public class QuarterLimitController : ControllerBase
     {
         private readonly VerlofBWZC_DbContext _context;
+        private readonly UserContext _me;
 
-        public QuarterLimitController(VerlofBWZC_DbContext context) => _context = context;
+        public QuarterLimitController(VerlofBWZC_DbContext context, UserContext me)
+        {
+            _context = context;
+            _me = me;
+        }
 
         // Kwartaalmaxima voor de ingelogde gebruiker (werkkalender); standaard 14/16/14 als niets is ingesteld
         [HttpGet("mine")]
         public async Task<ActionResult<QuarterLimitDTO>> GetMine([FromQuery] int year)
         {
-            var userId = User.GetUserId();
-            var me = await _context.Persons.AsNoTracking()
-                .Where(p => p.Id == userId)
-                .Select(p => new { p.Team, p.Speciality })
-                .FirstOrDefaultAsync();
+            var me = await _me.GetTeamAsync();
 
-            if (me?.Team == null || me.Speciality == null)
+            if (me.Team == null || me.Speciality == null)
                 return Ok(new QuarterLimitDTO { IsDefault = true, Year = year });
 
             var candidates = await _context.QuarterLimits.AsNoTracking()
@@ -47,7 +48,14 @@ namespace VerlofBWZC.Api.Controllers
         [Authorize(Roles = "Admin,Manager")]
         public async Task<ActionResult<IEnumerable<QuarterLimitDTO>>> ListRules()
         {
-            var items = await _context.QuarterLimits.AsNoTracking()
+            var query = _context.QuarterLimits.AsNoTracking();
+            if (!_me.IsAdmin)
+            {
+                var own = await _me.GetTeamAsync();
+                query = query.Where(q => q.Team == own.Team && q.Speciality == own.Speciality);
+            }
+
+            var items = await query
                 .OrderBy(q => q.Team).ThenBy(q => q.Speciality).ThenBy(q => q.Year)
                 .ToListAsync();
             return Ok(items.Select(MapToDto));
@@ -61,6 +69,8 @@ namespace VerlofBWZC.Api.Controllers
             var error = Apply(dto, entity);
             if (error != null)
                 return BadRequest(error);
+            if (!await _me.CanManageTeamAsync(entity.Team, entity.Speciality))
+                return Forbid();
 
             // Eén regel per ploeg + specialiteit + jaar
             var exists = await _context.QuarterLimits.AnyAsync(q => q.Team == entity.Team && q.Speciality == entity.Speciality && q.Year == entity.Year);
@@ -82,10 +92,14 @@ namespace VerlofBWZC.Api.Controllers
             var entity = await _context.QuarterLimits.FindAsync(id);
             if (entity == null)
                 return NotFound();
+            if (!await _me.CanManageTeamAsync(entity.Team, entity.Speciality))
+                return Forbid();
 
             var error = Apply(dto, entity);
             if (error != null)
                 return BadRequest(error);
+            if (!await _me.CanManageTeamAsync(entity.Team, entity.Speciality))
+                return Forbid();
 
             var duplicate = await _context.QuarterLimits.AnyAsync(q => q.Id != id && q.Team == entity.Team && q.Speciality == entity.Speciality && q.Year == entity.Year);
             if (duplicate)
@@ -102,6 +116,8 @@ namespace VerlofBWZC.Api.Controllers
             var entity = await _context.QuarterLimits.FindAsync(id);
             if (entity == null)
                 return NotFound();
+            if (!await _me.CanManageTeamAsync(entity.Team, entity.Speciality))
+                return Forbid();
 
             _context.QuarterLimits.Remove(entity);
             await _context.SaveChangesAsync();
