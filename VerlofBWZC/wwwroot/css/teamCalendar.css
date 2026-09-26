@@ -194,3 +194,324 @@
     outline: 2px dashed #E67700;
     outline-offset: 1px;
 }
+
+/* =========================================================================
+   Teamkalender v2 (huisstijl: zie theme.css; kop/kaarten/pillen uit workCalendar.css)
+   ========================================================================= */
+.tc-scope {
+    font-size: .85rem;
+    font-weight: 500;
+    color: var(--bwzc-navy);
+    border: 1px solid var(--bwzc-line);
+    border-radius: 999px;
+    padding: .25rem .8rem;
+}
+
+/* Samenvattingskaarten die klikbaar zijn (spring naar probleem) */
+.tc-stat-btn {
+    font: inherit;
+    text-align: left;
+    border: none;
+    display: flex;
+    flex-direction: column;
+    cursor: pointer;
+}
+
+    .tc-stat-btn:disabled {
+        cursor: default;
+    }
+
+    .tc-stat-btn:not(:disabled):hover {
+        filter: brightness(.97);
+    }
+
+    .tc-stat-btn:focus-visible {
+        outline: 2px solid var(--bwzc-blue);
+        outline-offset: 2px;
+    }
+
+.tc-label-over, .tc-value-over {
+    color: var(--bwzc-red-dark);
+}
+
+.tc-label-warn, .tc-value-warn {
+    color: #B35C00;
+}
+
+/* Maandknoppen */
+.tc-months {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+    margin-bottom: .9rem;
+}
+
+.tc-month {
+    font: inherit;
+    font-size: .8rem;
+    font-weight: 500;
+    padding: .3rem .8rem;
+    border-radius: 999px;
+    border: 1px solid var(--bwzc-line);
+    background: var(--bwzc-white);
+    color: var(--bwzc-navy);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+}
+
+    .tc-month:hover {
+        border-color: var(--bwzc-navy);
+    }
+
+    .tc-month:focus-visible {
+        outline: 2px solid var(--bwzc-blue);
+        outline-offset: 2px;
+    }
+
+.tc-month-active {
+    background: var(--bwzc-navy);
+    border-color: var(--bwzc-navy);
+    color: #fff;
+}
+
+.tc-month-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--bwzc-red);
+}
+
+.tc-legend-loose {
+    display: inline-block;
+    width: 12px;
+    height: 10px;
+    border-radius: 3px;
+    background: var(--rz-info);
+    outline: 2px dashed #E67700;
+    outline-offset: 1px;
+}
+
+.tc-legend-night {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    background: #F4F7FC;
+    border: 1px solid var(--bwzc-line);
+}
+
+/* Raster */
+.tc-grid-wrap {
+    overflow: auto;
+    max-height: calc(100vh - 170px);
+    border: 1px solid var(--bwzc-line);
+    border-radius: var(--bwzc-radius);
+    background: var(--bwzc-white);
+}
+
+.tc-grid {
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: .8rem;
+    min-width: 100%;
+}
+
+    .tc-grid th, .tc-grid td {
+        border-bottom: 1px solid var(--bwzc-line);
+        padding: 0;
+        text-align: center;
+        white-space: nowrap;
+    }
+
+    .tc-grid thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: var(--bwzc-ice);
+        color: var(--bwzc-navy);
+        font-weight: 600;
+        padding: .4rem .2rem;
+        vertical-align: bottom;
+    }
+
+/* Datum + bezet blijven links staan bij horizontaal scrollen */
+.tc-col-date, .tc-col-count {
+    position: sticky;
+    z-index: 1;
+    background: var(--bwzc-white);
+}
+
+.tc-col-date {
+    left: 0;
+    min-width: 92px;
+    text-align: left !important;
+    padding: 0 .5rem 0 .6rem !important;
+    color: var(--bwzc-navy);
+}
+
+.tc-col-count {
+    left: 92px;
+    min-width: 52px;
+    border-right: 1px solid var(--bwzc-line);
+}
+
+.tc-grid thead .tc-col-date, .tc-grid thead .tc-col-count {
+    z-index: 3;
+    background: var(--bwzc-ice);
+}
+
+.tc-col-member {
+    min-width: 40px;
+    line-height: 1.15;
+}
+
+    .tc-col-member > span {
+        display: block;
+    }
+
+.tc-initials {
+    font-size: .8rem;
+    letter-spacing: .02em;
+}
+
+.tc-spec {
+    font-size: .65rem;
+    font-weight: 400;
+    color: var(--bwzc-muted);
+}
+
+.tc-used {
+    font-size: .68rem;
+    font-weight: 400;
+    color: var(--bwzc-muted);
+}
+
+.tc-member-over {
+    box-shadow: inset 0 -3px 0 var(--bwzc-red);
+}
+
+    .tc-member-over .tc-used {
+        color: var(--bwzc-red-dark);
+        font-weight: 600;
+    }
+
+/* Rijen: nachtshift lichte band, dikkere lijn na elk D+N-paar */
+.tc-row {
+    height: 30px;
+}
+
+.tc-row-night td, .tc-row-night .tc-col-date, .tc-row-night .tc-col-count {
+    background: #F4F7FC;
+}
+
+.tc-row-night td {
+    border-bottom: 2px solid var(--bwzc-line);
+}
+
+.tc-row:hover td, .tc-row:hover .tc-col-date, .tc-row:hover .tc-col-count {
+    background: var(--bwzc-ice);
+}
+
+.tc-month-row td {
+    background: var(--bwzc-white);
+    font-family: var(--bwzc-font-title);
+    font-size: 1rem;
+    color: var(--bwzc-navy);
+    padding: .6rem .6rem .3rem !important;
+    text-align: left;
+}
+
+.tc-date {
+    display: inline-block;
+    min-width: 3.3em;
+}
+
+.tc-shift {
+    font-weight: 600;
+    margin-right: .25rem;
+}
+
+/* Bezet: x/max */
+.tc-count {
+    color: var(--bwzc-muted);
+    font-size: .75rem;
+}
+
+.tc-count-full {
+    color: var(--bwzc-navy);
+    font-weight: 600;
+}
+
+.tc-count-over {
+    background: var(--bwzc-red);
+    color: #fff;
+    font-weight: 600;
+    border-radius: 999px;
+    padding: .1rem .45rem;
+}
+
+/* Vakjes */
+.tc-cell-btn {
+    border: none;
+    background: transparent;
+    padding: 0;
+    width: 100%;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+    .tc-cell-btn:focus-visible {
+        outline: 2px solid var(--bwzc-blue);
+        outline-offset: -2px;
+    }
+
+    .tc-cell-btn:hover .tc-block:not(.tc-block-on) {
+        border-color: var(--bwzc-navy);
+    }
+
+.tc-block {
+    display: inline-block;
+    width: 22px;
+    height: 18px;
+    border-radius: 5px;
+    border: 1px dashed transparent;
+    vertical-align: middle;
+}
+
+.tc-block-on {
+    background: var(--rz-info);
+}
+
+.tc-block-loose {
+    outline: 2px dashed #E67700;
+    outline-offset: 1px;
+}
+
+@media (max-width: 640px) {
+    .tc-grid-wrap {
+        max-height: calc(100vh - 120px);
+    }
+
+    .tc-col-date {
+        min-width: 78px;
+    }
+
+    .tc-col-count {
+        left: 78px;
+        min-width: 44px;
+    }
+
+    .tc-col-member {
+        min-width: 34px;
+    }
+
+    .tc-block {
+        width: 18px;
+        height: 16px;
+    }
+}
