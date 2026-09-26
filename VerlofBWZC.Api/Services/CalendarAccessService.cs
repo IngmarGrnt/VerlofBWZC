@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
+using VerlofBWZC.Api.Helpers;
 using VerlofBWZC.DataAccess;
 using VerlofBWZC.DataAccess.Entities;
 using VerlofBWZC.DataAccess.Enums;
@@ -14,10 +15,10 @@ namespace VerlofBWZC.Api.Services
 
         public CalendarAccessService(VerlofBWZC_DbContext db) => _db = db;
 
-        public async Task<CalendarPermissionsDTO> GetPermissionsAsync(ClaimsPrincipal user, TeamName team, Speciality speciality, int year, string role)
+        public async Task<CalendarPermissionsDTO> GetPermissionsAsync(ClaimsPrincipal user, TeamName team, Speciality speciality, int year)
         {
             // Admins always allowed
-            if (string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase))
+            if (user.IsAdmin())
                 return new CalendarPermissionsDTO(true, true, true);
 
             // Query matching rules (exact year first, then default)

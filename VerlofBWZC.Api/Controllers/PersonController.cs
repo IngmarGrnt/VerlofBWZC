@@ -1,8 +1,8 @@
 ﻿using AutoMapper;
 using AutoMapper.QueryableExtensions;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Text.Json;
 using VerlofBWZC.Api.Helpers;
 using VerlofBWZC.DataAccess;
 using VerlofBWZC.DataAccess.Entities;
@@ -23,19 +23,22 @@ namespace VerlofBWZC.Api.Controllers
         private readonly IHttpContextFactory _httpContextFactory;
         //private readonly ConfigurationBuilder _configurationBuilder;
         private readonly IConfiguration _configuration;
+        private readonly ILogger<PersonController> _logger;
 
 
-        public PersonController(VerlofBWZC_DbContext context, IMapper mapper, IHttpContextFactory httpContextFactory, IConfiguration configuration)
+        public PersonController(VerlofBWZC_DbContext context, IMapper mapper, IHttpContextFactory httpContextFactory, IConfiguration configuration, ILogger<PersonController> logger)
         {
             _context = context;
             _mapper = mapper;
             _httpContextFactory = httpContextFactory;
             _configuration = configuration;
+            _logger = logger;
         }
 
         // GET: api/Person
         [HttpGet]
         [Route("/api/allPersons")]
+        [Authorize(Roles = "Admin,Manager")]
         public async Task<ActionResult<IEnumerable<PersonBaseDTO>>> GetPersons()
         {
             try
@@ -48,7 +51,8 @@ namespace VerlofBWZC.Api.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, $"{ex} = Er is een fout opgetreden bij het ophalen van een personen)");
+                _logger.LogError(ex, "Fout bij ophalen personen");
+                return StatusCode(500, "Er is een fout opgetreden bij het ophalen van de personen.");
             }
         }
 
@@ -57,6 +61,9 @@ namespace VerlofBWZC.Api.Controllers
         [HttpGet("{id}")]
         public async Task<ActionResult<Person>> GetPerson(int id)
         {
+            if (!User.IsSelfOrAdminOrManager(id))
+                return Forbid();
+
             var personDTO = await _context.Persons
             .Where(p => p.Id == id)
             .ProjectTo<PersonBaseDTO>(_mapper.ConfigurationProvider)
@@ -72,15 +79,14 @@ namespace VerlofBWZC.Api.Controllers
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<PersonBaseDTO>> CreatePerson(PersonCreateDTO personDTO)
         {
-            Console.WriteLine("Ontvangen PersonCreateDTO: " + JsonSerializer.Serialize(personDTO));
-
             if (!ModelState.IsValid)
-            {
-                Console.WriteLine("ModelState errors: " + JsonSerializer.Serialize(ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage)));
                 return BadRequest(ModelState);
-            }
+
+            if (string.IsNullOrWhiteSpace(personDTO.Password))
+                return BadRequest("Wachtwoord is verplicht.");
 
             PasswordHelper.CreatePasswordHash(personDTO.Password, out string hash, out string salt);
             personDTO.PasswordHash = hash;  
@@ -95,6 +101,7 @@ namespace VerlofBWZC.Api.Controllers
         }
 
         [HttpPost("login")]
+        [AllowAnonymous]
         public async Task<IActionResult> Login([FromBody] LoginDTO loginDto)
         {
             Person person = await _context.Persons.SingleOrDefaultAsync(p => p.Email == loginDto.Email);
@@ -105,9 +112,6 @@ namespace VerlofBWZC.Api.Controllers
                 return Unauthorized("Ongeldige gebruikersnaam of wachtwoord.");
      
             string token = JwtTokenHelper.GenerateJwtToken(person, _configuration);
-
-            Console.WriteLine("token: " + token);
-           //token= "testtoken123"; // tijdelijk voor testen
             return Ok(new { token });
         }
 
@@ -115,6 +119,9 @@ namespace VerlofBWZC.Api.Controllers
         [HttpGet("team/{teamName}/{speciality}")]
         public async Task<ActionResult<IEnumerable<PersonBaseDTO>>> GetPersonsByTeam(TeamName teamName, Speciality speciality)
         {
+            if (!await CanReadTeamAsync(teamName))
+                return Forbid();
+
             var persons = await _context.Persons
                 .Where(p => p.Team == teamName && p.Speciality == speciality)
                 .ProjectTo<PersonBaseDTO>(_mapper.ConfigurationProvider)
@@ -125,6 +132,9 @@ namespace VerlofBWZC.Api.Controllers
         [HttpGet("team-days-off/{teamName}/{year}/{speciality?}")]
         public async Task<IActionResult> GetDaysOffForTeam(TeamName teamName, int year, Speciality? speciality = null)
         {
+            if (!await CanReadTeamAsync(teamName))
+                return Forbid();
+
             var personsQuery = _context.Persons.Where(p => p.Team == teamName);
 
             if (speciality.HasValue)
@@ -148,15 +158,31 @@ namespace VerlofBWZC.Api.Controllers
             return Ok(daysOff);
         }
 
-        // ... bestaande usings en namespace
-
         //[HttpPut("{id}")]
         [HttpPost("update/{id}")]
         public async Task<IActionResult> UpdatePersonPost(int id, [FromBody] PersonCreateDTO personDto)
         {
+            var isAdmin = User.IsAdmin();
+            if (!isAdmin && User.GetUserId() != id)
+                return Forbid();
+
             var person = await _context.Persons.FindAsync(id);
             if (person == null)
                 return NotFound();
+
+            // Niet-admins mogen enkel hun eigen wachtwoord wijzigen, geen naam/team/rol
+            if (!isAdmin)
+            {
+                if (string.IsNullOrEmpty(personDto.Password))
+                    return BadRequest("Enkel het wachtwoord kan gewijzigd worden.");
+
+                PasswordHelper.CreatePasswordHash(personDto.Password, out string ownHash, out string ownSalt);
+                person.PasswordHash = ownHash;
+                person.Salt = ownSalt;
+                person.LastUpdate = DateTime.Now;
+                await _context.SaveChangesAsync();
+                return NoContent();
+            }
 
             // Update velden (pas aan indien nodig)
             person.FirstName = personDto.FirstName;
@@ -178,6 +204,7 @@ namespace VerlofBWZC.Api.Controllers
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeletePerson(int id)
         {
             var person = await _context.Persons.FindAsync(id);
@@ -187,6 +214,24 @@ namespace VerlofBWZC.Api.Controllers
             _context.Persons.Remove(person);
             await _context.SaveChangesAsync();
             return NoContent();
+        }
+
+        // Admin/Manager zien elk team; anderen enkel hun eigen team
+        private async Task<bool> CanReadTeamAsync(TeamName teamName)
+        {
+            if (User.IsAdminOrManager())
+                return true;
+
+            var userId = User.GetUserId();
+            if (userId == null)
+                return false;
+
+            var ownTeam = await _context.Persons
+                .Where(p => p.Id == userId)
+                .Select(p => p.Team)
+                .FirstOrDefaultAsync();
+
+            return ownTeam == teamName;
         }
     }
 }

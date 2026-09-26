@@ -68,8 +68,9 @@ namespace VerlofBWZC.Services
             // 3) Call uitvoeren
             var response = await base.SendAsync(request, cancellationToken);
 
-            // 4) Bij 401/403 -> uitloggen en redirecten naar /login
-            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+            // 4) Bij 401 -> uitloggen en redirecten naar /login.
+            //    Een 403 betekent "ingelogd maar geen toegang"; dat handelt de pagina zelf af.
+            if (response.StatusCode is HttpStatusCode.Unauthorized)
             {
                 await SignOutAndRedirect();
             }

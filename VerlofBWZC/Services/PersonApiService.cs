@@ -36,18 +36,13 @@ namespace VerlofBWZC.Services
 
         public async Task<bool> CreatePersonAsync(PersonCreateDTO person)
         {
-            {
-                Console.WriteLine("Ontvangen PersonCreateDTO in PersonApiService: " + JsonSerializer.Serialize(person));
-                var response = await _http.PostAsJsonAsync("api/person", person);
-                return response.IsSuccessStatusCode;
-            }
+            var response = await _http.PostAsJsonAsync("api/person", person);
+            return response.IsSuccessStatusCode;
         }
 
         public async Task<bool> UpdatePersonAsync(int id, PersonCreateDTO person)
         {
             var response = await _http.PostAsJsonAsync($"api/person/update/{id}", person);
-            Console.WriteLine("UpdatePersonAsync Person Details: " + JsonSerializer.Serialize(person));
-            Console.WriteLine("UpdatePersonAsync response: " + response);
             return response.IsSuccessStatusCode;
         }
 
