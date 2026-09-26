@@ -12,7 +12,7 @@ namespace VerlofBWZC.DataAccess.Entities
 
         public string Name { get; set; } = "";
         public int MaxShifts { get; set; }
-        public string Color { get; set; } = "#E53935";
+        public string Color { get; set; } = "#E8590C";
         public int SortOrder { get; set; }
     }
 }

@@ -52,8 +52,10 @@
     private async Task CheckLoginStatus()
     {
         var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
+        var wasLoggedIn = isLoggedIn;
         isLoggedIn = !string.IsNullOrEmpty(token);
         if (!isLoggedIn) sidebarExpanded = false;
+        else if (!wasLoggedIn) sidebarExpanded = true; // na inloggen het menu weer openen
         StateHasChanged();
     }
 

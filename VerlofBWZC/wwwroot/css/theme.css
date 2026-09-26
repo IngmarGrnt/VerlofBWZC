@@ -1,0 +1,141 @@
+/* =========================================================================
+   Huisstijl Brandweerzone Centrum (brandweerzonecentrum.be)
+   Centrale kleuren en Radzen-variabelen. Wordt als laatste stylesheet geladen.
+   Pagina-CSS gebruikt bij voorkeur de --bwzc-* variabelen.
+   ========================================================================= */
+:root {
+    /* Huisstijl */
+    --bwzc-navy: #2E3192;         /* hoofdkleur: titels, menu, tekstaccenten */
+    --bwzc-navy-dark: #25277A;
+    --bwzc-red: #F13F3F;          /* accent: markeringen, verwijderen */
+    --bwzc-red-dark: #C93232;
+    --bwzc-blue: #2F80ED;         /* acties: knoppen, links */
+    --bwzc-blue-dark: #2566BE;
+    --bwzc-ice: #EFF4FB;          /* lichte vlakken */
+    --bwzc-line: #DDE3EC;         /* randen en scheidingslijnen */
+    --bwzc-ink: #1D1D1B;          /* lopende tekst */
+    --bwzc-muted: #5F6B7A;        /* ondersteunende tekst */
+    --bwzc-white: #FFFFFF;
+
+    --bwzc-font: 'Work Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+    --bwzc-font-title: 'DM Serif Display', Georgia, serif;
+    --bwzc-radius: 8px;
+
+    /* Radzen: kleuren */
+    --rz-primary: var(--bwzc-blue);
+    --rz-primary-light: #5A9AF1;
+    --rz-primary-lighter: rgba(47, 128, 237, 0.12);
+    --rz-primary-dark: var(--bwzc-blue-dark);
+    --rz-primary-darker: #1C4D8E;
+    --rz-on-primary: #FFFFFF;
+
+    --rz-secondary: var(--bwzc-navy);
+    --rz-secondary-light: #585AA8;
+    --rz-secondary-lighter: rgba(46, 49, 146, 0.12);
+    --rz-secondary-dark: var(--bwzc-navy-dark);
+    --rz-secondary-darker: #1C1E5E;
+    --rz-on-secondary: #FFFFFF;
+
+    /* Info = kleur van verlofdagen in de kalenders: blauwgroen, duidelijk anders dan de knoppen */
+    --rz-info: #0F8F8F;
+    --rz-info-light: #3FA5A5;
+    --rz-info-lighter: rgba(15, 143, 143, 0.12);
+    --rz-info-dark: #0C7272;
+    --rz-info-darker: #095656;
+    --rz-on-info: #FFFFFF;
+
+    --rz-danger: var(--bwzc-red);
+    --rz-danger-light: #F46565;
+    --rz-danger-lighter: rgba(241, 63, 63, 0.12);
+    --rz-danger-dark: var(--bwzc-red-dark);
+    --rz-danger-darker: #A12828;
+
+    /* Radzen: vlakken en tekst (alles wit) */
+    --rz-body-background-color: var(--bwzc-white);
+    --rz-base-background-color: var(--bwzc-white);
+    --rz-card-background-color: var(--bwzc-white);
+    --rz-text-font-family: var(--bwzc-font);
+    --rz-text-title-color: var(--bwzc-navy);
+    --rz-text-color: var(--bwzc-ink);
+    --rz-text-secondary-color: var(--bwzc-muted);
+    --rz-link-color: var(--bwzc-blue);
+    --rz-border-radius: 6px;
+
+    /* Radzen: header en zijbalk licht, zoals de navigatie van de website */
+    --rz-header-background-color: var(--bwzc-white);
+    --rz-header-color: var(--bwzc-navy);
+    --rz-header-border: 1px solid var(--bwzc-line);
+    --rz-sidebar-background-color: var(--bwzc-white);
+    --rz-sidebar-color: var(--bwzc-navy);
+    --rz-sidebar-border-inline-end: 1px solid var(--bwzc-line);
+
+    /* Radzen: tabellen */
+    --rz-grid-header-background-color: var(--bwzc-ice);
+    --rz-grid-header-color: var(--bwzc-navy);
+    --rz-grid-cell-color: var(--bwzc-ink);
+
+    /* Radzen: kaarten vlak met rand i.p.v. schaduw */
+    --rz-card-shadow: none;
+}
+
+/* --- Basis --- */
+html, body {
+    font-family: var(--bwzc-font);
+    color: var(--bwzc-ink);
+    background: var(--bwzc-white);
+}
+
+h1, h2, h3, .rz-text-h1, .rz-text-h2, .rz-text-h3 {
+    font-family: var(--bwzc-font-title);
+    font-weight: 400;
+    color: var(--bwzc-navy);
+    letter-spacing: 0;
+}
+
+h1 { font-size: 2rem; margin-bottom: 1rem; }
+h3 { font-size: 1.5rem; }
+
+h4, h5, h6 {
+    font-family: var(--bwzc-font);
+    font-weight: 600;
+    color: var(--bwzc-navy);
+}
+
+a { color: var(--bwzc-blue); }
+
+/* --- Radzen-componenten: vlak en licht --- */
+.rz-card {
+    border: 1px solid var(--bwzc-line);
+    border-radius: var(--bwzc-radius);
+}
+
+.rz-data-grid, .rz-datatable {
+    border: 1px solid var(--bwzc-line);
+    border-radius: var(--bwzc-radius);
+    overflow: hidden;
+}
+
+.rz-fieldset {
+    border: 1px solid var(--bwzc-line);
+    border-radius: var(--bwzc-radius);
+    background: var(--bwzc-white);
+}
+
+.rz-body {
+    background: var(--bwzc-white);
+}
+
+.rz-header {
+    box-shadow: none;
+}
+
+/* Bootstrap-hulpklassen die nog gebruikt worden (bv. avatar op Home) */
+.bg-primary {
+    background-color: var(--bwzc-navy) !important;
+}
+
+/* Pagina-inhoud: wit met ademruimte */
+.content {
+    padding-top: 1.5rem;
+    padding-bottom: 2rem;
+}

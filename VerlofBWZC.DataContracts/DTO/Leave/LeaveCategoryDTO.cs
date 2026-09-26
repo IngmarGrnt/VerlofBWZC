@@ -9,7 +9,7 @@ namespace VerlofBWZC.DataContracts.DTO.Leave
         public int? Year { get; set; }
         public string Name { get; set; } = string.Empty;
         public int MaxShifts { get; set; }
-        public string Color { get; set; } = "#E53935";
+        public string Color { get; set; } = "#E8590C";
         public int SortOrder { get; set; }
     }
 }

@@ -1,21 +1,17 @@
-/* --- Basis layout en fonts --- */
-html, body {
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-}
-
+/* --- Basis --- (lettertypes en kleuren: zie theme.css) */
 h1:focus {
     outline: none;
 }
 
 a, .btn-link {
-    color: #0071c1;
+    color: var(--bwzc-blue, #2F80ED);
 }
 
 /* --- Buttons --- */
 .btn-primary {
     color: #fff;
-    background-color: #1b6ec2;
-    border-color: #1861ac;
+    background-color: var(--bwzc-blue, #2F80ED);
+    border-color: var(--bwzc-blue-dark, #2566BE);
 }
 
 .btn:focus,
@@ -26,10 +22,6 @@ a, .btn-link {
     box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
 }
 
-/* --- Content --- */
-.content {
-    padding-top: 1.1rem;
-}
 
 /* --- Validatie --- */
 .valid.modified:not([type=checkbox]) { outline: 1px solid #26b050; }

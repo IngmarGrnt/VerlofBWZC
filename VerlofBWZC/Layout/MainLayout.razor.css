@@ -1,95 +1,13 @@
-.page {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-}
-/**/
-main {
-    flex: 1;
-}
-.sidebar {
-        background-image: linear-gradient(180deg, rgb(5, 39, 103) 0%, #3a0647 70%);
-    background-image: linear-gradient(180deg, #2cc8c8 0%, #2f2f2f 100%);
-    color: #333;
-}
-.top-row {
-    background-color: #f7f7f7;
-    border-bottom: 1px solid #d6d5d5;
-        justify-content: flex-end;
-    justify-content: flex-start; /* Nu staat alles links */
-    height: 3.5rem;
-    display: flex;
-    align-items: center;
-}
+/* Layout: RadzenLayout met witte header en lichte zijbalk (kleuren: zie theme.css) */
 
-    .top-row ::deep a, .top-row ::deep .btn-link {
-        white-space: nowrap;
-        margin-left: 1.5rem;
-        text-decoration: none;
-    }
-
-    .top-row ::deep a:hover, .top-row ::deep .btn-link:hover {
-        text-decoration: underline;
-    }
-
-    .top-row ::deep a:first-child {
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-@media (max-width: 640.98px) {
-    .top-row {
-        justify-content: space-between;
-    }
-
-    .top-row ::deep a, .top-row ::deep .btn-link {
-        margin-left: 0;
-    }
-}
-
-@media (min-width: 641px) {
-    .page {
-        flex-direction: row;
-    }
-
-    .sidebar {
-        width: 250px;
-        height: 100vh;
-        position: fixed;
-        top: 0;
-        left: 0;
-        z-index: 1050;
-    }
-    main {
-        margin-left: 250px;
-    }
-
-    .top-row {
-        position: sticky;
-        top: 0;
-        z-index: 1;
-    }
-
-    .top-row.auth ::deep a:first-child {
-        flex: 1;
-        text-align: right;
-        width: 0;
-    }
-
-    .top-row, article {
-        padding-left: 2rem !important;
-        padding-right: 1.5rem !important;
-    }
-
-}
 /* Desktop defaults */
 .toggle-desktop { display: inline-flex; }
-.mobile-nav { display: none; }
 
 .navbar-logo {
-    height: 32px;
+    height: 36px;
     width: auto;
     display: block;
+    margin-left: .5rem;
 }
 
 /* Small screens */
@@ -100,18 +18,7 @@ main {
     :global(.rz-sidebar-mask) { display: none !important; } /* prevent slide/overlay */
     :global(.rz-body) { margin-left: 0 !important; }        /* remove left offset when sidebar is hidden */
 
-    /* Show the mobile menu under header, make it scroll vertically */
-    .mobile-nav {
-        display: block;
-        max-height: calc(100vh - 56px);
-        overflow-y: auto;
-        -webkit-overflow-scrolling: touch;
-        background: var(--rz-surface, #fff);
-        border-top: 1px solid var(--rz-border, #e0e0e0);
-    }
     .navbar-logo {
-        height: 20px;
-        width: auto;
-        display: block;
+        height: 24px;
     }
 }
