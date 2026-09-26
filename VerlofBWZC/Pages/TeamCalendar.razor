@@ -601,7 +601,8 @@ else
             },
             new DialogOptions { Width = "560px", CloseDialogOnEsc = true });
 
-        if (result is true)
+        // Altijd herladen: in de popup kan een loting bewaard of verwijderd zijn
+        if (result is not TeamLotteryDialog.ApplyRequest)
             await LoadDraws();
 
         if (result is TeamLotteryDialog.ApplyRequest apply)

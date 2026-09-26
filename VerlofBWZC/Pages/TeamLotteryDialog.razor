@@ -62,6 +62,25 @@
                                   title="Verliezers van deze loting verliezen hun verlof op de shiften van deze loting"
                                   Click="@(() => Apply(d))" />
                 }
+                @if (result == null)
+                {
+                    <RadzenButton Text="Verwijderen" Icon="delete" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Outlined"
+                                  title="Deze loting verwijderen (ook van de loterijpagina)"
+                                  Click="@(() => pendingDelete = d.DrawNumber)" />
+                }
+                @if (pendingDelete == d.DrawNumber)
+                {
+                    <!-- Bevestiging voor het verwijderen -->
+                    <div class="tl-confirm tl-confirm-danger">
+                        <div class="tl-confirm-title"><i class="rzi">delete</i> Loting "@d.DrawName" verwijderen?</div>
+                        <div class="tl-hint">De loting verdwijnt ook van de loterijpagina. Verlof dat al werd weggehaald bij het toepassen, komt niet vanzelf terug.</div>
+                        <div class="tl-actions">
+                            <RadzenButton Text="Terug" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" Click="@(() => pendingDelete = null)" />
+                            <RadzenButton Text="Ja, verwijderen" Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small"
+                                          Disabled="@busy" Click="@(() => DeleteAsync(d))" />
+                        </div>
+                    </div>
+                }
             </div>
         }
     }
@@ -220,6 +239,36 @@
     private bool busy;
     private bool confirming;
     private bool applyNow = true;
+    private int? pendingDelete;
+
+    private async Task DeleteAsync(LotteryDrawDTO draw)
+    {
+        busy = true;
+        try
+        {
+            var resp = await Http.DeleteAsync($"api/lottery/draw/{draw.DrawNumber}");
+            if (resp.IsSuccessStatusCode)
+            {
+                ExistingDraws.Remove(draw);
+                NotificationService.Notify(NotificationSeverity.Success, "Loting verwijderd", draw.DrawName);
+            }
+            else
+            {
+                var msg = await resp.Content.ReadAsStringAsync();
+                NotificationService.Notify(NotificationSeverity.Error, "Verwijderen mislukt",
+                    string.IsNullOrWhiteSpace(msg) ? $"Verwijderen mislukt ({(int)resp.StatusCode})." : msg);
+            }
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Fout", ex.Message);
+        }
+        finally
+        {
+            busy = false;
+            pendingDelete = null;
+        }
+    }
     private LotteryDrawDTO? result;
 
     // Kandidaten binnen de gekozen shift(en)

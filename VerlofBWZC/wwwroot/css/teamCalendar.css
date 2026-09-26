@@ -811,3 +811,13 @@
 .tl-warn-text {
     color: #B35C00;
 }
+
+.tl-confirm-danger {
+    width: 100%;
+    border-color: var(--bwzc-red);
+    background: rgba(241, 63, 63, 0.06);
+}
+
+    .tl-confirm-danger .tl-confirm-title {
+        color: var(--bwzc-red-dark);
+    }
