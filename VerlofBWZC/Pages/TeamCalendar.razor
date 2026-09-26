@@ -210,6 +210,10 @@ else
                                 <span class="tc-spec">@ShortSpeciality(member.Speciality)</span>
                             }
                             <span class="tc-used">@used@(allowance is int al ? $"/{al}" : "")</span>
+                            @if (LotteryStats.TryGetValue(member.Id, out var ls))
+                            {
+                                <span class="tc-lottery-rec" title="Lotingen @SelectedYear: @ls.Won gewonnen, @ls.Lost verloren"><span class="tl-record-w">@ls.Won</span>–<span class="tl-record-l">@ls.Lost</span></span>
+                            }
                         </th>
                     }
                 </tr>
@@ -502,6 +506,8 @@ else
             + (member.LeaveAllowance is int a ? $"/{a}" : "")
             + CategoryUsageText(member);
         var loose = LooseCount(member.Id);
+        if (LotteryStats.TryGetValue(member.Id, out var ls))
+            text += $" | lotingen {SelectedYear}: {ls.Won} gewonnen, {ls.Lost} verloren";
         return loose > 0 ? $"{text} | {loose} losse shift(en)" : text;
     }
 
@@ -529,13 +535,16 @@ else
     // --- Loting vanuit de teamkalender (bewaard via api/lottery, dus ook op de loterijpagina) ---
 
     private List<LotteryDrawDTO> Draws = new();
+    // Gewonnen/verloren lotingen dit jaar per persoon (kolomkop en tooltip)
+    private Dictionary<int, LotteryApiService.Stats> LotteryStats = new();
 
     private async Task LoadDraws()
     {
-        if (!CanManageCalendar) { Draws = new(); return; }
+        if (!CanManageCalendar) { Draws = new(); LotteryStats = new(); return; }
         try
         {
             Draws = await Http.GetFromJsonAsync<List<LotteryDrawDTO>>("api/lottery/draws") ?? new();
+            LotteryStats = LotteryApiService.StatsFor(Draws, SelectedYear);
         }
         catch
         {
@@ -613,6 +622,7 @@ else
                             Candidates = BuildCandidates(day, night),
                             ExistingDraws = DrawsFor(day).Concat(DrawsFor(night)).GroupBy(d => d.DrawNumber).Select(g => g.First()).ToList(),
                             TeamMembers = TeamMembers,
+                            Stats = LotteryApiService.StatsFor(Draws, SelectedYear),
                             NextDrawNumber = Draws.Count == 0 ? 1 : Draws.Max(d => d.DrawNumber) + 1
                         };
                     }) },

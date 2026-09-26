@@ -117,6 +117,10 @@
                     <label class="@(isIn ? "tl-person tl-person-in" : "tl-person")">
                         <input type="checkbox" checked="@isIn" @onchange="e => Toggle(c.PersonId, (bool)(e.Value ?? false))" />
                         <span class="tl-person-name">@c.FirstName @c.LastName</span>
+                        @if (stats.TryGetValue(c.PersonId, out var st))
+                        {
+                            <span class="tl-record" title="Lotingen dit jaar: @st.Won gewonnen, @st.Lost verloren"><span class="tl-record-w">@st.Won gew.</span> · <span class="tl-record-l">@st.Lost verl.</span></span>
+                        }
                         @if (c.Shifts == "")
                         {
                             <span class="tl-shifts tl-shifts-half" title="Toegevoegd, heeft geen verlof op deze shift(en)">toegevoegd</span>
@@ -270,6 +274,8 @@
         public List<LotteryDrawDTO> ExistingDraws { get; set; } = new();
         public List<PersonBaseDTO> TeamMembers { get; set; } = new();
         public int NextDrawNumber { get; set; } = 1;
+        // Gewonnen/verloren lotingen dit jaar per persoon
+        public Dictionary<int, LotteryApiService.Stats> Stats { get; set; } = new();
     }
 
     private enum Scope { Pair, Day, Night }
@@ -295,6 +301,7 @@
     private List<LotteryDrawDTO> existing = new();
     private List<PersonBaseDTO> teamMembers = new();
     private int nextDrawNumber = 1;
+    private Dictionary<int, LotteryApiService.Stats> stats = new();
     private readonly HashSet<int> selected = new();
     private string drawName = "";
     private int winnersCount;
@@ -362,6 +369,7 @@
         existing = ctx.ExistingDraws;
         teamMembers = ctx.TeamMembers;
         nextDrawNumber = ctx.NextDrawNumber;
+        stats = ctx.Stats;
         if (resetSelection)
             ResetSelection();
         SetScope(scope);

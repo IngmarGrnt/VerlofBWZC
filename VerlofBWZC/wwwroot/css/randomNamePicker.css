@@ -241,3 +241,43 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* Stand per persoon */
+.lp-standings-toggle {
+    font: inherit;
+    font-size: .82rem;
+    font-weight: 600;
+    color: var(--bwzc-navy);
+    background: var(--bwzc-ice);
+    border: none;
+    border-radius: var(--bwzc-radius);
+    padding: .35rem .6rem;
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    cursor: pointer;
+    margin-bottom: .6rem;
+}
+
+.lp-standings {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: .25rem .75rem;
+    margin-bottom: .9rem;
+    font-size: .82rem;
+}
+
+.lp-standing {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    border-bottom: 1px solid var(--bwzc-line);
+    padding: .2rem 0;
+}
+
+.lp-standing-name {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}

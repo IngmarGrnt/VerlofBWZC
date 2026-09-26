@@ -27,6 +27,22 @@ namespace VerlofBWZC.Services
             }
         }
 
+        public record Stats(int Won, int Lost);
+
+        // Aantal gewonnen/verloren lotingen per persoon in een jaar
+        public static Dictionary<int, Stats> StatsFor(IEnumerable<LotteryDrawDTO> draws, int year)
+        {
+            var result = new Dictionary<int, Stats>();
+            foreach (var d in draws.Where(d => d.FromDate.Year == year))
+            {
+                foreach (var w in d.Winners)
+                    result[w.PersonId] = result.TryGetValue(w.PersonId, out var s) ? s with { Won = s.Won + 1 } : new Stats(1, 0);
+                foreach (var l in d.Losers)
+                    result[l.PersonId] = result.TryGetValue(l.PersonId, out var s) ? s with { Lost = s.Lost + 1 } : new Stats(0, 1);
+            }
+            return result;
+        }
+
         // Toegepast = er werd al verlof weggehaald bij een verliezer
         public static bool IsApplied(LotteryDrawDTO draw) =>
             draw.Losers.Any(l => l.RemovedDay || l.RemovedNight);

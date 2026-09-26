@@ -821,3 +821,24 @@
     .tl-confirm-danger .tl-confirm-title {
         color: var(--bwzc-red-dark);
     }
+
+/* Gewonnen / verloren lotingen */
+.tl-record {
+    font-size: .72rem;
+    white-space: nowrap;
+}
+
+.tl-record-w {
+    color: #1E6B3A;
+    font-weight: 600;
+}
+
+.tl-record-l {
+    color: var(--bwzc-red-dark);
+    font-weight: 600;
+}
+
+.tc-lottery-rec {
+    font-size: .65rem;
+    font-weight: 400;
+}
