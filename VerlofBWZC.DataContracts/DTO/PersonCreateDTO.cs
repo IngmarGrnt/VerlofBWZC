@@ -18,6 +18,7 @@ namespace VerlofBWZC.DataContracts.DTO
         public string Grade { get; set; }
         public string Role { get; set; }
         public int? LeaveAllowance { get; set; } // verlofshiften per jaar
+        public string? Initials { get; set; } // leeg = standaardregel op de achternaam
         public string? Password { get; set; }
         public string PasswordHash { get; set; } = string.Empty;
         public string Salt { get; set; }= string.Empty;

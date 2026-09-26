@@ -3,6 +3,7 @@
 @using Radzen.Blazor
 @using System.Text
 @using System.Net.Http.Headers
+@using VerlofBWZC.DataContracts
 @using VerlofBWZC.DataContracts.DTO
 @using VerlofBWZC.DataContracts.DTO.Access
 @using VerlofBWZC.DataContracts.DTO.Calendar
@@ -897,47 +898,8 @@ private void OnDayClicked(int personId, WorkDay day)
         StateHasChanged();
     }
 
-    private string GetInitials(PersonBaseDTO person)
-    {
-        if (person == null) return "";
-        var last = person.LastName?.Trim();
-        if (string.IsNullOrWhiteSpace(last)) return "";
-
-        // Splits op spaties (compound achternaam)
-        var parts = last.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-
-        if (parts.Length >= 2)
-        {
-            // Eerste twee letters van het eerste deel + eerste letter van het tweede deel
-            var firstPart = parts[0];
-            var secondPart = parts[1];
-
-            var initials = new StringBuilder();
-
-            if (firstPart.Length >= 2)
-            {
-                initials.Append(firstPart[0]);
-                initials.Append(firstPart[1]);
-            }
-            else
-            {
-                // Minder dan 2 karakters: neem wat er is
-                initials.Append(firstPart[0]);
-            }
-
-            if (secondPart.Length >= 1)
-            {
-                initials.Append(secondPart[0]);
-            }
-
-            return initials.ToString().ToUpperInvariant();
-        }
-
-        // Geen compound: neem de eerste 3 karakters (of minder als korter)
-        return last.Length >= 3
-            ? last.Substring(0, 3).ToUpperInvariant()
-            : last.ToUpperInvariant();
-    }
+    // Initialen: opgeslagen per persoon, anders de standaardregel op de achternaam
+    private static string GetInitials(PersonBaseDTO? person) => PersonInitials.For(person);
 
     // private string GetInitials(PersonBaseDTO person)
     // {

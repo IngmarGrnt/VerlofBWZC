@@ -28,8 +28,13 @@ namespace VerlofBWZC.DataAccess.Entities
         // Aantal verlofshiften per jaar (null = geen limiet ingesteld)
         public int? LeaveAllowance { get; set; }
 
+        // Initialen in de teamkalender (standaard volgens de regel op de achternaam, aanpasbaar)
+        [System.ComponentModel.DataAnnotations.MaxLength(10)]
+        public string? Initials { get; set; }
+
 
         // Many-to-many relationship
         public ICollection<DayOff> DayOffs { get; set; }
     }
 }
+

@@ -105,3 +105,16 @@
     }
 
 
+
+/* Dubbele initialen in dezelfde ploeg en specialiteit */
+.pc-initials-dup {
+    color: var(--bwzc-red-dark);
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: .2rem;
+}
+
+    .pc-initials-dup .rzi {
+        font-size: 1rem;
+    }

@@ -2,6 +2,7 @@
 @using Radzen
 @using Radzen.Blazor    
 @using System.Text
+@using VerlofBWZC.DataContracts
 @using VerlofBWZC.DataContracts.DTO
 @using VerlofBWZC.Handler
 @using VerlofBWZC.Services
@@ -192,43 +193,8 @@ else
         StateHasChanged();
     }
 
-    private string GetInitials(PersonBaseDTO? person)
-    {
-        if (person == null) return "";
-        var last = person.LastName?.Trim();
-        if (string.IsNullOrWhiteSpace(last)) return "";
-
-        var parts = last.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-
-        if (parts.Length >= 2)
-        {
-            var firstPart = parts[0];
-            var secondPart = parts[1];
-
-            var initials = new StringBuilder();
-
-            if (firstPart.Length >= 2)
-            {
-                initials.Append(firstPart[0]);
-                initials.Append(firstPart[1]);
-            }
-            else
-            {
-                initials.Append(firstPart[0]);
-            }
-
-            if (secondPart.Length >= 1)
-            {
-                initials.Append(secondPart[0]);
-            }
-
-            return initials.ToString().ToUpperInvariant();
-        }
-
-        return last.Length >= 3
-            ? last.Substring(0, 3).ToUpperInvariant()
-            : last.ToUpperInvariant();
-    }
+    // Initialen: opgeslagen per persoon, anders de standaardregel op de achternaam
+    private static string GetInitials(PersonBaseDTO? person) => PersonInitials.For(person);
 
     public class TeamDayOffDTO
     {
