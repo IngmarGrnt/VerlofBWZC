@@ -118,3 +118,16 @@
     .pc-initials-dup .rzi {
         font-size: 1rem;
     }
+
+/* Nog een tijdelijk wachtwoord */
+.pc-temp-pw {
+    display: inline-block;
+    margin-left: .35rem;
+    font-size: .7rem;
+    font-weight: 600;
+    color: #8A5A00;
+    background: #FFF4DB;
+    border-radius: 999px;
+    padding: .05rem .5rem;
+    vertical-align: middle;
+}

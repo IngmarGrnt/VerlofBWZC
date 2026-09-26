@@ -88,6 +88,15 @@
         var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
         var wasLoggedIn = isLoggedIn;
         isLoggedIn = !string.IsNullOrEmpty(token);
+
+        // Tijdelijk of zwak wachtwoord: niets anders gebruiken tot er een nieuw wachtwoord gekozen is
+        if (VerlofBWZC.Handler.JwtUtils.MustChangePassword(token)
+            && !Navigation.Uri.Contains("/wachtwoord-wijzigen", StringComparison.OrdinalIgnoreCase)
+            && !Navigation.Uri.Contains("/login", StringComparison.OrdinalIgnoreCase))
+        {
+            Navigation.NavigateTo("/wachtwoord-wijzigen");
+            return;
+        }
         demo = isLoggedIn ? await Demo.GetActiveAsync() : null;
         if (!isLoggedIn) sidebarExpanded = false;
         else if (!wasLoggedIn) sidebarExpanded = !isMobile; // na inloggen: menu open op desktop, dicht op gsm

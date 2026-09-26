@@ -216,3 +216,23 @@ a { color: var(--bwzc-blue); }
     gap: .5rem;
     flex-wrap: wrap;
 }
+
+/* Tijdelijk wachtwoord (eenmalig getoond) */
+.tp-box {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    background: var(--bwzc-ice);
+    border-radius: var(--bwzc-radius);
+    padding: .75rem 1rem;
+    margin-bottom: .6rem;
+}
+
+.tp-code {
+    font-size: 1.25rem;
+    font-weight: 600;
+    letter-spacing: .05em;
+    color: var(--bwzc-navy);
+    background: none;
+}

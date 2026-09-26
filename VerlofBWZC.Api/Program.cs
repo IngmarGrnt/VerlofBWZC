@@ -1,5 +1,8 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.RateLimiting;
+using System.Threading.RateLimiting;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -101,7 +104,28 @@ builder.Services.AddAuthorization(options =>
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<CalendarHelper>();
 
+// Achter Azure App Service: het echte IP-adres van de bezoeker uit X-Forwarded-For (voor de loginlimiet)
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
+// Loginpogingen beperken per IP-adres (bovenop de blokkering per account na 5 foute pogingen)
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, token) =>
+        await context.HttpContext.Response.WriteAsync("Te veel pogingen. Probeer het over een minuut opnieuw.", token);
+    options.AddPolicy("login", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "onbekend",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+});
+
 var app = builder.Build();
+
+app.UseForwardedHeaders();
 
 
 
@@ -148,6 +172,21 @@ app.Use(async (context, next) =>
     }
     await next();
 });
+
+// Tijdelijk wachtwoord: met het beperkte token mag enkel het wachtwoord gewijzigd worden
+app.Use(async (context, next) =>
+{
+    var mustChange = context.User.FindFirst(JwtTokenHelper.PasswordChangeClaim)?.Value == "true";
+    if (mustChange && !context.Request.Path.StartsWithSegments("/api/person/change-password", StringComparison.OrdinalIgnoreCase))
+    {
+        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+        await context.Response.WriteAsync("Kies eerst een nieuw wachtwoord.");
+        return;
+    }
+    await next();
+});
+
+app.UseRateLimiter();
 
 app.UseAuthorization();
 

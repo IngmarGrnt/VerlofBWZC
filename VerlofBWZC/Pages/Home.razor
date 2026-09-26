@@ -52,7 +52,7 @@ else
                 <li class="list-group-item"><b>Graad:</b> @person.Grade</li>
             </ul>
             <div class="mt-3">
-                <RadzenButton Icon="lock" Text="Wachtwoord wijzigen" ButtonStyle="ButtonStyle.Info" Click="OpenPasswordDialog" />
+                <RadzenButton Icon="lock" Text="Wachtwoord wijzigen" ButtonStyle="ButtonStyle.Info" Click="@(() => Navigation.NavigateTo("/wachtwoord-wijzigen"))" />
             </div>
         </div>
     </div>
@@ -154,46 +154,6 @@ else
         {
             return true;
         }
-    }
-
-    private async Task OpenPasswordDialog()
-    {
-        if (person is null) return;
-
-        await DialogService.OpenAsync<ChangePasswordDialog>(
-            "Wachtwoord wijzigen",
-            new Dictionary<string, object>
-            {
-                { "Person", person },
-                { "OnPasswordChanged", EventCallback.Factory.Create<string>(this, async (newPassword) => await ChangePassword(newPassword)) }
-            }
-        );
-    }
-
-    private async Task ChangePassword(string newPassword)
-    {
-        if (person is null) return;
-
-        var updateDto = new PersonCreateDTO
-        {
-            FirstName = person.FirstName,
-            LastName = person.LastName,
-            Email = person.Email,
-            Team = person.Team,
-            Speciality = person.Speciality,
-            Grade = person.Grade,
-            Role = person.Role,
-            LeaveAllowance = person.LeaveAllowance,
-            Password = newPassword
-        };
-
-        var ok = await PersonApi.UpdatePersonAsync(person.Id, updateDto);
-        NotificationService.Notify(new NotificationMessage
-        {
-            Severity = ok ? NotificationSeverity.Success : NotificationSeverity.Error,
-            Summary = ok ? "Wachtwoord gewijzigd" : "Fout",
-            Detail = ok ? "Het wachtwoord is succesvol aangepast." : "Wachtwoord wijzigen is mislukt."
-        });
     }
 
     public void Dispose()

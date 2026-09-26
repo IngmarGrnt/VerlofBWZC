@@ -24,7 +24,7 @@
 }
 else
 {
-    <p class="rz-text-secondary">Personen van je eigen ploeg en specialiteit. Je kan naam, initialen, e-mail, rol (geen Admin), verlofaantal en wachtwoord aanpassen.</p>
+    <p class="rz-text-secondary">Personen van je eigen ploeg en specialiteit. Je kan naam, initialen, e-mail, rol (geen Admin) en verlofaantal aanpassen, en het wachtwoord resetten.</p>
 }
 
 <div class="responsive-datagrid-container">
@@ -47,6 +47,13 @@ else
 
             <RadzenDataGridColumn TItem="PersonBaseDTO" Property="LastName" Title="Achternaam"
                                   FilterOperator="FilterOperator.Contains">
+                <Template Context="person">
+                    @person.LastName
+                    @if (person.MustChangePassword)
+                    {
+                        <span class="pc-temp-pw" title="Heeft een tijdelijk wachtwoord en moet bij de volgende login een eigen wachtwoord kiezen">tijdelijk wachtwoord</span>
+                    }
+                </Template>
                 <EditTemplate Context="person">
                     <RadzenTextBox @bind-Value="person.LastName" Style="width:100%" Name="LastName" />
                 </EditTemplate>
@@ -208,7 +215,7 @@ else
                     }
                     @if (isAdmin || person.Role != "Admin")
                     {
-                        <RadzenButton Icon="lock" ButtonStyle="ButtonStyle.Info" Click="@(() => OpenPasswordDialog(person))" />
+                        <RadzenButton Icon="lock_reset" ButtonStyle="ButtonStyle.Info" title="Wachtwoord resetten (tijdelijk wachtwoord)" Click="@(() => ResetPasswordAsync(person))" />
                     }
                 </Template>
                 <EditTemplate Context="person">
@@ -319,10 +326,18 @@ else
                 Role = person.Role,
                 LeaveAllowance = person.LeaveAllowance,
                 Initials = person.Initials,
-                Password = "Root1234",
             };
-            await PersonApi.CreatePersonAsync(createDto);
-            NotificationService.Notify(NotificationSeverity.Success, "Toegevoegd", "Persoon succesvol toegevoegd");
+            var created = await PersonApi.CreatePersonAsync(createDto);
+            if (!created.Ok || created.Value == null)
+            {
+                NotificationService.Notify(NotificationSeverity.Error, "Niet toegevoegd", created.Error);
+                return; // rij blijft in bewerking
+            }
+            NotificationService.Notify(NotificationSeverity.Success, "Toegevoegd", "Persoon toegevoegd.");
+            await grid.UpdateRow(person);
+            await LoadPersons();
+            await TemporaryPasswordDialog.ShowAsync(DialogService, $"{person.FirstName} {person.LastName}", created.Value.TemporaryPassword);
+            return;
         }
         else
         {
@@ -368,42 +383,23 @@ else
         }
     }
 
-    private async Task OpenPasswordDialog(PersonBaseDTO person)
+    // Nieuw tijdelijk wachtwoord (eenmalig getoond); de persoon kiest bij de volgende login een eigen wachtwoord
+    private async Task ResetPasswordAsync(PersonBaseDTO person)
     {
-        await DialogService.OpenAsync<ChangePasswordDialog>(
-            "Wachtwoord wijzigen",
-            new Dictionary<string, object>
-            {
-                { "Person", person },
-                { "OnPasswordChanged", EventCallback.Factory.Create<string>(this, async (newPassword) => await ChangePassword(person, newPassword)) }
-            }
-        );
-    }
+        var confirmed = await DialogService.Confirm(
+            $"Het wachtwoord van {person.FirstName} {person.LastName} vervangen door een tijdelijk wachtwoord? Het huidige wachtwoord werkt dan niet meer.",
+            "Wachtwoord resetten",
+            new ConfirmOptions { OkButtonText = "Resetten", CancelButtonText = "Annuleren" });
+        if (confirmed != true)
+            return;
 
-    private async Task ChangePassword(PersonBaseDTO person, string newPassword)
-    {
-        var updateDto = new PersonCreateDTO
+        var result = await PersonApi.ResetPasswordAsync(person.Id);
+        if (!result.Ok || result.Value == null)
         {
-            FirstName = person.FirstName,
-            LastName = person.LastName,
-            Email = person.Email,
-            Team = person.Team,
-            Speciality = person.Speciality,
-            Grade = person.Grade,
-            Role = person.Role,
-            LeaveAllowance = person.LeaveAllowance,
-            Initials = person.Initials,
-            Password = newPassword
-        };
-        var result = await PersonApi.UpdatePersonAsync(person.Id, updateDto);
-        if (result)
-        {
-            NotificationService.Notify(NotificationSeverity.Success, "Wachtwoord gewijzigd", "Het wachtwoord is succesvol aangepast.");
-        }
-        else
-        {
-            NotificationService.Notify(NotificationSeverity.Error, "Fout", "Wachtwoord wijzigen is mislukt.");
+            NotificationService.Notify(NotificationSeverity.Error, "Niet gereset", result.Error);
+            return;
         }
         await LoadPersons();
+        await TemporaryPasswordDialog.ShowAsync(DialogService, $"{person.FirstName} {person.LastName}", result.Value.TemporaryPassword);
     }
 }

@@ -17,7 +17,7 @@
             <div class="mb-3">
                 <RadzenPassword @bind-Value="loginModel.Password" Name="Password" Placeholder="Wachtwoord" Style="width:100%" />
             </div>
-            <RadzenButton ButtonType="ButtonType.Submit" Text="Login" Style="width:100%" />
+            <RadzenButton ButtonType="ButtonType.Submit" Text="Login" Style="width:100%" Disabled="@busy" />
             @if (!string.IsNullOrEmpty(errorMessage))
             {
                 <div class="text-danger mt-3 text-center">@errorMessage</div>
@@ -28,22 +28,24 @@
 
 @code {
     private LoginDTO loginModel = new();
-    private string errorMessage;
-
-    public class TokenResponse { public string token { get; set; } }
+    private string? errorMessage;
+    private bool busy;
 
     private async Task HandleLogin()
     {
         errorMessage = null;
+        busy = true;
         var result = await PersonApi.LoginAsync(loginModel);
-        if (result != null && !string.IsNullOrWhiteSpace(result.token))
+        busy = false;
+        if (result.Ok && !string.IsNullOrWhiteSpace(result.Value?.Token))
         {
-            await AuthProvider.MarkUserAsAuthenticated(result.token);
-            Navigation.NavigateTo("/");
+            await AuthProvider.MarkUserAsAuthenticated(result.Value.Token);
+            // Tijdelijk of zwak wachtwoord: eerst een nieuw kiezen
+            Navigation.NavigateTo(result.Value.MustChangePassword ? "/wachtwoord-wijzigen" : "/");
         }
         else
         {
-            errorMessage = "Ongeldige inloggegevens.";
+            errorMessage = result.Error ?? "Ongeldige inloggegevens.";
         }
     }
 }
