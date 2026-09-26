@@ -207,6 +207,7 @@ namespace VerlofBWZC.Api.Controllers
             person.Speciality = Enum.TryParse<Speciality>(personDto.Speciality, out var spec) ? spec : null;
             person.Grade = Enum.TryParse<Grade>(personDto.Grade, out var grade) ? grade : null;
             person.Role = Enum.TryParse<Role>(personDto.Role, out var role) ? role : null;
+            person.LeaveAllowance = personDto.LeaveAllowance is >= 0 ? personDto.LeaveAllowance : null;
             person.LastUpdate = DateTime.Now;
             if (!string.IsNullOrEmpty(personDto.Password))
             {

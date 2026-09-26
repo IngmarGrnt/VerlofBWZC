@@ -129,3 +129,17 @@
     gap: .5rem;
     margin: -0.5rem 0 1rem 0;
 }
+
+/* --- Resterend verlofaantal --- */
+.leave-remaining {
+    padding: .4rem .8rem;
+    border-radius: 6px;
+    background: rgba(67, 160, 71, 0.15);
+    color: #2e7d32;
+    font-weight: 600;
+}
+
+.leave-remaining-over {
+    background: rgba(229, 57, 53, 0.15);
+    color: #c62828;
+}

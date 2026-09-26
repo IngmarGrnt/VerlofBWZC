@@ -53,9 +53,19 @@ else
             </span>
             <RadzenBadge Variant="Variant.Filled"
                          BadgeStyle="BadgeStyle.Info"
-                         Text="@(SelectedYearDayOffCount.ToString())"
+                         Text="@(LeaveAllowance is int max ? $"{SelectedYearDayOffCount}/{max}" : SelectedYearDayOffCount.ToString())"
                          Class="rz-badge" />
         </div>
+
+        @if (LeaveAllowance is int allowance)
+        {
+            var remaining = allowance - SelectedYearDayOffCount;
+            <div class="@(remaining < 0 ? "leave-remaining leave-remaining-over" : "leave-remaining")">
+                @(remaining >= 0
+                    ? $"Nog {remaining} verlofshift(en) over in {SelectedYear}"
+                    : $"{-remaining} verlofshift(en) te veel in {SelectedYear} (max {allowance})")
+            </div>
+        }
 
         <!-- Single legend at the top, next to the selected-days info -->
         <div class="workcalendar-legend">
@@ -108,7 +118,7 @@ else
             <span class="rz-text-secondary" style="font-size:.85rem;">
                 @(ActiveCategoryId == null
                     ? "Klik op een shift om verlof aan of uit te zetten."
-                    : "Klik op een shift om deze categorie te geven; nog eens klikken maakt het weer gewoon verlof.")
+                    : "Klik op een shift om deze categorie te geven; nog eens klikken zet de shift weer uit.")
             </span>
         </div>
     }
@@ -195,6 +205,23 @@ else
     private List<LeaveCategoryDTO> Categories { get; set; } = new();
     private int? ActiveCategoryId;
     private string? PersonTeam;
+
+    // Verlofaantal per jaar (ingesteld bij Personen); null = geen limiet
+    private int? LeaveAllowance;
+
+    private void WarnIfOverAllowance()
+    {
+        if (LeaveAllowance is int max && SelectedYearDayOffCount > max)
+        {
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Warning,
+                Summary = "Verlofaantal overschreden",
+                Detail = $"Je hebt {SelectedYearDayOffCount} verlofshiften aangeduid in {SelectedYear}, maar je verlofaantal is {max}.",
+                Duration = 5000
+            });
+        }
+    }
 
     private int CategoryUsage(int categoryId) =>
         selectedDays.Count(d => d.LeaveCategoryId == categoryId && d.Date.Year == SelectedYear);
@@ -354,16 +381,19 @@ else
         if (ActiveCategoryId == null)
         {
             if (existing == null)
+            {
                 selectedDays.Add(new WorkDay { Date = day.Date, Shift = day.Shift });
+                WarnIfOverAllowance();
+            }
             else
                 selectedDays.Remove(existing);
             return;
         }
 
-        // Categorie actief: nog eens klikken op een shift met deze categorie maakt er gewoon verlof van
+        // Categorie actief: nog eens klikken op een shift met deze categorie zet de shift volledig uit
         if (existing?.LeaveCategoryId == ActiveCategoryId)
         {
-            existing.LeaveCategoryId = null;
+            selectedDays.Remove(existing);
             return;
         }
 
@@ -381,7 +411,10 @@ else
         }
 
         if (existing == null)
+        {
             selectedDays.Add(new WorkDay { Date = day.Date, Shift = day.Shift, LeaveCategoryId = category.Id });
+            WarnIfOverAllowance();
+        }
         else
             existing.LeaveCategoryId = category.Id;
     }
@@ -485,6 +518,7 @@ else
                 if (person != null)
                 {
                     PersonTeam = person.Team;
+                    LeaveAllowance = person.LeaveAllowance;
                     var first = person.FirstName?.Trim() ?? "";
                     var last = person.LastName?.Trim() ?? "";
                     PersonName = string.Join(" ", new[] { first, last }.Where(s => !string.IsNullOrWhiteSpace(s)));

@@ -25,6 +25,9 @@ namespace VerlofBWZC.DataAccess.Entities
         public Grade? Grade { get; set; }
         public Role? Role { get; set; }
 
+        // Aantal verlofshiften per jaar (null = geen limiet ingesteld)
+        public int? LeaveAllowance { get; set; }
+
 
         // Many-to-many relationship
         public ICollection<DayOff> DayOffs { get; set; }
