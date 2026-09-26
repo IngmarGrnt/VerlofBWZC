@@ -1,148 +1,403 @@
-﻿/* --- Workcalendar header --- */
-.workcalendar-header {
+/* =========================================================================
+   Werkkalender (huisstijl: zie theme.css voor de --bwzc-* kleuren)
+   ========================================================================= */
+.wc-loading {
+    color: var(--bwzc-muted);
+}
+
+/* --- Kop --- */
+.wc-header {
     display: flex;
     align-items: center;
-    gap: 1.5rem;
-    margin-bottom: 1.5rem;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.25rem;
+}
+
+.wc-title {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
     flex-wrap: wrap;
 }
 
-    .workcalendar-header .rz-button,
-    .workcalendar-header .rz-button-info,
-    .workcalendar-header .rz-drop-down {
-        flex-shrink: 0;
+    .wc-title h1 {
+        margin: 0;
     }
 
-    .workcalendar-header .rz-button-info {
-        display: flex;
-        align-items: center;
-        padding: 0.5rem 1.2rem;
-        border: none;
-        min-width: 180px;
-        background: var(--bwzc-navy);
-        color: #fff;
-        border-radius: var(--bwzc-radius);
-    }
-
-    .workcalendar-header .rz-badge {
-        margin-left: 1rem;
-        font-size: 2rem;
-        font-weight: bold;
-        background: transparent !important;
-        color: white;
-        box-shadow: none;
-        border: none;
-    }
-
-@media (max-width: 700px) {
-    .workcalendar-header {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 0.75rem;
-    }
-
-        .workcalendar-header .rz-button-info {
-            min-width: unset;
-            font-size: 1rem;
-            padding: 0.5rem 0.5rem;
-        }
-
-        .workcalendar-header .rz-badge {
-            font-size: 1.3rem;
-            margin-left: 0.5rem;
-        }
+.wc-year {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--bwzc-line);
+    border-radius: var(--bwzc-radius);
+    background: var(--bwzc-white);
 }
 
-/* --- Workcalendar day button --- */
-.workcalendar-day-btn {
-    width: 90px;
+.wc-year-btn {
+    border: none;
+    background: transparent;
+    color: var(--bwzc-navy);
+    width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border-radius: var(--bwzc-radius);
+}
+
+    .wc-year-btn:hover:not(:disabled) {
+        background: var(--bwzc-ice);
+    }
+
+    .wc-year-btn:disabled {
+        color: var(--bwzc-line);
+        cursor: default;
+    }
+
+.wc-year-label {
+    min-width: 3.5rem;
     text-align: center;
-    justify-content: flex-start;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    font-weight: 600;
+    color: var(--bwzc-navy);
 }
 
-/* --- Holiday buttons --- */
-.holiday-btn-vacation {
-    background-color: rgba(189, 121, 230, 0.35) !important; /* was #bd79e6a4 */
-    color: #333 !important;
-}
-
-.holiday-btn-feestdag {
-    background-color: rgba(255, 220, 12, 0.35) !important; /* was #ffdc0c91 */
-    color: #333 !important;
-}
-
-.holiday-btn-weekend {
-    background-color: rgba(128, 128, 128, 0.20) !important;
-    color: #333 !important;
-}
-
-/* --- Legend next to buttons --- */
-.workcalendar-legend {
-    display: flex;
+.wc-dirty {
+    display: inline-flex;
     align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
+    gap: .25rem;
+    font-size: .8rem;
+    font-weight: 600;
+    color: #8A5A00;
+    background: #FFF4DB;
+    border: 1px solid #F5D48A;
+    border-radius: 999px;
+    padding: .15rem .6rem;
 }
 
-.legend-item {
+    .wc-dirty .rzi {
+        font-size: 1rem;
+    }
+
+.wc-actions {
     display: flex;
-    align-items: center;
-    gap: 6px;
-    color: #333;
-    font-size: 0.9rem;
-}
-
-.legend-swatch {
-    width: 14px;
-    height: 14px;
-    border-radius: 3px;
-    border: 1px solid rgba(0,0,0,.08);
-    display: inline-block;
-}
-/* Swatch that matches Radzen ButtonStyle.Info (selected leave days) */
-.legend-swatch-info {
-    background-color: var(--rz-info, #17a2b8) !important; /* fallback just in case */
-    color: #fff;
-}
-
-/* Holiday grid row backgrounds */
-.rz-data-grid .rz-data-row.holiday-row-vacation > td {
-    background-color: rgba(189, 121, 230, 0.35) !important; /* Paars */
-    color: #333;
-}
-
-.rz-data-grid .rz-data-row.holiday-row-feestdag > td {
-    background-color: rgba(255, 220, 12, 0.35) !important; /* Geel */
-    color: #333;
-}
-
-/* Optional: keep hover readable */
-.rz-data-grid .rz-data-row.holiday-row-vacation:hover > td,
-.rz-data-grid .rz-data-row.holiday-row-feestdag:hover > td {
-    filter: brightness(0.98);
-}
-/* --- Verlofcategorie-balk (Groot verlof, Verlof 4, ...) --- */
-.leave-category-bar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
     gap: .5rem;
-    margin: -0.5rem 0 1rem 0;
+    flex-wrap: wrap;
 }
 
-/* --- Resterend verlofaantal --- */
-.leave-remaining {
-    padding: .4rem .8rem;
-    border-radius: 6px;
-    background: rgba(67, 160, 71, 0.15);
-    color: #2e7d32;
+/* --- Samenvatting --- */
+.wc-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: .75rem;
+    margin-bottom: 1rem;
+}
+
+.wc-stat {
+    background: var(--bwzc-ice);
+    border-radius: var(--bwzc-radius);
+    padding: .75rem 1rem;
+}
+
+.wc-stat-label {
+    font-size: .8rem;
+    color: var(--bwzc-navy);
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+}
+
+.wc-stat-value {
+    font-size: 1.6rem;
+    font-weight: 600;
+    color: var(--bwzc-ink);
+    line-height: 1.2;
+    margin-top: .15rem;
+}
+
+.wc-stat-of {
+    font-size: .95rem;
+    font-weight: 400;
+    color: var(--bwzc-muted);
+}
+
+.wc-bar {
+    height: 5px;
+    border-radius: 3px;
+    background: var(--bwzc-line);
+    margin-top: .5rem;
+    overflow: hidden;
+}
+
+.wc-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: var(--rz-info);
+}
+
+.wc-bar-over {
+    background: var(--bwzc-red);
+}
+
+.wc-stat-note {
+    font-size: .75rem;
+    color: var(--bwzc-muted);
+    margin-top: .3rem;
+    min-height: 1em;
+}
+
+.wc-ok {
+    color: #2E7D32;
     font-weight: 600;
 }
 
-.leave-remaining-over {
-    background: rgba(229, 57, 53, 0.15);
-    color: #c62828;
+.wc-over {
+    color: var(--bwzc-red-dark);
+    font-weight: 600;
+}
+
+.wc-swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+/* --- Aanduiden als + legende --- */
+.wc-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem 1.5rem;
+    flex-wrap: wrap;
+    margin-bottom: .35rem;
+}
+
+.wc-categories {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    flex-wrap: wrap;
+}
+
+.wc-toolbar-label {
+    font-size: .8rem;
+    color: var(--bwzc-muted);
+    margin-right: .25rem;
+}
+
+.wc-pill {
+    font: inherit;
+    font-size: .8rem;
+    font-weight: 500;
+    padding: .3rem .8rem;
+    border-radius: 999px;
+    border: 1px solid;
+    background: var(--bwzc-white);
+    cursor: pointer;
+}
+
+    .wc-pill:focus-visible {
+        outline: 2px solid var(--bwzc-blue);
+        outline-offset: 2px;
+    }
+
+.wc-legend {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    font-size: .75rem;
+    color: var(--bwzc-muted);
+}
+
+    .wc-legend > span {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+    }
+
+.wc-dot-inline {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.wc-weekend-swatch {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    background: #F3F5F9;
+    border: 1px solid var(--bwzc-line);
+}
+
+.wc-hint {
+    font-size: .75rem;
+    color: var(--bwzc-muted);
+    margin-bottom: 1rem;
+}
+
+/* --- Maanden --- */
+.wc-months {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: .75rem;
+    margin-top: .75rem;
+}
+
+.wc-month {
+    border: 1px solid var(--bwzc-line);
+    border-radius: 10px;
+    padding: .75rem;
+    background: var(--bwzc-white);
+}
+
+.wc-month-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: .6rem;
+}
+
+.wc-month-name {
+    font-family: var(--bwzc-font-title);
+    font-size: 1.15rem;
+    color: var(--bwzc-navy);
+}
+
+.wc-month-count {
+    font-size: .75rem;
+    color: var(--bwzc-muted);
+}
+
+.wc-month-count-active {
+    color: var(--rz-info-dark);
+    font-weight: 600;
+}
+
+.wc-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+/* --- Shift-knop --- */
+.wc-chip {
+    position: relative;
+    width: 50px;
+    height: 44px;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    padding: 0;
+    font: inherit;
+    border: 1px solid var(--bwzc-line);
+    border-radius: 8px;
+    background: var(--bwzc-white);
+    color: var(--bwzc-navy);
+    cursor: pointer;
+    transition: border-color .1s ease, transform .05s ease;
+}
+
+    .wc-chip:hover {
+        border-color: var(--bwzc-navy);
+    }
+
+    .wc-chip:active {
+        transform: scale(.96);
+    }
+
+    .wc-chip:focus-visible {
+        outline: 2px solid var(--bwzc-blue);
+        outline-offset: 2px;
+    }
+
+.wc-chip-day {
+    font-size: .95rem;
+    font-weight: 600;
+    line-height: 1;
+}
+
+.wc-chip-meta {
+    font-size: .65rem;
+    line-height: 1;
+    color: var(--bwzc-muted);
+}
+
+.wc-chip-weekend {
+    background: #F3F5F9;
+}
+
+.wc-chip-selected {
+    background: var(--rz-info);
+    border-color: var(--rz-info);
+}
+
+.wc-chip-selected .wc-chip-day,
+.wc-chip-selected .wc-chip-meta,
+.wc-chip-category .wc-chip-day,
+.wc-chip-category .wc-chip-meta {
+    color: #fff;
+}
+
+.wc-chip-selected:hover,
+.wc-chip-category:hover {
+    border-color: var(--bwzc-ink);
+}
+
+/* Feestdag / schoolvakantie: stipje rechtsboven, ook zichtbaar als de shift geselecteerd is */
+.wc-dot {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    box-shadow: 0 0 0 1.5px var(--bwzc-white);
+}
+
+.wc-dot-holiday {
+    background: #F2A900;
+}
+
+.wc-dot-school {
+    background: #8E5CD9;
+}
+
+/* --- Feestdagen en schoolvakanties --- */
+.wc-holidays {
+    margin-top: 1.5rem;
+}
+
+    .wc-holidays .rz-panel {
+        border: 1px solid var(--bwzc-line);
+        border-radius: var(--bwzc-radius);
+        box-shadow: none;
+    }
+
+.wc-holidays-title {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    font-weight: 600;
+    color: var(--bwzc-navy);
+}
+
+/* --- Gsm --- */
+@media (max-width: 640px) {
+    .wc-header {
+        align-items: flex-start;
+    }
+
+    .wc-months {
+        grid-template-columns: 1fr;
+    }
+
+    .wc-chip {
+        width: 46px;
+    }
 }

@@ -1,4 +1,4 @@
-﻿@using System.Globalization
+@using System.Globalization
 @using Radzen
 @using Radzen.Blazor
 @using System.Net.Http.Headers
@@ -12,7 +12,6 @@
 @using VerlofBWZC.Services
 @using System.Text
 @using Microsoft.AspNetCore.Authorization
-@using Microsoft.AspNetCore.Authorization
 @attribute [Authorize]
 @page "/workcalendar"
 @inject HttpClient Http
@@ -20,186 +19,209 @@
 @inject IJSRuntime JS
 @inject PersonApiService PersonApi
 
-<h1>WerkKalender</h1>
-@if(monthGroups == null || !monthGroups.Any())
+<PageTitle>Werkkalender</PageTitle>
+
+@* Waarschuwen bij verlaten van de pagina met niet-opgeslagen wijzigingen *@
+<NavigationLock ConfirmExternalNavigation="@isDirty" OnBeforeInternalNavigation="OnBeforeInternalNavigation" />
+
+@if (monthGroups == null || !monthGroups.Any())
 {
-    <h2><em>Loading...</em></h2>
+    <h1>Werkkalender</h1>
+    <p class="wc-loading">Werkkalender laden…</p>
     return;
 }
-else
-{
-    <div class="workcalendar-header">
-        @if (CanSaveWork)
-        {
-            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem" Wrap="FlexWrap.Wrap">
-                <RadzenButton Text="Opslaan" ButtonStyle="ButtonStyle.Success" Click="@SaveSelectedDays" />
-            </RadzenStack>
-        }
-        <RadzenDropDown @bind-Value="SelectedYear"
-                        Data="@Years"
-                        Placeholder="Selecteer een jaar"
-                        Style="width:200px;"
-                        Change="OnYearChanged" />
 
-        <!-- Export actions -->
-        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Wrap="FlexWrap.Wrap">
-            <RadzenButton Text="Export PDF" ButtonStyle="ButtonStyle.Light" Click="@ExportToPdfAsync" />
-            <RadzenButton Text="Export .ics (Agenda)" ButtonStyle="ButtonStyle.Light" Click="@ExportIcsAsync" />
-        </RadzenStack>
-
-        <div class="rz-button rz-button-info rz-border-radius-6 rz-shadow-6">
-            <span style="color: white; font-size: 1.1rem;">
-                verlofdagen geselecteerd in @SelectedYear 
-            </span>
-            <RadzenBadge Variant="Variant.Filled"
-                         BadgeStyle="BadgeStyle.Info"
-                         Text="@(LeaveAllowance is int max ? $"{SelectedYearDayOffCount}/{max}" : SelectedYearDayOffCount.ToString())"
-                         Class="rz-badge" />
-        </div>
-
-        @if (LeaveAllowance is int allowance)
-        {
-            var remaining = allowance - SelectedYearDayOffCount;
-            <div class="@(remaining < 0 ? "leave-remaining leave-remaining-over" : "leave-remaining")">
-                @(remaining >= 0
-                    ? $"Nog {remaining} verlofshift(en) over in {SelectedYear}"
-                    : $"{-remaining} verlofshift(en) te veel in {SelectedYear} (max {allowance})")
+<div class="wc">
+    <!-- Kop: titel, jaar, acties -->
+    <div class="wc-header">
+        <div class="wc-title">
+            <h1>Werkkalender</h1>
+            <div class="wc-year" role="group" aria-label="Jaar kiezen">
+                <button type="button" class="wc-year-btn" aria-label="Vorig jaar" disabled="@(SelectedYear <= MinYear)" @onclick="() => ChangeYear(-1)">
+                    <i class="rzi">chevron_left</i>
+                </button>
+                <span class="wc-year-label">@SelectedYear</span>
+                <button type="button" class="wc-year-btn" aria-label="Volgend jaar" disabled="@(SelectedYear >= MaxYear)" @onclick="() => ChangeYear(1)">
+                    <i class="rzi">chevron_right</i>
+                </button>
             </div>
-        }
-
-        <!-- Single legend at the top, next to the selected-days info -->
-        <div class="workcalendar-legend">
-            <div class="legend-item">
-                <span class="legend-swatch holiday-btn-vacation"></span>
-                <span>Paars = Vakantie</span>
-            </div>
-            <div class="legend-item">
-                <span class="legend-swatch holiday-btn-feestdag"></span>
-                <span>Geel = Feestdagen</span>
-            </div>
-            <div class="legend-item">
-                <span class="legend-swatch holiday-btn-weekend"></span>
-                <span>Grijs = Weekend</span>
-            </div>
-            <div class="legend-item">
-                <span class="legend-swatch legend-swatch-info"></span>
-                <span>Blauwgroen = Verlofdagen</span>
-            </div>
-            @foreach (var c in Categories)
+            @if (isDirty)
             {
-                <div class="legend-item">
-                    <span class="legend-swatch" style="@($"background:{c.Color};")"></span>
-                    <span>@c.Name</span>
-                </div>
+                <span class="wc-dirty"><i class="rzi">edit</i> Niet opgeslagen</span>
+            }
+        </div>
+        <div class="wc-actions">
+            <RadzenButton Text="PDF" Icon="picture_as_pdf" ButtonStyle="ButtonStyle.Light" Click="@ExportToPdfAsync" />
+            <RadzenButton Text="Agenda (.ics)" Icon="event" ButtonStyle="ButtonStyle.Light" Click="@ExportIcsAsync" />
+            @if (CanSaveWork)
+            {
+                <RadzenButton Text="Opslaan" Icon="save" ButtonStyle="ButtonStyle.Primary" Click="@SaveSelectedDays" />
             }
         </div>
     </div>
 
-    @if (Categories.Any() && CanSaveWork)
-    {
-        <!-- Verlofcategorie kiezen: klik daarna op verlofshiften om ze die categorie te geven -->
-        <div class="leave-category-bar">
-            <span class="rz-text-secondary">Aanduiden als:</span>
-            <RadzenButton Text="Gewoon verlof"
-                          Variant="@(ActiveCategoryId == null ? Variant.Filled : Variant.Outlined)"
-                          ButtonStyle="ButtonStyle.Info"
-                          Size="ButtonSize.Small"
-                          Click="@(() => ActiveCategoryId = null)" />
+    <div id="workcalendar-export">
+        <!-- Samenvatting -->
+        <div class="wc-summary">
+            <div class="wc-stat">
+                <div class="wc-stat-label">Verlof in @SelectedYear</div>
+                <div class="wc-stat-value">
+                    @SelectedYearDayOffCount
+                    @if (LeaveAllowance is int max)
+                    {
+                        <span class="wc-stat-of">/ @max</span>
+                    }
+                </div>
+                @if (LeaveAllowance is int allowance)
+                {
+                    var remaining = allowance - SelectedYearDayOffCount;
+                    <div class="wc-bar"><div class="@(remaining < 0 ? "wc-bar-fill wc-bar-over" : "wc-bar-fill")" style="@($"width:{Percent(SelectedYearDayOffCount, allowance)}%")"></div></div>
+                    <div class="@(remaining < 0 ? "wc-stat-note wc-over" : "wc-stat-note wc-ok")">
+                        @(remaining >= 0 ? $"nog {remaining} over" : $"{-remaining} te veel")
+                    </div>
+                }
+                else
+                {
+                    <div class="wc-stat-note">verlofshiften aangeduid</div>
+                }
+            </div>
             @foreach (var c in Categories)
             {
                 var used = CategoryUsage(c.Id);
-                var isActive = ActiveCategoryId == c.Id;
-                <RadzenButton Text="@($"{c.Name} {used}/{c.MaxShifts}")"
-                              Size="ButtonSize.Small"
-                              Variant="@(isActive ? Variant.Filled : Variant.Outlined)"
-                              Style="@(isActive ? $"background-color:{c.Color}; border-color:{c.Color}; color:#fff;" : $"border-color:{c.Color}; color:{c.Color};")"
-                              Click="@(() => ActiveCategoryId = c.Id)" />
+                <div class="wc-stat">
+                    <div class="wc-stat-label"><span class="wc-swatch" style="@($"background:{c.Color}")"></span>@c.Name</div>
+                    <div class="wc-stat-value">@used <span class="wc-stat-of">/ @c.MaxShifts</span></div>
+                    <div class="wc-bar"><div class="wc-bar-fill" style="@($"width:{Percent(used, c.MaxShifts)}%; background:{c.Color}")"></div></div>
+                    <div class="wc-stat-note">@(c.MaxShifts - used >= 0 ? $"nog {c.MaxShifts - used} over" : "")</div>
+                </div>
             }
-            <span class="rz-text-secondary" style="font-size:.85rem;">
+        </div>
+
+        <!-- Aanduiden als + legende -->
+        <div class="wc-toolbar wc-no-export">
+            @if (Categories.Any() && CanSaveWork)
+            {
+                <div class="wc-categories" role="group" aria-label="Aanduiden als">
+                    <span class="wc-toolbar-label">Aanduiden als</span>
+                    <button type="button" class="@(ActiveCategoryId == null ? "wc-pill wc-pill-active" : "wc-pill")"
+                            style="@(ActiveCategoryId == null ? "background:var(--rz-info); border-color:var(--rz-info); color:#fff;" : "border-color:var(--rz-info); color:var(--rz-info-dark);")"
+                            aria-pressed="@(ActiveCategoryId == null ? "true" : "false")"
+                            @onclick="() => ActiveCategoryId = null">
+                        Gewoon verlof
+                    </button>
+                    @foreach (var c in Categories)
+                    {
+                        var isActive = ActiveCategoryId == c.Id;
+                        <button type="button" class="@(isActive ? "wc-pill wc-pill-active" : "wc-pill")"
+                                style="@(isActive ? $"background:{c.Color}; border-color:{c.Color}; color:#fff;" : $"border-color:{c.Color}; color:{c.Color};")"
+                                aria-pressed="@(isActive ? "true" : "false")"
+                                @onclick="() => ActiveCategoryId = c.Id">
+                            @c.Name
+                        </button>
+                    }
+                </div>
+            }
+            <div class="wc-legend">
+                <span><span class="wc-dot-inline wc-dot-holiday"></span>Feestdag</span>
+                <span><span class="wc-dot-inline wc-dot-school"></span>Schoolvakantie</span>
+                <span><span class="wc-weekend-swatch"></span>Weekend</span>
+                <span><span class="wc-swatch" style="background:var(--rz-info)"></span>Verlof</span>
+            </div>
+        </div>
+        @if (Categories.Any() && CanSaveWork)
+        {
+            <div class="wc-hint wc-no-export">
                 @(ActiveCategoryId == null
                     ? "Klik op een shift om verlof aan of uit te zetten."
                     : "Klik op een shift om deze categorie te geven; nog eens klikken zet de shift weer uit.")
-            </span>
-        </div>
-    }
+            </div>
+        }
 
-    <!-- Wrap the area we want to export to PDF -->
-    <div id="workcalendar-export">
-        <RadzenDataGrid Data="@monthGroups" TItem="MonthGroup" ShowPagingSummary="false" ShowPagination="false" ShowColumnPicker="false">
-            <Columns>
-                <RadzenDataGridColumn TItem="MonthGroup" Property="MonthName" Title="Maand" Width="90px" />
-                <RadzenDataGridColumn TItem="MonthGroup" Title="Werkdagen">
-                    <Template Context="data">
-                        <div style="display: flex; flex-wrap: wrap; gap: 6px; ">
-                            @foreach (var day in data.WorkDays)
-                            {
-                                var selected = selectedDays.FirstOrDefault(d => d.Date == day.Date && d.Shift == day.Shift);
-                                var isSelected = selected != null;
-                                var category = selected?.LeaveCategoryId is int catId ? Categories.FirstOrDefault(c => c.Id == catId) : null;
-                                var categoryStyle = category != null
-                                    ? $"margin-bottom: 1px; background-color:{category.Color}; border-color:{category.Color}; color:#fff;"
-                                    : "margin-bottom: 1px";
+        <!-- Maanden -->
+        <div class="wc-months">
+            @foreach (var month in monthGroups)
+            {
+                var monthCount = month.WorkDays.Count(wd => selectedDays.Any(d => d.Date.Date == wd.Date.Date && d.Shift == wd.Shift));
+                <section class="wc-month">
+                    <header class="wc-month-header">
+                        <span class="wc-month-name">@Capitalize(month.MonthName)</span>
+                        <span class="@(monthCount > 0 ? "wc-month-count wc-month-count-active" : "wc-month-count")">@monthCount verlof</span>
+                    </header>
+                    <div class="wc-chips">
+                        @foreach (var day in month.WorkDays)
+                        {
+                            var selected = selectedDays.FirstOrDefault(d => d.Date == day.Date && d.Shift == day.Shift);
+                            var category = selected?.LeaveCategoryId is int catId ? Categories.FirstOrDefault(c => c.Id == catId) : null;
+                            var holidayName = PublicHolidayName(day.Date);
+                            var schoolName = holidayName == null ? SchoolHolidayName(day.Date) : null;
+                            var isWeekend = day.Date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
 
-                                // Alleen als NIET geselecteerd: kleurklasse bepalen
-                                string holidayTypeClass = "";
-                                if (!isSelected)
+                            <button type="button"
+                                    class="@ChipClass(selected != null, category != null, isWeekend)"
+                                    style="@(category != null ? $"background:{category.Color}; border-color:{category.Color};" : null)"
+                                    title="@ChipTitle(day, category, holidayName, schoolName)"
+                                    aria-pressed="@(selected != null ? "true" : "false")"
+                                    @onclick="() => OnDayClicked(day)">
+                                <span class="wc-chip-day">@day.Date.ToString("dd")</span>
+                                <span class="wc-chip-meta">@day.Shift · @day.Date.ToString("ddd", Nl)</span>
+                                @if (holidayName != null)
                                 {
-                                    if (PublicHolidays.Any(h => h.StartDate.Date == day.Date.Date))
-                                        holidayTypeClass = "holiday-btn-feestdag";
-                                    else if (SchoolHolidays.Any(h => h.StartDate.Date <= day.Date.Date && h.EndDate.Date >= day.Date.Date))
-                                        holidayTypeClass = "holiday-btn-vacation";
-                                    else if (day.Date.DayOfWeek == DayOfWeek.Saturday || day.Date.DayOfWeek == DayOfWeek.Sunday)
-                                        holidayTypeClass = "holiday-btn-weekend";
+                                    <span class="wc-dot wc-dot-holiday"></span>
                                 }
-
-                                <RadzenButton Variant="@(isSelected? Variant.Filled: Variant.Outlined)"
-                                              ButtonStyle="@(isSelected ? ButtonStyle.Info : (day.Shift == "D" ? ButtonStyle.Primary : ButtonStyle.Secondary))"
-                                              Text="@($"{day.Shift} {day.Date:ddd} {day.Date:dd}")"
-                                              Click="@(args => OnDayClicked(day))"
-                                              Style="@categoryStyle"
-                                              title="@(category?.Name)"
-                                              class="@($"{holidayTypeClass} workcalendar-day-btn")">
-                                </RadzenButton>
-                            }
-                        </div>
-                    </Template>
-                </RadzenDataGridColumn>
-            </Columns>
-        </RadzenDataGrid>
-
-        <!-- Holidays grid (hidden when exporting one-page) -->
-        <div id="holidays-grid">
-            <RadzenDataGrid Data="@(GetAllHolidaysForGrid())" 
-                            TItem="HolidayGridRow" 
-                            ShowPagingSummary="false" 
-                            ShowPagination="false" 
-                            Style="margin-top:2rem;">
-                <Columns>
-                    <RadzenDataGridColumn TItem="HolidayGridRow" Property="DateText" Title="Datum" Width="220px" />
-                    <RadzenDataGridColumn TItem="HolidayGridRow" Property="Name" Title="Naam" Width="300px" />
-                    <RadzenDataGridColumn TItem="HolidayGridRow" Property="Type" Title="Type" Width="140px" />
-                </Columns>
-            </RadzenDataGrid>
+                                else if (schoolName != null)
+                                {
+                                    <span class="wc-dot wc-dot-school"></span>
+                                }
+                            </button>
+                        }
+                    </div>
+                </section>
+            }
         </div>
     </div>
-}
+
+    <!-- Feestdagen en schoolvakanties (niet in de PDF) -->
+    <div id="holidays-grid" class="wc-holidays">
+        <RadzenPanel AllowCollapse="true" Collapsed="true">
+            <HeaderTemplate>
+                <span class="wc-holidays-title"><i class="rzi">celebration</i> Feestdagen en schoolvakanties @SelectedYear</span>
+            </HeaderTemplate>
+            <ChildContent>
+                <RadzenDataGrid Data="@(GetAllHolidaysForGrid())"
+                                TItem="HolidayGridRow"
+                                ShowPagingSummary="false"
+                                ShowPagination="false">
+                    <Columns>
+                        <RadzenDataGridColumn TItem="HolidayGridRow" Property="DateText" Title="Datum" Width="240px" />
+                        <RadzenDataGridColumn TItem="HolidayGridRow" Property="Name" Title="Naam" />
+                        <RadzenDataGridColumn TItem="HolidayGridRow" Property="Type" Title="Type" Width="160px" />
+                    </Columns>
+                </RadzenDataGrid>
+            </ChildContent>
+        </RadzenPanel>
+    </div>
+</div>
 
 
 @code {
+    private static readonly CultureInfo Nl = new("nl-BE");
+
     private List<DayOffDTO> personDaysOff = new();
     private List<MonthGroup> monthGroups = new();
     private List<WorkDay> selectedDays = new();
 
     // Permissions from ManagerPanel rules
     private CalendarPermissionsDTO? _perms;
-    // private bool CanSaveWork => SelectedYear == CurrentDayOffYear && (_perms?.CanSaveWorkCalendar ?? true);
     private bool CanSaveWork => (_perms?.CanSaveWorkCalendar ?? true);
 
     string userId;
-    private int SelectedYear { get; set; } = DateTime.Now.Year+1;
-    private List<int> Years { get; set; } = new();
-    private int CurrentDayOffYear = DateTime.Now.AddYears(1).Year;
+    private int SelectedYear { get; set; } = DateTime.Now.Year + 1;
+    private int MinYear => DateTime.Now.Year - 1;
+    private int MaxYear => DateTime.Now.Year + 10;
     private int SelectedYearDayOffCount => selectedDays.Count(d => d.Date.Year == SelectedYear);
+
+    // Niet-opgeslagen wijzigingen
+    private bool isDirty;
 
     // Verlofcategorieën (bv. Groot verlof max 8) voor ploeg/specialiteit van de gebruiker
     private List<LeaveCategoryDTO> Categories { get; set; } = new();
@@ -226,9 +248,42 @@ else
     private int CategoryUsage(int categoryId) =>
         selectedDays.Count(d => d.LeaveCategoryId == categoryId && d.Date.Year == SelectedYear);
 
+    private static int Percent(int value, int max) => max <= 0 ? 0 : Math.Min(100, (int)Math.Round(100.0 * value / max));
+
+    private static string Capitalize(string s) => string.IsNullOrEmpty(s) ? s : char.ToUpper(s[0]) + s[1..];
+
+    private static string ChipClass(bool selected, bool hasCategory, bool isWeekend) =>
+        "wc-chip"
+        + (selected ? (hasCategory ? " wc-chip-category" : " wc-chip-selected") : "")
+        + (!selected && isWeekend ? " wc-chip-weekend" : "");
+
+    private static string ChipTitle(WorkDay day, LeaveCategoryDTO? category, string? holiday, string? school)
+    {
+        var parts = new List<string>
+        {
+            $"{day.Date.ToString("dddd d MMMM", Nl)} · {(day.Shift == "D" ? "dagshift" : "nachtshift")}"
+        };
+        if (category != null) parts.Add(category.Name);
+        if (holiday != null) parts.Add($"Feestdag: {holiday}");
+        if (school != null) parts.Add($"Schoolvakantie: {school}");
+        return string.Join(" · ", parts);
+    }
+
+    private string? PublicHolidayName(DateTime date)
+    {
+        var h = PublicHolidays.FirstOrDefault(h => h.StartDate.Date == date.Date);
+        return h == null ? null : (h.Name?.FirstOrDefault(n => n.Language == "NL")?.Text ?? h.Name?.FirstOrDefault()?.Text ?? "Feestdag");
+    }
+
+    private string? SchoolHolidayName(DateTime date)
+    {
+        var h = SchoolHolidays.FirstOrDefault(h => h.StartDate.Date <= date.Date && h.EndDate.Date >= date.Date);
+        return h == null ? null : (h.Name?.FirstOrDefault(n => n.Language == "NL")?.Text ?? h.Name?.FirstOrDefault()?.Text ?? "Schoolvakantie");
+    }
+
     private List<PublicHolidayDTO> PublicHolidays { get; set; } = new();
     private List<SchoolHolidayDTO> SchoolHolidays { get; set; } = new();
-    
+
     private class HolidayGridRow
     {
         public string DateText { get; set; }
@@ -255,11 +310,6 @@ else
         await LoadHolidaysAndVacations();
         // Verlofdagen ophalen
         await GetDaysOff();
-
-        //Jarenlijst vullen
-        int startYear = DateTime.Now.Year-1;
-        int endYear = DateTime.Now.Year + 10;
-        Years = Enumerable.Range(startYear, endYear - startYear + 1).Reverse().ToList();
     }
 
     private async Task LoadPermissions()
@@ -321,26 +371,37 @@ else
                     selectedDays.Add(new WorkDay { Date = workDay.Date, Shift = workDay.Shift, LeaveCategoryId = dayOff.LeaveCategoryId });
                 }
             }
+            isDirty = false;
         }
     }
+
     private async Task LoadHolidaysAndVacations()
     {
         PublicHolidays = await Http.GetFromJsonAsync<List<PublicHolidayDTO>>($"api/holidays/public/{SelectedYear}") ?? new();
         SchoolHolidays = await Http.GetFromJsonAsync<List<SchoolHolidayDTO>>($"api/holidays/school/{SelectedYear}") ?? new();
     }
 
-    private async Task OnYearChanged(object value)
+    private async Task ChangeYear(int delta)
     {
-        if (value is int year)
-        {
-            SelectedYear = year;
-            await LoadWorkDays();
-            await GetDaysOff();
-            await LoadHolidaysAndVacations();
-            await LoadPermissions();
-            await LoadCategories();
-            StateHasChanged();
-        }
+        var year = SelectedYear + delta;
+        if (year < MinYear || year > MaxYear) return;
+
+        if (isDirty && !await JS.InvokeAsync<bool>("confirm", "Je hebt niet-opgeslagen wijzigingen. Toch van jaar wisselen?"))
+            return;
+
+        SelectedYear = year;
+        await LoadWorkDays();
+        await GetDaysOff();
+        await LoadHolidaysAndVacations();
+        await LoadPermissions();
+        await LoadCategories();
+        StateHasChanged();
+    }
+
+    private async Task OnBeforeInternalNavigation(LocationChangingContext context)
+    {
+        if (isDirty && !await JS.InvokeAsync<bool>("confirm", "Je hebt niet-opgeslagen wijzigingen. Pagina toch verlaten?"))
+            context.PreventNavigation();
     }
 
     private async Task LoadWorkDays()
@@ -351,7 +412,7 @@ else
             .GroupBy(wd => wd.Date.Month)
             .Select(g => new MonthGroup
             {
-                MonthName = CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(g.Key),
+                MonthName = Nl.DateTimeFormat.GetMonthName(g.Key),
                 WorkDays = g.OrderBy(wd => wd.Date).ToList()
             })
             .OrderBy(g => g.WorkDays.First().Date.Month)
@@ -387,6 +448,7 @@ else
             }
             else
                 selectedDays.Remove(existing);
+            isDirty = true;
             return;
         }
 
@@ -394,6 +456,7 @@ else
         if (existing?.LeaveCategoryId == ActiveCategoryId)
         {
             selectedDays.Remove(existing);
+            isDirty = true;
             return;
         }
 
@@ -417,6 +480,7 @@ else
         }
         else
             existing.LeaveCategoryId = category.Id;
+        isDirty = true;
     }
 
     private async Task SaveSelectedDays()
@@ -431,11 +495,12 @@ else
 
         if (response.IsSuccessStatusCode)
         {
+            isDirty = false;
             NotificationService.Notify(new NotificationMessage
             {
                 Severity = NotificationSeverity.Success,
                 Summary = "Opgeslagen",
-                Detail = "Geselecteerde verlofdagen zijn opgeslagen.",
+                Detail = "Je verlofdagen zijn opgeslagen.",
                 Duration = 2000
             });
         }
@@ -486,7 +551,6 @@ else
         }
     }
 
-    // Export the visible calendar + tables as PDF
     private string? PersonName;
 
     private async Task ExportToPdfAsync()
@@ -500,14 +564,15 @@ else
             "exportElementToPdf",
             "workcalendar-export",
             $"WerkKalender-{SelectedYear}.pdf",
-            title,            // titleText (was missing)
+            title,            // titleText
             "landscape",      // orientation must be "landscape" or "portrait"
             true,             // fitOnePage
             true,             // compress
-            "#holidays-grid", // hideSelector
+            "#holidays-grid, .wc-no-export", // hideSelector
             6                 // marginMm
         );
     }
+
     private async Task ResolvePersonNameAsync()
     {
         try
@@ -530,7 +595,6 @@ else
             // Laat PersonName fallbacken in ExportToPdfAsync ("Gebruiker")
         }
     }
-
 
     // Export selected days as an .ics calendar (double-click to import)
     private async Task ExportIcsAsync()
@@ -567,7 +631,8 @@ else
             var start = d.Date.Date;
             var end = start.AddDays(1);
             var uid = $"{Guid.NewGuid()}@verlofbwzc";
-            var summary = $"Verlof ({d.Shift})";
+            var category = d.LeaveCategoryId is int catId ? Categories.FirstOrDefault(c => c.Id == catId) : null;
+            var summary = category != null ? $"{category.Name} ({d.Shift})" : $"Verlof ({d.Shift})";
 
             sb.AppendLine("BEGIN:VEVENT");
             sb.AppendLine($"UID:{uid}");
@@ -582,8 +647,6 @@ else
 
         await JS.InvokeVoidAsync("downloadFile", $"Verlof-{SelectedYear}.ics", "text/calendar", sb.ToString());
     }
-
-
 
     private List<HolidayGridRow> GetAllHolidaysForGrid()
     {
