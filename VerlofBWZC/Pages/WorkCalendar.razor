@@ -51,8 +51,8 @@
             }
         </div>
         <div class="wc-actions">
-            <RadzenButton Text="PDF" Icon="picture_as_pdf" ButtonStyle="ButtonStyle.Light" Click="@ExportToPdfAsync" />
-            <RadzenButton Text="Agenda (.ics)" Icon="event" ButtonStyle="ButtonStyle.Light" Click="@ExportIcsAsync" />
+            <RadzenButton Text="PDF" Icon="picture_as_pdf" ButtonStyle="ButtonStyle.Light" Click="@ExportToPdfAsync" title="Exporteren als PDF" />
+            <RadzenButton Text="Agenda" Icon="event" ButtonStyle="ButtonStyle.Light" Click="@ExportIcsAsync" title="Exporteren als .ics-bestand voor je agenda" />
             @if (CanSaveWork)
             {
                 <RadzenButton Text="Opslaan" Icon="save" ButtonStyle="ButtonStyle.Primary" Click="@SaveSelectedDays" />

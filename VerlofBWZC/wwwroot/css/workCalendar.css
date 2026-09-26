@@ -412,3 +412,90 @@
     background: rgba(241, 63, 63, 0.10);
     box-shadow: inset 0 0 0 1px rgba(241, 63, 63, 0.35);
 }
+
+/* --- Samenvatting op gsm: compact raster van 2 kolommen i.p.v. 1 kaart per rij --- */
+@media (max-width: 640px) {
+    .wc-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .5rem;
+    }
+
+        /* Totaal verlof over de volle breedte */
+        .wc-summary > .wc-stat:first-child {
+            grid-column: 1 / -1;
+        }
+
+    .wc-stat {
+        padding: .5rem .65rem;
+    }
+
+    .wc-stat-label {
+        font-size: .72rem;
+        gap: .3rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .wc-stat-period {
+        font-size: .68rem;
+    }
+
+    .wc-stat-value {
+        font-size: 1.2rem;
+        margin-top: 0;
+    }
+
+    .wc-stat-of {
+        font-size: .8rem;
+    }
+
+    .wc-bar {
+        height: 4px;
+        margin-top: .35rem;
+    }
+
+    .wc-stat-note {
+        font-size: .68rem;
+        margin-top: .2rem;
+        min-height: 0;
+    }
+}
+
+/* --- Kop op gsm: titel + jaar op één regel, knoppen samen op één regel --- */
+@media (max-width: 640px) {
+    .wc-header {
+        gap: .6rem;
+        margin-bottom: .9rem;
+    }
+
+    .wc-title {
+        gap: .5rem .75rem;
+    }
+
+        .wc-title h1 {
+            font-size: 1.6rem;
+        }
+
+    .wc-year-btn {
+        width: 30px;
+        height: 30px;
+    }
+
+    .wc-actions {
+        width: 100%;
+        gap: .4rem;
+        flex-wrap: nowrap;
+    }
+
+        .wc-actions .rz-button {
+            font-size: .8rem;
+            padding: .35rem .6rem;
+            white-space: nowrap;
+        }
+
+        /* Opslaan rechts */
+        .wc-actions .rz-primary {
+            margin-left: auto;
+        }
+}
