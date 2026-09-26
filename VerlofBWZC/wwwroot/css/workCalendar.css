@@ -401,3 +401,14 @@
         width: 46px;
     }
 }
+
+/* --- Kwartaalkaarten --- */
+.wc-stat-period {
+    color: var(--bwzc-muted);
+    font-size: .75rem;
+}
+
+.wc-stat-over {
+    background: rgba(241, 63, 63, 0.10);
+    box-shadow: inset 0 0 0 1px rgba(241, 63, 63, 0.35);
+}

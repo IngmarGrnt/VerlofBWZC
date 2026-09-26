@@ -11,6 +11,7 @@ public class VerlofBWZC_DbContext : DbContext
     public DbSet<Person> Persons { get; set; }
     public DbSet<CalendarAccessRule> CalendarAccessRules { get; set; }
     public DbSet<LeaveCategory> LeaveCategories { get; set; }
+    public DbSet<QuarterLimit> QuarterLimits { get; set; }
 
     public DbSet<LotteryDraw> LotteryDraws => Set<LotteryDraw>();
     public DbSet<LotteryWinner> LotteryWinners => Set<LotteryWinner>();
@@ -23,6 +24,7 @@ public class VerlofBWZC_DbContext : DbContext
         modelBuilder.LotteryDrawConfig();
         modelBuilder.CalendarAccessRuleConfig();
         modelBuilder.LeaveCategoryConfig();
+        modelBuilder.QuarterLimitConfig();
         //base.OnModelCreating(modelBuilder);
     }
 }   

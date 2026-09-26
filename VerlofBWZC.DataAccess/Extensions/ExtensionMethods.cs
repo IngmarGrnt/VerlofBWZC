@@ -116,5 +116,11 @@ namespace VerlofBWZC.DataAccess.Extensions
                 .HasForeignKey(d => d.LeaveCategoryId)
                 .OnDelete(DeleteBehavior.SetNull);
         }
+
+        public static void QuarterLimitConfig(this ModelBuilder mb)
+        {
+            mb.Entity<QuarterLimit>()
+                .HasIndex(q => new { q.Team, q.Speciality, q.Year });
+        }
     }
 }
