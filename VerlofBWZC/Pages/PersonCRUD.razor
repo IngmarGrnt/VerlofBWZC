@@ -134,6 +134,13 @@
                 </EditTemplate>
             </RadzenDataGridColumn>
 
+            <RadzenDataGridColumn TItem="PersonBaseDTO" Property="LeaveAllowance" Title="Verlof/jaar (shiften)" Width="150px">
+                <Template Context="person">@(person.LeaveAllowance?.ToString() ?? "-")</Template>
+                <EditTemplate Context="person">
+                    <RadzenNumeric TValue="int?" @bind-Value="person.LeaveAllowance" Min="0" Max="366" Placeholder="geen" Style="width:100%" />
+                </EditTemplate>
+            </RadzenDataGridColumn>
+
             <RadzenDataGridColumn TItem="PersonBaseDTO" Context="person">
                 <Template Context="person">
                     <RadzenButton Icon="edit" Click="@(() => EditRow(person))" Style="margin-right: 5px" />
@@ -215,9 +222,9 @@
                 Speciality = person.Speciality,
                 Grade = person.Grade,
                 Role = person.Role,
+                LeaveAllowance = person.LeaveAllowance,
                 Password = "Root1234",
             };
-            Console.WriteLine(JsonSerializer.Serialize(createDto));
             await PersonApi.CreatePersonAsync(createDto);
             NotificationService.Notify(NotificationSeverity.Success, "Toegevoegd", "Persoon succesvol toegevoegd");
         }
@@ -232,6 +239,7 @@
                 Speciality = person.Speciality,
                 Grade = person.Grade,
                 Role = person.Role,
+                LeaveAllowance = person.LeaveAllowance,
             };
             await PersonApi.UpdatePersonAsync(person.Id, updateDto);
             NotificationService.Notify(NotificationSeverity.Success, "Aangepast", "Persoon succesvol aangepast");
@@ -283,6 +291,7 @@
             Speciality = person.Speciality,
             Grade = person.Grade,
             Role = person.Role,
+            LeaveAllowance = person.LeaveAllowance,
             Password = newPassword
         };
         var result = await PersonApi.UpdatePersonAsync(person.Id, updateDto);

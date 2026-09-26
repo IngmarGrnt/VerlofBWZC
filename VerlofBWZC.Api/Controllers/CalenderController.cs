@@ -17,6 +17,7 @@ namespace VerlofBWZC.Api.Controllers
         private readonly VerlofBWZC_DbContext _context;
         private readonly CalendarHelper _calendarService;
         private readonly CalendarAccessService _access;
+        private readonly LeaveCategoryService _leaveCategories;
 
         // DTO voor de request body
         public class AddDayOffRequest
@@ -27,11 +28,12 @@ namespace VerlofBWZC.Api.Controllers
             public DayOffstatus? Status { get; set; }
         }
 
-        public CalenderController(VerlofBWZC_DbContext context, CalendarHelper calendarService, CalendarAccessService access)
+        public CalenderController(VerlofBWZC_DbContext context, CalendarHelper calendarService, CalendarAccessService access, LeaveCategoryService leaveCategories)
         {
             _context = context;
             _calendarService = calendarService;
             _access = access;
+            _leaveCategories = leaveCategories;
         }
 
         [HttpGet]
@@ -79,14 +81,26 @@ namespace VerlofBWZC.Api.Controllers
 
             var addedDates = new List<DateTime>();
             var skippedDates = new List<DateTime>();
+            var recategorizedDates = new List<DateTime>();
+            var newDayOffs = new List<DayOff>();
 
             // Voeg nieuwe DayOffs toe die nog niet bestaan
             foreach (var day in request.Days)
             {
-                bool alreadyExists = existingDayOffs.Any(d => d.Date.Date == day.Date.Date);
-                if (alreadyExists)
+                var existing = existingDayOffs.FirstOrDefault(d => d.Date.Date == day.Date.Date);
+                if (existing != null)
                 {
-                    skippedDates.Add(day.Date);
+                    // Bestaande verlofshift: enkel de categorie kan wijzigen
+                    if (existing.LeaveCategoryId != day.LeaveCategoryId)
+                    {
+                        existing.LeaveCategoryId = day.LeaveCategoryId;
+                        existing.LastUpdate = DateTime.Now;
+                        recategorizedDates.Add(day.Date);
+                    }
+                    else
+                    {
+                        skippedDates.Add(day.Date);
+                    }
                     continue;
                 }
 
@@ -95,19 +109,30 @@ namespace VerlofBWZC.Api.Controllers
                     PersonId = request.PersoonId,
                     Date = day.Date,
                     Shift = day.Shift,
+                    LeaveCategoryId = day.LeaveCategoryId,
                     Description = "", // Vul aan indien nodig
                     Status = DayOffstatus.Approved,
                     LastUpdate = DateTime.Now,
                     IsDeleted = false,// Of een andere default status
-                  
+
                 };
 
                 _context.DayOffs.Add(dayOff);
+                newDayOffs.Add(dayOff);
                 addedDates.Add(day.Date);
             }
 
+            // Verlofcategorieën: moeten bij ploeg/specialiteit/jaar van de persoon horen en binnen het maximum blijven
+            var finalDayOffs = existingDayOffs.Except(toRemove).Concat(newDayOffs).ToList();
+            var categoryError = await ValidateLeaveCategoriesAsync(person, finalDayOffs);
+            if (categoryError != null)
+                return BadRequest(categoryError);
+
             // Recht CanSaveWorkCalendar nodig voor elk jaar waarin effectief iets wijzigt
-            var changedYears = toRemove.Select(d => d.Date.Year).Concat(addedDates.Select(d => d.Year)).Distinct();
+            var changedYears = toRemove.Select(d => d.Date.Year)
+                .Concat(addedDates.Select(d => d.Year))
+                .Concat(recategorizedDates.Select(d => d.Year))
+                .Distinct();
             foreach (var year in changedYears)
             {
                 if (!await HasPermissionAsync(year, p => p.CanSaveWorkCalendar))
@@ -120,8 +145,37 @@ namespace VerlofBWZC.Api.Controllers
             {
                 Added = addedDates,
                 Skipped = skippedDates,
+                Recategorized = recategorizedDates,
                 Removed = toRemove.Select(d => d.Date)
             });
+        }
+
+        // Geeft een foutmelding terug als een categorie niet geldig is of het maximum overschreden wordt
+        private async Task<string?> ValidateLeaveCategoriesAsync(Person person, List<DayOff> dayOffs)
+        {
+            var withCategory = dayOffs.Where(d => d.LeaveCategoryId != null).ToList();
+            if (withCategory.Count == 0)
+                return null;
+
+            if (person.Team == null || person.Speciality == null)
+                return "Verlofcategorieën vereisen een ploeg en specialiteit.";
+
+            foreach (var yearGroup in withCategory.GroupBy(d => d.Date.Year))
+            {
+                var allowed = await _leaveCategories.GetApplicableAsync(person.Team.Value, person.Speciality.Value, yearGroup.Key);
+
+                foreach (var catGroup in yearGroup.GroupBy(d => d.LeaveCategoryId!.Value))
+                {
+                    var category = allowed.FirstOrDefault(c => c.Id == catGroup.Key);
+                    if (category == null)
+                        return $"Verlofcategorie {catGroup.Key} is niet geldig voor {person.Team}/{person.Speciality} in {yearGroup.Key}.";
+
+                    if (catGroup.Count() > category.MaxShifts)
+                        return $"Maximaal {category.MaxShifts} shiften als '{category.Name}' in {yearGroup.Key} (nu {catGroup.Count()}).";
+                }
+            }
+
+            return null;
         }
 
         [HttpGet("person-days-off/{personId}")]
@@ -140,6 +194,8 @@ namespace VerlofBWZC.Api.Controllers
                 .Select(d => new
                 {
                     d.Date,
+                    d.Shift,
+                    d.LeaveCategoryId,
                     d.Description,
                     d.Status
                 })
@@ -180,12 +236,18 @@ namespace VerlofBWZC.Api.Controllers
                     return Forbid();
             }
 
+            var personIds = request.Persons.Select(p => p.PersoonId).Distinct().ToList();
+            var personsById = await _context.Persons.AsNoTracking()
+                .Where(p => personIds.Contains(p.Id))
+                .ToDictionaryAsync(p => p.Id);
+
             foreach (var person in request.Persons)
             {
                 // Beperk tot het jaar dat bewerkt wordt
                 var existingDayOffs = await _context.DayOffs
                     .Where(d => d.PersonId == person.PersoonId && d.Date.Year == request.Year)
                     .ToListAsync();
+                var newDayOffs = new List<DayOff>();
 
                 // Vergelijk (Date, Shift)
                 var requested = person.Days
@@ -201,21 +263,40 @@ namespace VerlofBWZC.Api.Controllers
 
                 foreach (var day in person.Days)
                 {
-                    bool exists = existingDayOffs.Any(d => d.Date.Date == day.Date.Date && d.Shift == day.Shift);
-                    if (!exists)
+                    var existing = existingDayOffs.FirstOrDefault(d => d.Date.Date == day.Date.Date && d.Shift == day.Shift);
+                    if (existing != null)
                     {
-                        _context.DayOffs.Add(new DayOff
+                        // Bestaande verlofshift: enkel de verlofcategorie kan wijzigen
+                        if (existing.LeaveCategoryId != day.LeaveCategoryId)
                         {
-                            PersonId = person.PersoonId,
-                            Date = day.Date,
-                            Shift = day.Shift,
-                            Description = "",
-                            Status = DayOffstatus.Approved,
-                            LastUpdate = DateTime.Now,
-                            IsDeleted = false
-                        });
+                            existing.LeaveCategoryId = day.LeaveCategoryId;
+                            existing.LastUpdate = DateTime.Now;
+                        }
+                        continue;
                     }
+
+                    var dayOff = new DayOff
+                    {
+                        PersonId = person.PersoonId,
+                        Date = day.Date,
+                        Shift = day.Shift,
+                        LeaveCategoryId = day.LeaveCategoryId,
+                        Description = "",
+                        Status = DayOffstatus.Approved,
+                        LastUpdate = DateTime.Now,
+                        IsDeleted = false
+                    };
+                    _context.DayOffs.Add(dayOff);
+                    newDayOffs.Add(dayOff);
                 }
+
+                // Verlofcategorieën per persoon controleren (eigen ploeg/specialiteit, maximum)
+                if (!personsById.TryGetValue(person.PersoonId, out var target))
+                    return BadRequest($"Persoon {person.PersoonId} niet gevonden.");
+
+                var categoryError = await ValidateLeaveCategoriesAsync(target, existingDayOffs.Except(toRemove).Concat(newDayOffs).ToList());
+                if (categoryError != null)
+                    return BadRequest($"{target.FirstName} {target.LastName}: {categoryError}");
             }
 
             await _context.SaveChangesAsync();

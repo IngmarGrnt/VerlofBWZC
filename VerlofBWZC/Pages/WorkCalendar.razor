@@ -7,6 +7,7 @@
 @using VerlofBWZC.DataContracts.DTO.Calendar
 @using VerlofBWZC.DataContracts.DTO.Holiday
 @using VerlofBWZC.DataContracts.DTO.Access
+@using VerlofBWZC.DataContracts.DTO.Leave
 @using VerlofBWZC.Handler
 @using VerlofBWZC.Services
 @using System.Text
@@ -52,9 +53,19 @@ else
             </span>
             <RadzenBadge Variant="Variant.Filled"
                          BadgeStyle="BadgeStyle.Info"
-                         Text="@(SelectedYearDayOffCount.ToString())"
+                         Text="@(LeaveAllowance is int max ? $"{SelectedYearDayOffCount}/{max}" : SelectedYearDayOffCount.ToString())"
                          Class="rz-badge" />
         </div>
+
+        @if (LeaveAllowance is int allowance)
+        {
+            var remaining = allowance - SelectedYearDayOffCount;
+            <div class="@(remaining < 0 ? "leave-remaining leave-remaining-over" : "leave-remaining")">
+                @(remaining >= 0
+                    ? $"Nog {remaining} verlofshift(en) over in {SelectedYear}"
+                    : $"{-remaining} verlofshift(en) te veel in {SelectedYear} (max {allowance})")
+            </div>
+        }
 
         <!-- Single legend at the top, next to the selected-days info -->
         <div class="workcalendar-legend">
@@ -74,8 +85,43 @@ else
                 <span class="legend-swatch legend-swatch-info"></span>
                 <span>Cyan = Verlofdagen</span>
             </div>
+            @foreach (var c in Categories)
+            {
+                <div class="legend-item">
+                    <span class="legend-swatch" style="@($"background:{c.Color};")"></span>
+                    <span>@c.Name</span>
+                </div>
+            }
         </div>
     </div>
+
+    @if (Categories.Any() && CanSaveWork)
+    {
+        <!-- Verlofcategorie kiezen: klik daarna op verlofshiften om ze die categorie te geven -->
+        <div class="leave-category-bar">
+            <span class="rz-text-secondary">Aanduiden als:</span>
+            <RadzenButton Text="Gewoon verlof"
+                          Variant="@(ActiveCategoryId == null ? Variant.Filled : Variant.Outlined)"
+                          ButtonStyle="ButtonStyle.Info"
+                          Size="ButtonSize.Small"
+                          Click="@(() => ActiveCategoryId = null)" />
+            @foreach (var c in Categories)
+            {
+                var used = CategoryUsage(c.Id);
+                var isActive = ActiveCategoryId == c.Id;
+                <RadzenButton Text="@($"{c.Name} {used}/{c.MaxShifts}")"
+                              Size="ButtonSize.Small"
+                              Variant="@(isActive ? Variant.Filled : Variant.Outlined)"
+                              Style="@(isActive ? $"background-color:{c.Color}; border-color:{c.Color}; color:#fff;" : $"border-color:{c.Color}; color:{c.Color};")"
+                              Click="@(() => ActiveCategoryId = c.Id)" />
+            }
+            <span class="rz-text-secondary" style="font-size:.85rem;">
+                @(ActiveCategoryId == null
+                    ? "Klik op een shift om verlof aan of uit te zetten."
+                    : "Klik op een shift om deze categorie te geven; nog eens klikken zet de shift weer uit.")
+            </span>
+        </div>
+    }
 
     <!-- Wrap the area we want to export to PDF -->
     <div id="workcalendar-export">
@@ -87,7 +133,12 @@ else
                         <div style="display: flex; flex-wrap: wrap; gap: 6px; ">
                             @foreach (var day in data.WorkDays)
                             {
-                                var isSelected = selectedDays.Any(d => d.Date == day.Date && d.Shift == day.Shift);
+                                var selected = selectedDays.FirstOrDefault(d => d.Date == day.Date && d.Shift == day.Shift);
+                                var isSelected = selected != null;
+                                var category = selected?.LeaveCategoryId is int catId ? Categories.FirstOrDefault(c => c.Id == catId) : null;
+                                var categoryStyle = category != null
+                                    ? $"margin-bottom: 1px; background-color:{category.Color}; border-color:{category.Color}; color:#fff;"
+                                    : "margin-bottom: 1px";
 
                                 // Alleen als NIET geselecteerd: kleurklasse bepalen
                                 string holidayTypeClass = "";
@@ -105,7 +156,8 @@ else
                                               ButtonStyle="@(isSelected ? ButtonStyle.Info : (day.Shift == "D" ? ButtonStyle.Primary : ButtonStyle.Secondary))"
                                               Text="@($"{day.Shift} {day.Date:ddd} {day.Date:dd}")"
                                               Click="@(args => OnDayClicked(day))"
-                                              Style="margin-bottom: 1px"
+                                              Style="@categoryStyle"
+                                              title="@(category?.Name)"
                                               class="@($"{holidayTypeClass} workcalendar-day-btn")">
                                 </RadzenButton>
                             }
@@ -149,6 +201,31 @@ else
     private int CurrentDayOffYear = DateTime.Now.AddYears(1).Year;
     private int SelectedYearDayOffCount => selectedDays.Count(d => d.Date.Year == SelectedYear);
 
+    // Verlofcategorieën (bv. Groot verlof max 8) voor ploeg/specialiteit van de gebruiker
+    private List<LeaveCategoryDTO> Categories { get; set; } = new();
+    private int? ActiveCategoryId;
+    private string? PersonTeam;
+
+    // Verlofaantal per jaar (ingesteld bij Personen); null = geen limiet
+    private int? LeaveAllowance;
+
+    private void WarnIfOverAllowance()
+    {
+        if (LeaveAllowance is int max && SelectedYearDayOffCount > max)
+        {
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Warning,
+                Summary = "Verlofaantal overschreden",
+                Detail = $"Je hebt {SelectedYearDayOffCount} verlofshiften aangeduid in {SelectedYear}, maar je verlofaantal is {max}.",
+                Duration = 5000
+            });
+        }
+    }
+
+    private int CategoryUsage(int categoryId) =>
+        selectedDays.Count(d => d.LeaveCategoryId == categoryId && d.Date.Year == SelectedYear);
+
     private List<PublicHolidayDTO> PublicHolidays { get; set; } = new();
     private List<SchoolHolidayDTO> SchoolHolidays { get; set; } = new();
     
@@ -162,17 +239,18 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadWorkDays();
-        
         //Haal token op
         var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
         userId = JwtUtils.GetUserIdFromToken(token);
 
-        // Haal de weergavenaam op
+        // Haal de weergavenaam en ploeg op (ploeg bepaalt het werkrooster)
         await ResolvePersonNameAsync();
+
+        await LoadWorkDays();
 
         // Permissions ophalen op basis van claims (team/speciality) en huidig jaar
         await LoadPermissions();
+        await LoadCategories();
 
         await LoadHolidaysAndVacations();
         // Verlofdagen ophalen
@@ -230,18 +308,17 @@ else
         {
             personDaysOff = await Http.GetFromJsonAsync<List<DayOffDTO>>($"api/calender/person-days-off/{persoonId}");
 
-            // Vul selectedDays met de juiste shift per dag
+            // Vul selectedDays met de juiste shift per dag (en eventuele verlofcategorie)
             selectedDays.Clear();
             foreach (var dayOff in personDaysOff)
             {
-                // Zoek alle workdays op deze datum (kan dag- en nachtdienst zijn)
-                var workDay = monthGroups
-                    .SelectMany(mg => mg.WorkDays)
-                    .FirstOrDefault(wd => wd.Date.Date == dayOff.Date.Date);
+                var workDays = monthGroups.SelectMany(mg => mg.WorkDays).Where(wd => wd.Date.Date == dayOff.Date.Date);
+                // Opgeslagen shift heeft voorrang; oudere records zonder shift nemen de eerste shift van die dag
+                var workDay = workDays.FirstOrDefault(wd => wd.Shift == dayOff.Shift) ?? workDays.FirstOrDefault();
 
                 if (workDay != null)
                 {
-                    selectedDays.Add(new WorkDay { Date = workDay.Date, Shift = workDay.Shift });
+                    selectedDays.Add(new WorkDay { Date = workDay.Date, Shift = workDay.Shift, LeaveCategoryId = dayOff.LeaveCategoryId });
                 }
             }
         }
@@ -261,13 +338,15 @@ else
             await GetDaysOff();
             await LoadHolidaysAndVacations();
             await LoadPermissions();
+            await LoadCategories();
             StateHasChanged();
         }
     }
 
     private async Task LoadWorkDays()
     {
-        var workDays = await Http.GetFromJsonAsync<List<WorkDay>>($"api/calender?teamName=Ploeg1&year={SelectedYear}");
+        var team = string.IsNullOrWhiteSpace(PersonTeam) ? "Ploeg1" : PersonTeam;
+        var workDays = await Http.GetFromJsonAsync<List<WorkDay>>($"api/calender?teamName={team}&year={SelectedYear}");
         monthGroups = workDays
             .GroupBy(wd => wd.Date.Month)
             .Select(g => new MonthGroup
@@ -279,13 +358,65 @@ else
             .ToList();
     }
 
+    private async Task LoadCategories()
+    {
+        try
+        {
+            Categories = await Http.GetFromJsonAsync<List<LeaveCategoryDTO>>($"api/leave-categories/mine?year={SelectedYear}") ?? new();
+        }
+        catch
+        {
+            Categories = new();
+        }
+
+        if (ActiveCategoryId != null && Categories.All(c => c.Id != ActiveCategoryId))
+            ActiveCategoryId = null;
+    }
+
     private void OnDayClicked(WorkDay day)
     {
         var existing = selectedDays.FirstOrDefault(d => d.Date == day.Date && d.Shift == day.Shift);
-        if (existing == null)
-            selectedDays.Add(day);
-        else
+
+        // Gewoon verlof: shift aan/uit zetten
+        if (ActiveCategoryId == null)
+        {
+            if (existing == null)
+            {
+                selectedDays.Add(new WorkDay { Date = day.Date, Shift = day.Shift });
+                WarnIfOverAllowance();
+            }
+            else
+                selectedDays.Remove(existing);
+            return;
+        }
+
+        // Categorie actief: nog eens klikken op een shift met deze categorie zet de shift volledig uit
+        if (existing?.LeaveCategoryId == ActiveCategoryId)
+        {
             selectedDays.Remove(existing);
+            return;
+        }
+
+        var category = Categories.First(c => c.Id == ActiveCategoryId);
+        if (day.Date.Year == SelectedYear && CategoryUsage(category.Id) >= category.MaxShifts)
+        {
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Warning,
+                Summary = category.Name,
+                Detail = $"Je kan maximaal {category.MaxShifts} shiften als '{category.Name}' aanduiden.",
+                Duration = 4000
+            });
+            return;
+        }
+
+        if (existing == null)
+        {
+            selectedDays.Add(new WorkDay { Date = day.Date, Shift = day.Shift, LeaveCategoryId = category.Id });
+            WarnIfOverAllowance();
+        }
+        else
+            existing.LeaveCategoryId = category.Id;
     }
 
     private async Task SaveSelectedDays()
@@ -310,12 +441,16 @@ else
         }
         else
         {
+            // Bij een validatiefout (bv. te veel shiften in een categorie) de reden van de server tonen
+            var reason = response.StatusCode == System.Net.HttpStatusCode.BadRequest
+                ? await response.Content.ReadAsStringAsync()
+                : "Opslaan van verlofdagen mislukt.";
             NotificationService.Notify(new NotificationMessage
             {
                 Severity = NotificationSeverity.Error,
                 Summary = "Fout",
-                Detail = "Opslaan van verlofdagen mislukt.",
-                Duration = 2000
+                Detail = reason,
+                Duration = 5000
             });
         }
     }
@@ -382,6 +517,8 @@ else
                 var person = await PersonApi.GetPersonByIdAsync(id);
                 if (person != null)
                 {
+                    PersonTeam = person.Team;
+                    LeaveAllowance = person.LeaveAllowance;
                     var first = person.FirstName?.Trim() ?? "";
                     var last = person.LastName?.Trim() ?? "";
                     PersonName = string.Join(" ", new[] { first, last }.Where(s => !string.IsNullOrWhiteSpace(s)));

@@ -13,6 +13,9 @@ namespace VerlofBWZC.DataAccess.Entities
         public DayOffstatus Status { get; set; }
         public string? Shift { get; set; }
 
+        // Optionele verlofcategorie (bv. Groot verlof); null = gewoon verlof
+        public int? LeaveCategoryId { get; set; }
+
 
     }
 }

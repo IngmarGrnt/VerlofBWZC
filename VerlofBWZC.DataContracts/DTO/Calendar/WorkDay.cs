@@ -6,5 +6,8 @@ namespace VerlofBWZC.DataContracts.DTO.Calendar
     {
         public DateTime Date { get; set; }
         public string Shift { get; set; }
+
+        // Verlofcategorie van deze verlofshift (null = gewoon verlof)
+        public int? LeaveCategoryId { get; set; }
     }
 }
