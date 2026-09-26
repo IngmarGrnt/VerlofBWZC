@@ -515,3 +515,20 @@
         height: 16px;
     }
 }
+
+.tc-two-months {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    margin-left: .5rem;
+    font-size: .8rem;
+    font-weight: 500;
+    color: var(--bwzc-navy);
+    cursor: pointer;
+}
+
+    .tc-two-months input {
+        accent-color: var(--bwzc-navy);
+        width: 15px;
+        height: 15px;
+    }

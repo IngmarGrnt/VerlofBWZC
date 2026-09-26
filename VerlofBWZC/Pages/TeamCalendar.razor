@@ -116,7 +116,7 @@ else
     <div class="tc-months" role="group" aria-label="Maand kiezen">
         @foreach (var mg in MonthGroups)
         {
-            var isActive = SelectedMonth == mg.Month;
+            var isActive = SelectedMonth != null && VisibleMonths.Any(v => v.Month == mg.Month);
             var hasIssue = MonthHasIssue(mg);
             <button type="button" class="@(isActive ? "tc-month tc-month-active" : "tc-month")"
                     aria-pressed="@(isActive ? "true" : "false")"
@@ -134,6 +134,10 @@ else
                 @onclick="() => SelectedMonth = null">
             Hele jaar
         </button>
+        <label class="tc-two-months" title="Toon de gekozen maand samen met de maand ervoor, handig voor verlof dat over de maandgrens loopt">
+            <input type="checkbox" checked="@TwoMonths" disabled="@(SelectedMonth == null)" @onchange="e => TwoMonths = (bool)(e.Value ?? false)" />
+            2 maanden
+        </label>
     </div>
 
     <!-- Aanduiden als + legende -->
@@ -190,7 +194,7 @@ else
         <table class="tc-grid">
             <thead>
                 <tr>
-                    <th class="tc-col-date">@(SelectedMonth is int m ? Capitalize(new DateTime(SelectedYear, m, 1).ToString("MMMM", Nl)) : SelectedYear.ToString())</th>
+                    <th class="tc-col-date">@GridTitle</th>
                     <th class="tc-col-count">Bezet</th>
                     @foreach (var member in TeamMembers)
                     {
@@ -212,7 +216,7 @@ else
             <tbody>
                 @foreach (var mg in VisibleMonths)
                 {
-                    @if (SelectedMonth == null)
+                    @if (VisibleMonths.Count() > 1)
                     {
                         <tr class="tc-month-row">
                             <td class="tc-col-date">@Capitalize(new DateTime(mg.Year, mg.Month, 1).ToString("MMMM", Nl))</td>
@@ -285,6 +289,7 @@ else
 
     // Getoonde maand (null = hele jaar) en niet-opgeslagen wijzigingen
     private int? SelectedMonth;
+    private bool TwoMonths;
     private bool isDirty;
 
     private List<PublicHolidayDTO> PublicHolidays = new();
@@ -434,7 +439,23 @@ else
     // --- Weergave ---
 
     private IEnumerable<MonthGroup> VisibleMonths =>
-        SelectedMonth is int m ? MonthGroups.Where(g => g.Month == m) : MonthGroups;
+        SelectedMonth is int m
+            ? MonthGroups.Where(g => TwoMonths
+                // 2 maanden: de maand ervoor + de gekozen maand (januari: januari + februari)
+                ? g.Month == Math.Max(m, 2) - 1 || g.Month == Math.Max(m, 2)
+                : g.Month == m)
+            : MonthGroups;
+
+    private string GridTitle
+    {
+        get
+        {
+            var months = VisibleMonths.ToList();
+            if (SelectedMonth == null || months.Count == 0) return SelectedYear.ToString();
+            string Name(MonthGroup g) => Capitalize(new DateTime(g.Year, g.Month, 1).ToString("MMMM", Nl));
+            return months.Count == 1 ? Name(months[0]) : $"{ShortMonth(months[0].Month)} – {ShortMonth(months[^1].Month)}";
+        }
+    }
 
     private static string ShortMonth(int month) =>
         new DateTime(2000, month, 1).ToString("MMM", new CultureInfo("nl-BE")).TrimEnd('.');
