@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VerlofBWZC.DataAccess.Entities;
 using VerlofBWZC.DataContracts.DTO.Lottery;
@@ -7,6 +8,7 @@ namespace VerlofBWZC.Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize(Roles = "Admin,Manager")]
     public class LotteryController : ControllerBase
     {
         private readonly VerlofBWZC_DbContext _db;

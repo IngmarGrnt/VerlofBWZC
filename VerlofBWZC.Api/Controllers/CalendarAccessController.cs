@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using VerlofBWZC.Api.Helpers;
 using VerlofBWZC.Api.Services;
 using VerlofBWZC.DataAccess;
 using VerlofBWZC.DataAccess.Entities;
@@ -26,7 +27,6 @@ public class CalendarAccessController : ControllerBase
     [HttpGet("calendar-permissions")]
     public async Task<ActionResult<CalendarPermissionsDTO>> GetMyPermissions([FromQuery] int year)
     {
-        var role = User.FindFirst("role")?.Value ?? "User";
         var teamClaim = User.FindFirst("team")?.Value;
         var specClaim = User.FindFirst("speciality")?.Value;
 
@@ -62,11 +62,17 @@ public class CalendarAccessController : ControllerBase
             if (person == null)
                 return Forbid();
 
+            // Zonder team of specialiteit gelden geen teamregels (admins krijgen alles via de service)
+            if (person.Team == null || person.Speciality == null)
+                return Ok(User.IsAdmin()
+                    ? new CalendarPermissionsDTO(true, true, true)
+                    : new CalendarPermissionsDTO(false, false, false));
+
             team = person.Team.Value;
             speciality = person.Speciality.Value;
         }
 
-        var dto = await _svc.GetPermissionsAsync(User, team, speciality, year, role);
+        var dto = await _svc.GetPermissionsAsync(User, team, speciality, year);
         return Ok(dto);
     }
 
