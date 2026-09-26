@@ -162,3 +162,44 @@ a { color: var(--bwzc-blue); }
     .demo-banner .rz-button {
         margin-left: auto;
     }
+
+/* =========================================================================
+   Gsm/tablet (<= 768px): menu als schuiflade over de pagina i.p.v. de pagina
+   opzij te duwen. Openen/sluiten gebeurt in MainLayout (sluit na navigatie).
+   ========================================================================= */
+:root {
+    --bwzc-header-h: 51px;
+}
+
+.mobile-menu-backdrop {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .rz-layout > .rz-sidebar.rz-sidebar-expanded {
+        position: fixed;
+        top: var(--bwzc-header-h);
+        left: 0;
+        bottom: 0;
+        width: min(85vw, 300px) !important;
+        z-index: 1100;
+        overflow-y: auto;
+        box-shadow: 4px 0 24px rgba(29, 29, 27, 0.18);
+    }
+
+    .mobile-menu-backdrop {
+        display: block;
+        position: fixed;
+        top: var(--bwzc-header-h);
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 1050;
+        background: rgba(29, 29, 27, 0.35);
+    }
+
+    /* De pagina behoudt de volle breedte */
+    .rz-layout > .rz-body {
+        margin-inline-start: 0 !important;
+    }
+}
