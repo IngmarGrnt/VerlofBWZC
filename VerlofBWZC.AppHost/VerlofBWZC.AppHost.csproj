@@ -1,0 +1,16 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.4.6">
+
+  <ItemGroup>
+    <ProjectReference Include="..\VerlofBWZC.Api\VerlofBWZC.Api.csproj" />
+    <ProjectReference Include="..\VerlofBWZC\VerlofBWZC.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UserSecretsId>74b5c559-1769-42f6-b53c-8ba1f7aa47eb</UserSecretsId>
+  </PropertyGroup>
+
+</Project>

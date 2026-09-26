@@ -14,6 +14,8 @@ using VerlofBWZC.Api.Services;
 var builder = WebApplication.CreateBuilder(args);
 var config = builder.Configuration;
 
+builder.AddServiceDefaults();
+
 // Get allowed origins from configuration based on environment
 var environment = builder.Environment.EnvironmentName;
 var originsSection = config.GetSection($"AllowOrigins:{environment}");
@@ -100,9 +102,10 @@ using (var scope = app.Services.CreateScope())
 {
     var env = scope.ServiceProvider.GetRequiredService<IWebHostEnvironment>();
     var db = scope.ServiceProvider.GetRequiredService<VerlofBWZC_DbContext>();
-    var cs = db.Database.GetDbConnection().ConnectionString;
+    var conn = db.Database.GetDbConnection();
     app.Logger.LogInformation("Environment: {env}", env.EnvironmentName);
-    app.Logger.LogInformation("EF Core gebruikt database: {cs}", cs);
+    // Enkel server en databanknaam loggen, nooit de volledige connection string (bevat wachtwoord)
+    app.Logger.LogInformation("EF Core gebruikt database: {server}/{database}", conn.DataSource, conn.Database);
     // db.Database.Migrate(); // uncomment als je bij start automatisch wil migreren
 }
 
@@ -124,5 +127,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapDefaultEndpoints();
 
 app.Run();

@@ -21,7 +21,6 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.9" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="9.0.6" />
     <PackageReference Include="Swashbuckle.AspNetCore.Swagger" Version="9.0.6" />
     <PackageReference Include="Swashbuckle.AspNetCore.SwaggerGen" Version="9.0.6" />
@@ -32,6 +31,7 @@
     <ProjectReference Include="..\VerlofBWZC.Business\VerlofBWZC.Business.csproj" />
     <ProjectReference Include="..\VerlofBWZC.DataAccess\VerlofBWZC.DataAccess.csproj" />
     <ProjectReference Include="..\VerlofBWZC.DataContracts\VerlofBWZC.DataContracts.csproj" />
+    <ProjectReference Include="..\VerlofBWZC.ServiceDefaults\VerlofBWZC.ServiceDefaults.csproj" />
   </ItemGroup>
 
 </Project>
