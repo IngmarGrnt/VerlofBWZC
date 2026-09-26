@@ -7,6 +7,8 @@
 @using System.Net.Http.Json
 @inject HttpClient Http
 @inject NotificationService Notifications
+@inject VerlofBWZC.Services.CurrentPersonService CurrentPerson
+@using VerlofBWZC.Services
 
 @using Microsoft.AspNetCore.Authorization
 @attribute [Authorize(Roles = "Admin,Manager")]
@@ -335,6 +337,16 @@
     {
         teams = await Http.GetFromJsonAsync<List<string>>("api/meta/teams") ?? new();
         specialities = await Http.GetFromJsonAsync<List<string>>("api/meta/specialities") ?? new();
+
+        // Manager: enkel zijn eigen ploeg en specialiteit (de API controleert dit ook)
+        var me = await CurrentPerson.GetAsync();
+        if (!CurrentPersonService.IsAdmin(me) && me != null)
+        {
+            teams = new List<string> { me.Team };
+            specialities = new List<string> { me.Speciality };
+            teamFilter = me.Team;
+            specialityFilter = me.Speciality;
+        }
     }
 
     private async Task LoadAsync()

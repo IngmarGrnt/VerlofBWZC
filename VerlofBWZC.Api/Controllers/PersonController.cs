@@ -1,9 +1,10 @@
-﻿using AutoMapper;
+using AutoMapper;
 using AutoMapper.QueryableExtensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VerlofBWZC.Api.Helpers;
+using VerlofBWZC.Api.Services;
 using VerlofBWZC.DataAccess;
 using VerlofBWZC.DataAccess.Entities;
 using VerlofBWZC.DataAccess.Enums;
@@ -24,18 +25,20 @@ namespace VerlofBWZC.Api.Controllers
         //private readonly ConfigurationBuilder _configurationBuilder;
         private readonly IConfiguration _configuration;
         private readonly ILogger<PersonController> _logger;
+        private readonly UserContext _me;
 
 
-        public PersonController(VerlofBWZC_DbContext context, IMapper mapper, IHttpContextFactory httpContextFactory, IConfiguration configuration, ILogger<PersonController> logger)
+        public PersonController(VerlofBWZC_DbContext context, IMapper mapper, IHttpContextFactory httpContextFactory, IConfiguration configuration, ILogger<PersonController> logger, UserContext me)
         {
             _context = context;
             _mapper = mapper;
             _httpContextFactory = httpContextFactory;
             _configuration = configuration;
             _logger = logger;
+            _me = me;
         }
 
-        // GET: api/Person
+        // GET: api/Person — Admin alle personen, Manager enkel zijn ploeg en specialiteit
         [HttpGet]
         [Route("/api/allPersons")]
         [Authorize(Roles = "Admin,Manager")]
@@ -43,7 +46,14 @@ namespace VerlofBWZC.Api.Controllers
         {
             try
             {
-                var personDTOs = await _context.Persons
+                var query = _context.Persons.AsQueryable();
+                if (!_me.IsAdmin)
+                {
+                    var own = await _me.GetTeamAsync();
+                    query = query.Where(p => p.Team == own.Team && p.Speciality == own.Speciality);
+                }
+
+                var personDTOs = await query
                     .ProjectTo<PersonBaseDTO>(_mapper.ConfigurationProvider)
                     .ToListAsync();
 
@@ -57,13 +67,10 @@ namespace VerlofBWZC.Api.Controllers
         }
 
 
-        // GET: api/Person/id
+        // GET: api/Person/id — jezelf, Admin, of Manager voor zijn ploeg en specialiteit
         [HttpGet("{id}")]
         public async Task<ActionResult<Person>> GetPerson(int id)
         {
-            if (!User.IsSelfOrAdminOrManager(id))
-                return Forbid();
-
             var personDTO = await _context.Persons
             .Where(p => p.Id == id)
             .ProjectTo<PersonBaseDTO>(_mapper.ConfigurationProvider)
@@ -71,7 +78,20 @@ namespace VerlofBWZC.Api.Controllers
 
             if (personDTO == null)
             {
-                return NotFound();
+                return _me.IsAdmin ? NotFound() : Forbid();
+            }
+
+            var isSelf = _me.Id == id;
+            if (!isSelf && !_me.IsAdmin && !await CanManagePersonDtoAsync(personDTO))
+                return Forbid();
+
+            // Demo modus: je eigen profiel toont de gekozen rol, ploeg en specialiteit
+            if (isSelf && _me.IsDemo)
+            {
+                var demo = await _me.GetTeamAsync();
+                personDTO.Team = demo.Team?.ToString();
+                personDTO.Speciality = demo.Speciality?.ToString();
+                personDTO.Role = User.IsAdmin() ? "Admin" : User.IsInRole("Manager") ? "Manager" : "User";
             }
 
             return Ok(personDTO);
@@ -89,7 +109,7 @@ namespace VerlofBWZC.Api.Controllers
                 return BadRequest("Wachtwoord is verplicht.");
 
             PasswordHelper.CreatePasswordHash(personDTO.Password, out string hash, out string salt);
-            personDTO.PasswordHash = hash;  
+            personDTO.PasswordHash = hash;
             personDTO.Salt = salt;
             var person = _mapper.Map<Person>(personDTO);
             _context.Persons.Add(person);
@@ -110,8 +130,32 @@ namespace VerlofBWZC.Api.Controllers
 
             if (!PasswordHelper.VerifyPassword(loginDto.Password, person.PasswordHash, person.Salt))
                 return Unauthorized("Ongeldige gebruikersnaam of wachtwoord.");
-     
+
             string token = JwtTokenHelper.GenerateJwtToken(person, _configuration);
+            return Ok(new { token });
+        }
+
+        // Demo modus: een admin bekijkt de app als een gekozen rol, ploeg en specialiteit (enkel lezen)
+        [HttpPost("demo")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> StartDemo([FromBody] DemoRequestDTO request)
+        {
+            // Enkel een echte admin (geen demo-token) volgens de databank
+            if (_me.IsDemo)
+                return Forbid();
+
+            var admin = await _context.Persons.FindAsync(_me.Id);
+            if (admin == null || admin.Role != Role.Admin)
+                return Forbid();
+
+            if (!Enum.TryParse<Role>(request.Role, true, out var role))
+                return BadRequest("Ongeldige rol.");
+            if (!Enum.TryParse<TeamName>(request.Team, true, out var team))
+                return BadRequest("Ongeldige ploeg.");
+            if (!Enum.TryParse<Speciality>(request.Speciality, true, out var spec))
+                return BadRequest("Ongeldige specialiteit.");
+
+            var token = JwtTokenHelper.GenerateDemoToken(admin, role.ToString(), team.ToString(), spec.ToString(), _configuration);
             return Ok(new { token });
         }
 
@@ -119,7 +163,7 @@ namespace VerlofBWZC.Api.Controllers
         [HttpGet("team/{teamName}/{speciality}")]
         public async Task<ActionResult<IEnumerable<PersonBaseDTO>>> GetPersonsByTeam(TeamName teamName, Speciality speciality)
         {
-            if (!await CanReadTeamAsync(teamName))
+            if (!await _me.CanReadTeamAsync(teamName, speciality))
                 return Forbid();
 
             var persons = await _context.Persons
@@ -129,11 +173,11 @@ namespace VerlofBWZC.Api.Controllers
             return Ok(persons);
         }
 
-        // Alle leden van een ploeg, over alle specialiteiten heen
+        // Alle leden van een ploeg, over alle specialiteiten heen (enkel Admin)
         [HttpGet("team/{teamName}")]
         public async Task<ActionResult<IEnumerable<PersonBaseDTO>>> GetPersonsByTeamAllSpecialities(TeamName teamName)
         {
-            if (!await CanReadTeamAsync(teamName))
+            if (!await _me.CanReadTeamAsync(teamName, null))
                 return Forbid();
 
             var persons = await _context.Persons
@@ -147,7 +191,7 @@ namespace VerlofBWZC.Api.Controllers
         [HttpGet("team-days-off/{teamName}/{year}/{speciality?}")]
         public async Task<IActionResult> GetDaysOffForTeam(TeamName teamName, int year, Speciality? speciality = null)
         {
-            if (!await CanReadTeamAsync(teamName))
+            if (!await _me.CanReadTeamAsync(teamName, speciality))
                 return Forbid();
 
             var personsQuery = _context.Persons.Where(p => p.Team == teamName);
@@ -178,45 +222,66 @@ namespace VerlofBWZC.Api.Controllers
         [HttpPost("update/{id}")]
         public async Task<IActionResult> UpdatePersonPost(int id, [FromBody] PersonCreateDTO personDto)
         {
-            var isAdmin = User.IsAdmin();
-            if (!isAdmin && User.GetUserId() != id)
-                return Forbid();
-
             var person = await _context.Persons.FindAsync(id);
             if (person == null)
-                return NotFound();
+                return _me.IsAdmin ? NotFound() : Forbid();
 
-            // Niet-admins mogen enkel hun eigen wachtwoord wijzigen, geen naam/team/rol
-            if (!isAdmin)
+            if (_me.IsAdmin)
             {
+                // Admin: alle velden
+                person.FirstName = personDto.FirstName;
+                person.LastName = personDto.LastName;
+                if (!string.IsNullOrWhiteSpace(personDto.Email))
+                    person.Email = personDto.Email.Trim();
+                person.Team = Enum.TryParse<TeamName>(personDto.Team, out var team) ? team : null;
+                person.Speciality = Enum.TryParse<Speciality>(personDto.Speciality, out var spec) ? spec : null;
+                person.Grade = Enum.TryParse<Grade>(personDto.Grade, out var grade) ? grade : null;
+                person.Role = Enum.TryParse<Role>(personDto.Role, out var role) ? role : null;
+                person.LeaveAllowance = personDto.LeaveAllowance is >= 0 ? personDto.LeaveAllowance : null;
+            }
+            else if (_me.IsManager && await _me.CanManageTeamAsync(person.Team, person.Speciality))
+            {
+                // Manager, eigen ploeg + specialiteit: naam, e-mail, rol (nooit Admin), verlofaantal en wachtwoord.
+                // Admin-accounts en ploeg/specialiteit/graad blijven onaangeroerd.
+                if (person.Role == Role.Admin)
+                    return Forbid();
+                if (!Enum.TryParse<Role>(personDto.Role, out var newRole) || newRole == Role.Admin)
+                    return BadRequest("Een manager kan enkel de rol User of Manager toekennen.");
+
+                person.FirstName = personDto.FirstName;
+                person.LastName = personDto.LastName;
+                if (!string.IsNullOrWhiteSpace(personDto.Email))
+                    person.Email = personDto.Email.Trim();
+                person.Role = newRole;
+                person.LeaveAllowance = personDto.LeaveAllowance is >= 0 ? personDto.LeaveAllowance : null;
+            }
+            else if (_me.Id == id)
+            {
+                // Iedereen: enkel het eigen wachtwoord wijzigen
                 if (string.IsNullOrEmpty(personDto.Password))
                     return BadRequest("Enkel het wachtwoord kan gewijzigd worden.");
-
-                PasswordHelper.CreatePasswordHash(personDto.Password, out string ownHash, out string ownSalt);
-                person.PasswordHash = ownHash;
-                person.Salt = ownSalt;
-                person.LastUpdate = DateTime.Now;
-                await _context.SaveChangesAsync();
-                return NoContent();
+            }
+            else
+            {
+                return Forbid();
             }
 
-            // Update velden (pas aan indien nodig)
-            person.FirstName = personDto.FirstName;
-            person.LastName = personDto.LastName;
-            person.Team = Enum.TryParse<TeamName>(personDto.Team, out var team) ? team : null;
-            person.Speciality = Enum.TryParse<Speciality>(personDto.Speciality, out var spec) ? spec : null;
-            person.Grade = Enum.TryParse<Grade>(personDto.Grade, out var grade) ? grade : null;
-            person.Role = Enum.TryParse<Role>(personDto.Role, out var role) ? role : null;
-            person.LeaveAllowance = personDto.LeaveAllowance is >= 0 ? personDto.LeaveAllowance : null;
-            person.LastUpdate = DateTime.Now;
             if (!string.IsNullOrEmpty(personDto.Password))
             {
                 PasswordHelper.CreatePasswordHash(personDto.Password, out string hash, out string salt);
                 person.PasswordHash = hash;
                 person.Salt = salt;
             }
+            person.LastUpdate = DateTime.Now;
 
-            await _context.SaveChangesAsync();
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateException)
+            {
+                return BadRequest("Dit e-mailadres is al in gebruik.");
+            }
             return NoContent();
         }
 
@@ -233,22 +298,11 @@ namespace VerlofBWZC.Api.Controllers
             return NoContent();
         }
 
-        // Admin/Manager zien elk team; anderen enkel hun eigen team
-        private async Task<bool> CanReadTeamAsync(TeamName teamName)
+        private async Task<bool> CanManagePersonDtoAsync(PersonBaseDTO p)
         {
-            if (User.IsAdminOrManager())
-                return true;
-
-            var userId = User.GetUserId();
-            if (userId == null)
-                return false;
-
-            var ownTeam = await _context.Persons
-                .Where(p => p.Id == userId)
-                .Select(p => p.Team)
-                .FirstOrDefaultAsync();
-
-            return ownTeam == teamName;
+            var team = Enum.TryParse<TeamName>(p.Team, out var t) ? t : (TeamName?)null;
+            var spec = Enum.TryParse<Speciality>(p.Speciality, out var s) ? s : (Speciality?)null;
+            return await _me.CanManageTeamAsync(team, spec);
         }
     }
 }

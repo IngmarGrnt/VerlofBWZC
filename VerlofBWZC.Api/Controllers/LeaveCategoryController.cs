@@ -2,7 +2,6 @@ using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using VerlofBWZC.Api.Helpers;
 using VerlofBWZC.Api.Services;
 using VerlofBWZC.DataAccess;
 using VerlofBWZC.DataAccess.Entities;
@@ -17,27 +16,24 @@ namespace VerlofBWZC.Api.Controllers
     {
         private readonly VerlofBWZC_DbContext _context;
         private readonly LeaveCategoryService _svc;
+        private readonly UserContext _me;
 
-        public LeaveCategoryController(VerlofBWZC_DbContext context, LeaveCategoryService svc)
+        public LeaveCategoryController(VerlofBWZC_DbContext context, LeaveCategoryService svc, UserContext me)
         {
             _context = context;
             _svc = svc;
+            _me = me;
         }
 
         // Categorieën die gelden voor de ingelogde gebruiker (werkkalender)
         [HttpGet("mine")]
         public async Task<ActionResult<IEnumerable<LeaveCategoryDTO>>> GetMine([FromQuery] int year)
         {
-            var userId = User.GetUserId();
-            var me = await _context.Persons.AsNoTracking()
-                .Where(p => p.Id == userId)
-                .Select(p => new { p.Team, p.Speciality })
-                .FirstOrDefaultAsync();
-
-            if (me?.Team == null || me.Speciality == null)
+            var own = await _me.GetTeamAsync();
+            if (own.Team == null || own.Speciality == null)
                 return Ok(Array.Empty<LeaveCategoryDTO>());
 
-            var items = await _svc.GetApplicableAsync(me.Team.Value, me.Speciality.Value, year);
+            var items = await _svc.GetApplicableAsync(own.Team.Value, own.Speciality.Value, year);
             return Ok(items.Select(MapToDto));
         }
 
@@ -48,24 +44,36 @@ namespace VerlofBWZC.Api.Controllers
             if (!Enum.TryParse<TeamName>(team, true, out var teamEnum))
                 return BadRequest("Ongeldige ploeg.");
 
-            if (!await CanReadTeamAsync(teamEnum))
+            Speciality? specEnum = null;
+            if (!string.IsNullOrWhiteSpace(speciality))
+            {
+                if (!Enum.TryParse<Speciality>(speciality, true, out var parsed))
+                    return BadRequest("Ongeldige specialiteit.");
+                specEnum = parsed;
+            }
+
+            if (!await _me.CanReadTeamAsync(teamEnum, specEnum))
                 return Forbid();
 
-            if (string.IsNullOrWhiteSpace(speciality))
-                return Ok((await _svc.GetApplicableForTeamAsync(teamEnum, year)).Select(MapToDto));
-
-            if (!Enum.TryParse<Speciality>(speciality, true, out var specEnum))
-                return BadRequest("Ongeldige specialiteit.");
-
-            return Ok((await _svc.GetApplicableAsync(teamEnum, specEnum, year)).Select(MapToDto));
+            var items = specEnum == null
+                ? await _svc.GetApplicableForTeamAsync(teamEnum, year)
+                : await _svc.GetApplicableAsync(teamEnum, specEnum.Value, year);
+            return Ok(items.Select(MapToDto));
         }
 
-        // Beheer (Verlofregels-pagina)
+        // Beheer (Verlofregels-pagina): Admin alles, Manager enkel eigen ploeg en specialiteit
         [HttpGet("rules")]
         [Authorize(Roles = "Admin,Manager")]
         public async Task<ActionResult<IEnumerable<LeaveCategoryDTO>>> ListRules()
         {
-            var items = await _context.LeaveCategories.AsNoTracking()
+            var query = _context.LeaveCategories.AsNoTracking();
+            if (!_me.IsAdmin)
+            {
+                var own = await _me.GetTeamAsync();
+                query = query.Where(c => c.Team == own.Team && c.Speciality == own.Speciality);
+            }
+
+            var items = await query
                 .OrderBy(c => c.Team).ThenBy(c => c.Speciality).ThenBy(c => c.Year).ThenBy(c => c.SortOrder)
                 .ToListAsync();
             return Ok(items.Select(MapToDto));
@@ -79,6 +87,8 @@ namespace VerlofBWZC.Api.Controllers
             var error = Apply(dto, entity);
             if (error != null)
                 return BadRequest(error);
+            if (!await _me.CanManageTeamAsync(entity.Team, entity.Speciality))
+                return Forbid();
 
             _context.LeaveCategories.Add(entity);
             await _context.SaveChangesAsync();
@@ -95,10 +105,14 @@ namespace VerlofBWZC.Api.Controllers
             var entity = await _context.LeaveCategories.FindAsync(id);
             if (entity == null)
                 return NotFound();
+            if (!await _me.CanManageTeamAsync(entity.Team, entity.Speciality))
+                return Forbid();
 
             var error = Apply(dto, entity);
             if (error != null)
                 return BadRequest(error);
+            if (!await _me.CanManageTeamAsync(entity.Team, entity.Speciality))
+                return Forbid();
 
             await _context.SaveChangesAsync();
             return NoContent();
@@ -112,6 +126,8 @@ namespace VerlofBWZC.Api.Controllers
             var entity = await _context.LeaveCategories.FindAsync(id);
             if (entity == null)
                 return NotFound();
+            if (!await _me.CanManageTeamAsync(entity.Team, entity.Speciality))
+                return Forbid();
 
             _context.LeaveCategories.Remove(entity);
             await _context.SaveChangesAsync();
@@ -129,7 +145,7 @@ namespace VerlofBWZC.Api.Controllers
             if (dto.MaxShifts < 0 || dto.MaxShifts > 366)
                 return "Maximum aantal shiften moet tussen 0 en 366 liggen.";
             if (!Regex.IsMatch(dto.Color ?? "", "^#[0-9A-Fa-f]{6}$"))
-                return "Kleur moet een hexcode zijn, bv. #E53935.";
+                return "Kleur moet een hexcode zijn, bv. #E8590C.";
 
             entity.Team = team;
             entity.Speciality = spec;
@@ -140,16 +156,6 @@ namespace VerlofBWZC.Api.Controllers
             entity.SortOrder = dto.SortOrder;
             entity.LastUpdate = DateTime.Now;
             return null;
-        }
-
-        private async Task<bool> CanReadTeamAsync(TeamName team)
-        {
-            if (User.IsAdminOrManager())
-                return true;
-
-            var userId = User.GetUserId();
-            var ownTeam = await _context.Persons.Where(p => p.Id == userId).Select(p => p.Team).FirstOrDefaultAsync();
-            return ownTeam == team;
         }
 
         private static LeaveCategoryDTO MapToDto(LeaveCategory c) => new()

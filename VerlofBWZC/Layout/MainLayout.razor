@@ -2,6 +2,7 @@
 @implements IDisposable
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
+@inject VerlofBWZC.Services.DemoModeService Demo
 @using Radzen
 @using Radzen.Blazor
 
@@ -23,11 +24,25 @@
                 <NavMenu />
             </div>
         </RadzenSidebar>
+
+        @* Gsm/tablet: donkere achtergrond achter het menu; tikken sluit het menu (enkel zichtbaar via CSS op kleine schermen) *@
+        @if (sidebarExpanded)
+        {
+            <div class="mobile-menu-backdrop" @onclick="@(() => sidebarExpanded = false)"></div>
+        }
     }
 
     <RadzenBody>
         <article class="content px-4">
             <RadzenNotification />
+            @if (demo != null)
+            {
+                <div class="demo-banner" role="status">
+                    <i class="bi bi-eye" aria-hidden="true"></i>
+                    <span><strong>Demo modus</strong> · @demo.Role · @demo.Team · @demo.Speciality · alleen bekijken, opslaan is niet mogelijk</span>
+                    <RadzenButton Text="Stoppen" Icon="close" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Click="@StopDemo" />
+                </div>
+            }
             @Body
         </article>
     </RadzenBody>
@@ -46,7 +61,26 @@
 
     private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
     {
+        // Gsm/tablet: menu sluiten zodra een pagina gekozen is
+        if (isMobile)
+            sidebarExpanded = false;
         await CheckLoginStatus();
+    }
+
+    // Gsm/tablet (<= 768px): menu als schuiflade over de pagina, standaard dicht
+    private bool isMobile;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        isMobile = await JS.InvokeAsync<bool>("bwzcIsMobile");
+        if (isMobile && sidebarExpanded)
+        {
+            sidebarExpanded = false;
+            StateHasChanged();
+        }
     }
 
     private async Task CheckLoginStatus()
@@ -54,10 +88,16 @@
         var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
         var wasLoggedIn = isLoggedIn;
         isLoggedIn = !string.IsNullOrEmpty(token);
+        demo = isLoggedIn ? await Demo.GetActiveAsync() : null;
         if (!isLoggedIn) sidebarExpanded = false;
-        else if (!wasLoggedIn) sidebarExpanded = true; // na inloggen het menu weer openen
+        else if (!wasLoggedIn) sidebarExpanded = !isMobile; // na inloggen: menu open op desktop, dicht op gsm
         StateHasChanged();
     }
+
+    // Demo modus (admin bekijkt de app als andere rol/ploeg/specialiteit)
+    private VerlofBWZC.Services.DemoModeService.DemoInfo? demo;
+
+    private Task StopDemo() => Demo.StopAsync();
 
     public void Dispose()
     {

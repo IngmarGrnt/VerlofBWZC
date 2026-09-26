@@ -40,6 +40,8 @@ builder.Services.AddScoped(sp =>
 // PersonServices
 builder.Services.AddScoped<PersonApiService>();
 builder.Services.AddScoped<IClientCleanupService, ClientCleanupService>();
+builder.Services.AddScoped<DemoModeService>();
+builder.Services.AddScoped<CurrentPersonService>();
 
 
 

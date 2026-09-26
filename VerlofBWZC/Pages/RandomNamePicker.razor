@@ -25,6 +25,12 @@
 else
 {
     <div class="rz-mb-3" style="display:flex; flex-wrap:wrap; gap:1rem; align-items:center;">
+        @if (isAdmin)
+        {
+            @* Admin: loting voor elke ploeg en specialiteit; Manager enkel de eigen *@
+            <RadzenDropDown TValue="string" @bind-Value="SelectedTeam" Data="@TeamOptions" Placeholder="Ploeg" Style="width:140px" Change="@(async _ => await ReloadTeamAsync())" />
+            <RadzenDropDown TValue="string" @bind-Value="SelectedSpeciality" Data="@SpecialityOptions" Placeholder="Specialiteit" Style="width:180px" Change="@(async _ => await ReloadTeamAsync())" />
+        }
         <RadzenDropDown @bind-Value="SelectedYear"
                         Data="@Years"
                         Style="width:160px"
@@ -249,6 +255,7 @@ else
             var person = await PersonApi.GetPersonByIdAsync(id);
             SelectedTeam = NormalizeTeam(person?.Team);
             SelectedSpeciality = NormalizeSpeciality(person?.Speciality);
+            isAdmin = string.Equals(person?.Role, "Admin", StringComparison.OrdinalIgnoreCase);
         }
 
         // Personen voor dit team/specialiteit
@@ -278,6 +285,22 @@ else
         await LoadExistingDraws();
 
         isLoading = false;
+    }
+
+    private bool isAdmin;
+
+    // Admin koos een andere ploeg/specialiteit: personen en werkdagen opnieuw laden
+    private async Task ReloadTeamAsync()
+    {
+        if (string.IsNullOrWhiteSpace(SelectedTeam) || string.IsNullOrWhiteSpace(SelectedSpeciality))
+            return;
+
+        AllPersons = await Http.GetFromJsonAsync<List<PersonBaseDTO>>($"api/person/team/{SelectedTeam}/{SelectedSpeciality}") ?? new();
+        NormalizePeople(AllPersons);
+        ApplyFilters();
+        await LoadTeamWorkDays();
+        RebuildMonthWorkingDays();
+        StateHasChanged();
     }
 
     private async Task LoadMetaAsync()

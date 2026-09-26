@@ -16,11 +16,13 @@ public class CalendarAccessController : ControllerBase
 {
     private readonly VerlofBWZC_DbContext _context;
     private readonly CalendarAccessService _svc;
+    private readonly UserContext _me;
 
-    public CalendarAccessController(VerlofBWZC_DbContext db, CalendarAccessService svc)
+    public CalendarAccessController(VerlofBWZC_DbContext db, CalendarAccessService svc, UserContext me)
     {
         _context = db;
         _svc = svc;
+        _me = me;
     }
 
     [Authorize]
@@ -83,6 +85,13 @@ public class CalendarAccessController : ControllerBase
     {
         var q = _context.Set<CalendarAccessRule>().AsQueryable();
 
+        // Manager: enkel de regels van zijn eigen ploeg en specialiteit
+        if (!_me.IsAdmin)
+        {
+            var own = await _me.GetTeamAsync();
+            q = q.Where(r => r.Team == own.Team && r.Speciality == own.Speciality);
+        }
+
         if (!string.IsNullOrWhiteSpace(team))
         {
             if (!Enum.TryParse<TeamName>(team, true, out var teamEnum))
@@ -112,6 +121,8 @@ public class CalendarAccessController : ControllerBase
     {
         if (!TryParseEnums(dto.Team, dto.Speciality, out var team, out var spec, out var error))
             return BadRequest(error);
+        if (!await _me.CanManageTeamAsync(team, spec))
+            return Forbid();
 
         var entity = new CalendarAccessRule
         {
@@ -135,6 +146,8 @@ public class CalendarAccessController : ControllerBase
     public async Task<ActionResult<CalendarAccessRuleDTO>> GetById(int id)
     {
         var item = await _context.Set<CalendarAccessRule>().FindAsync(id);
+        if (item != null && !await _me.CanManageTeamAsync(item.Team, item.Speciality))
+            return Forbid();
         return item == null ? NotFound() : Ok(MapToDto(item));
         }
 
@@ -149,6 +162,8 @@ public class CalendarAccessController : ControllerBase
 
         if (!TryParseEnums(dto.Team, dto.Speciality, out var team, out var spec, out var error))
             return BadRequest(error);
+        if (!await _me.CanManageTeamAsync(entity.Team, entity.Speciality) || !await _me.CanManageTeamAsync(team, spec))
+            return Forbid();
 
         entity.Team = team;
         entity.Speciality = spec;
@@ -167,6 +182,8 @@ public class CalendarAccessController : ControllerBase
     {
         var item = await _context.Set<CalendarAccessRule>().FindAsync(id);
         if (item == null) return NotFound();
+        if (!await _me.CanManageTeamAsync(item.Team, item.Speciality))
+            return Forbid();
         _context.Remove(item);
         await _context.SaveChangesAsync();
         return NoContent();

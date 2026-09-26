@@ -9,6 +9,8 @@
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
 @inject HttpClient Http
+@inject VerlofBWZC.Services.DemoModeService Demo
+@inject DialogService DialogService
 @implements IDisposable
 
 @if (isLoggedIn)
@@ -52,27 +54,42 @@
                         <i class="bi bi-dice-5-fill" aria-hidden="true"></i>
                         <span class="menu-text">Naam Loterij</span>
                     </NavLink>
-                </div>                
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="ManagerPanel">
-                        <i class="bi bi-person-slash" aria-hidden="true"></i>
-                        <span class="menu-text">Manager Paneel</span>
-                    </NavLink>
                 </div>
+
+                @* Instellingen: Admin voor alle ploegen, Manager voor zijn eigen ploeg en specialiteit *@
+                <div class="nav-section">Instellingen</div>
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="verlofregels">
                         <i class="bi bi-list-check" aria-hidden="true"></i>
                         <span class="menu-text">Verlofregels</span>
                     </NavLink>
                 </div>
-            }
-            @if (userRole == "Admin")
-            {
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="kwartaalmaxima">
+                        <i class="bi bi-bar-chart-steps" aria-hidden="true"></i>
+                        <span class="menu-text">Kwartaalmaxima</span>
+                    </NavLink>
+                </div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="ManagerPanel">
+                        <i class="bi bi-shield-lock" aria-hidden="true"></i>
+                        <span class="menu-text">Manager Paneel</span>
+                    </NavLink>
+                </div>
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="person-crud">
                         <i class="bi bi-person-lines-fill" aria-hidden="true"></i>
                         <span class="menu-text">Personen</span>
                     </NavLink>
+                </div>
+            }
+            @if (canStartDemo)
+            {
+                <div class="nav-item px-3">
+                    <button type="button" class="nav-link nav-demo" @onclick="OpenDemo">
+                        <i class="bi bi-eye" aria-hidden="true"></i>
+                        <span class="menu-text">Demo modus</span>
+                    </button>
                 </div>
             }
             <div class="nav-item px-3">
@@ -114,6 +131,7 @@
         token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
         isLoggedIn = !string.IsNullOrEmpty(token);
         userRole = VerlofBWZC.Handler.JwtUtils.GetUserRolFromToken(token);
+        canStartDemo = isLoggedIn && await Demo.CanStartAsync();
 
         if (isLoggedIn)
         {
@@ -154,6 +172,14 @@
             _perms = null;
             canSeeTeamCalendar = false;
         }
+    }
+
+    // Demo modus: enkel voor een echte admin (niet vanuit een demo-sessie)
+    private bool canStartDemo;
+
+    private async Task OpenDemo()
+    {
+        await DialogService.OpenAsync<DemoDialog>("Demo modus", options: new DialogOptions { Width = "420px" });
     }
 
     private async Task Logout()

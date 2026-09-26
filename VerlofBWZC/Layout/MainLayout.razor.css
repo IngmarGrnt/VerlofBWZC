@@ -1,7 +1,4 @@
-/* Layout: RadzenLayout met witte header en lichte zijbalk (kleuren: zie theme.css) */
-
-/* Desktop defaults */
-.toggle-desktop { display: inline-flex; }
+/* Layout: RadzenLayout met witte header en lichte zijbalk (kleuren en gsm-menu: zie theme.css) */
 
 .navbar-logo {
     height: 36px;
@@ -10,15 +7,8 @@
     margin-left: .5rem;
 }
 
-/* Small screens */
 @media (max-width: 640px) {
-    /* Hide the header toggle and the sidebar entirely */
-    .toggle-desktop { display: none !important; }
-    :global(.rz-sidebar) { display: none !important; }
-    :global(.rz-sidebar-mask) { display: none !important; } /* prevent slide/overlay */
-    :global(.rz-body) { margin-left: 0 !important; }        /* remove left offset when sidebar is hidden */
-
     .navbar-logo {
-        height: 24px;
+        height: 28px;
     }
 }
