@@ -17,7 +17,7 @@
     }
     else
     {
-        @if (result == null)
+        @if (result == null && OnlyShift == null)
         {
             <div class="tl-scope" role="group" aria-label="Loting over">
                 @foreach (var s in new[] { Scope.Pair, Scope.Day, Scope.Night })
@@ -286,6 +286,8 @@
     [Parameter] public int Quota { get; set; }
     [Parameter] public bool CanApply { get; set; } = true;
     [Parameter] public bool AllowAddPeople { get; set; }
+    // Enkel deze shift ("D" of "N"), zonder keuze dag + nacht (bv. Ploeg0 zonder werkregime); DayDate = NightDate = de datum
+    [Parameter] public string? OnlyShift { get; set; }
     [Parameter] public Func<Task<Context>> Load { get; set; } = () => Task.FromResult(new Context());
     // Verlof weggehaald (toepassen) of teruggezet (verwijderen): de ouder werkt zijn eigen gegevens bij
     [Parameter] public Func<List<RestoredDayOffDTO>, Task>? OnRemoved { get; set; }
@@ -354,7 +356,7 @@
         {
             loadedFor = DayDate;
             result = null;
-            scope = Scope.Pair;
+            scope = OnlyShift == "N" ? Scope.Night : OnlyShift == "D" ? Scope.Day : Scope.Pair;
             await ReloadAsync(resetSelection: true);
         }
     }
@@ -440,6 +442,7 @@
                 DrawName = string.IsNullOrWhiteSpace(drawName) ? $"Loting {FromDate:dd-MM-yyyy}" : drawName.Trim(),
                 FromDate = FromDate,
                 ToDate = ToDate,
+                Shift = scope == Scope.Day ? "D" : scope == Scope.Night ? "N" : null,
                 Winners = list.Take(count).Select(c => new LotteryPersonDTO { PersonId = c.PersonId, FirstName = c.FirstName, LastName = c.LastName }).ToList(),
                 Losers = list.Skip(count).Select(c => new LotteryPersonDTO { PersonId = c.PersonId, FirstName = c.FirstName, LastName = c.LastName }).ToList()
             };

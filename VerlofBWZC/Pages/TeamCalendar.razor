@@ -257,9 +257,9 @@ else
                                 @{ var quota = QuotaFor(wd); }
                                 <span class="@(count > quota ? "tc-count tc-count-over" : count == quota ? "tc-count tc-count-full" : "tc-count")"
                                       title="@(ShowAllTeams ? $"Werkt: {string.Join(", ", TeamsOn(wd))}" : null)">@count/@quota</span>
-                                @if (CanManageCalendar && (PairOverQuota(wd) || HasDraw(wd.Date)))
+                                @if (CanManageCalendar && (PairOverQuota(wd) || HasDraw(wd)))
                                 {
-                                    var hasDraw = HasDraw(wd.Date);
+                                    var hasDraw = HasDraw(wd);
                                     <button type="button" class="@(hasDraw ? "tc-lottery-btn tc-lottery-done" : "tc-lottery-btn")"
                                             title="@(hasDraw ? "Loting gedaan: resultaat bekijken of opnieuw loten" : "Wie heeft verlof? Loting houden (dag + nacht)")"
                                             aria-label="Loting"
@@ -672,7 +672,8 @@ else
         .Where(d => d.Winners.Concat(d.Losers).Any(p => TeamMembers.Any(m => m.Id == p.PersonId)))
         .ToList();
 
-    private bool HasDraw(DateTime date) => DrawsFor(date).Any();
+    // Loting op deze shift: een loting op een paar (Shift null) of op precies deze shift
+    private bool HasDraw(WorkDay wd) => DrawsFor(wd.Date).Any(d => d.Shift == null || d.Shift == wd.Shift);
 
     // Een loting gaat altijd over een paar: dagshift op dag X + nachtshift op dag X+1
     private static (DateTime Day, DateTime Night) PairOf(WorkDay wd) =>
@@ -681,8 +682,25 @@ else
     private int ShiftCount(DateTime date, string shift) =>
         selectedDays.Count(d => d.Date.Date == date && d.Shift == shift);
 
+    // Ploeg0: geen vast werkregime (elke dag D en N); losse shiften en paren gelden er niet
+    private const string NoRegimeTeam = "Ploeg0";
+
+    private bool IsNoRegime(int personId) =>
+        TeamMembers.FirstOrDefault(m => m.Id == personId)?.Team == NoRegimeTeam;
+
+    // Loting per shift in plaats van per paar: de getoonde ploeg is Ploeg0, of iedereen op die shift zit in Ploeg0
+    private bool LotteryPerShift(WorkDay wd)
+    {
+        if (!ShowAllTeams)
+            return SelectedTeam == NoRegimeTeam;
+        var teams = TeamsOn(wd);
+        return teams.Count > 0 && teams.All(t => t == NoRegimeTeam);
+    }
+
     private bool PairOverQuota(WorkDay wd)
     {
+        if (LotteryPerShift(wd))
+            return ShiftCount(wd.Date.Date, wd.Shift) > QuotaFor(wd);
         var (day, night) = PairOf(wd);
         return ShiftCount(day, "D") > QuotaFor(day, "D") || ShiftCount(night, "N") > QuotaFor(night, "N");
     }
@@ -716,16 +734,19 @@ else
     // Popup met het gedeelde lotingformulier (zelfde als op de loterijpagina)
     private async Task OpenLottery(WorkDay wd)
     {
-        var (day, night) = PairOf(wd);
+        // Ploeg0: loting op deze ene shift; anders per paar (dag + nacht erna)
+        var perShift = LotteryPerShift(wd);
+        var (day, night) = perShift ? (wd.Date.Date, wd.Date.Date) : PairOf(wd);
         var dayText = day.Month == night.Month ? day.ToString("%d", Nl) : day.ToString("d MMMM", Nl);
+        var title = perShift
+            ? $"Loting · {wd.Date.ToString("d MMMM yyyy", Nl)} · {(wd.Shift == "D" ? "dagshift" : "nachtshift")}"
+            : $"Loting · {dayText}–{night.ToString("d MMMM yyyy", Nl)}";
 
-        await DialogService.OpenAsync<LotteryForm>(
-            $"Loting · {dayText}–{night.ToString("d MMMM yyyy", Nl)}",
-            new Dictionary<string, object>
+        var parameters = new Dictionary<string, object>
             {
                 { nameof(LotteryForm.DayDate), day },
                 { nameof(LotteryForm.NightDate), night },
-                { nameof(LotteryForm.Quota), Math.Max(QuotaFor(day, "D"), QuotaFor(night, "N")) },
+                { nameof(LotteryForm.Quota), perShift ? QuotaFor(wd) : Math.Max(QuotaFor(day, "D"), QuotaFor(night, "N")) },
                 { nameof(LotteryForm.CanApply), CanSaveTeamCalendar },
                 { nameof(LotteryForm.AllowAddPeople), true },
                 { nameof(LotteryForm.Load), new Func<Task<LotteryForm.Context>>(async () =>
@@ -734,7 +755,8 @@ else
                         return new LotteryForm.Context
                         {
                             Candidates = BuildCandidates(day, night),
-                            ExistingDraws = DrawsFor(day).Concat(DrawsFor(night)).GroupBy(d => d.DrawNumber).Select(g => g.First()).ToList(),
+                            ExistingDraws = DrawsFor(day).Concat(DrawsFor(night)).GroupBy(d => d.DrawNumber).Select(g => g.First())
+                                .Where(d => !perShift || d.Shift == null || d.Shift == wd.Shift).ToList(),
                             TeamMembers = TeamMembers,
                             Stats = LotteryApiService.StatsFor(Draws, SelectedYear),
                             NextDrawNumber = Draws.Count == 0 ? 1 : Draws.Max(d => d.DrawNumber) + 1
@@ -755,7 +777,11 @@ else
                         return Task.CompletedTask;
                     }) },
                 { nameof(LotteryForm.OnClose), EventCallback.Factory.Create(this, () => DialogService.Close()) }
-            },
+            };
+        if (perShift)
+            parameters[nameof(LotteryForm.OnlyShift)] = wd.Shift;
+
+        await DialogService.OpenAsync<LotteryForm>(title, parameters,
             new DialogOptions { Width = "580px", CloseDialogOnEsc = true });
 
         await LoadDraws();
@@ -1082,6 +1108,9 @@ private void OnDayClicked(int personId, WorkDay day)
     // Een losse shift is een aangeduide shift waarvan de partner (voor dezelfde persoon) niet aangeduid is.
     private bool IsLoose(SelectedDayOffDTO day)
     {
+        // Ploeg0 heeft geen werkregime: daar gelden losse shiften en paren niet
+        if (IsNoRegime(day.PersonId))
+            return false;
         var partnerDate = day.Shift == "D" ? day.Date.Date.AddDays(1) : day.Date.Date.AddDays(-1);
         var partnerShift = day.Shift == "D" ? "N" : "D";
         return !selectedDays.Any(d => d.PersonId == day.PersonId && d.Date.Date == partnerDate && d.Shift == partnerShift);

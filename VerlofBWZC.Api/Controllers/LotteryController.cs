@@ -63,6 +63,7 @@ namespace VerlofBWZC.Api.Controllers
                 DrawName = d.DrawName,
                 FromDate = d.FromDate,
                 ToDate = d.ToDate,
+                Shift = d.Shift,
                 CreatedAtUtc = d.CreatedAtUtc,
                 Winners = d.Winners.Select(w => new LotteryPersonDTO
                 {
@@ -109,6 +110,7 @@ namespace VerlofBWZC.Api.Controllers
                     DrawName = dto.DrawName ?? string.Empty,
                     FromDate = dto.FromDate,
                     ToDate = dto.ToDate,
+                    Shift = dto.Shift is "D" or "N" ? dto.Shift : null,
                     CreatedAtUtc = DateTime.UtcNow,
                     Winners = (dto.Winners ?? new List<LotteryPersonDTO>()).Select(w => new LotteryWinner
                     {
@@ -243,7 +245,8 @@ namespace VerlofBWZC.Api.Controllers
             var from = draw.FromDate.Date;
             var to = draw.ToDate.Date;
             var dayOffs = await _db.DayOffs
-                .Where(d => loserIds.Contains(d.PersonId) && d.Date >= from && d.Date < to.AddDays(1))
+                .Where(d => loserIds.Contains(d.PersonId) && d.Date >= from && d.Date < to.AddDays(1)
+                    && (draw.Shift == null || d.Shift == draw.Shift)) // loting op één shift: enkel die shift
                 .ToListAsync();
 
             var removed = new List<RestoredDayOffDTO>();

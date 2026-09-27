@@ -14,6 +14,8 @@ namespace VerlofBWZC.DataAccess.Entities
         [MaxLength(200)] public string DrawName { get; set; } = "";
         public DateTime FromDate { get; set; }
         public DateTime ToDate { get; set; }
+        // Enkel deze shift ("D" of "N"); null = alle shiften in de periode (paar dag + nacht)
+        [MaxLength(1)] public string? Shift { get; set; }
         public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 
         public ICollection<LotteryWinner> Winners { get; set; } = new List<LotteryWinner>();
@@ -47,4 +49,5 @@ namespace VerlofBWZC.DataAccess.Entities
         public LotteryDraw? LotteryDraw { get; set; }
     }
 }
+
 

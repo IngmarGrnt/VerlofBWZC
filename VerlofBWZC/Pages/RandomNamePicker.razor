@@ -88,17 +88,23 @@ else
             <div class="lp-pairs">
                 @foreach (var p in VisiblePairs)
                 {
-                    var active = SelectedPair == p.Day;
-                    <button type="button" class="@(active ? "lp-pair lp-pair-active" : "lp-pair")" @onclick="() => SelectedPair = p.Day">
+                    var active = SelectedPair == p.Key;
+                    <button type="button" class="@(active ? "lp-pair lp-pair-active" : "lp-pair")" @onclick="() => SelectedPair = p.Key">
                         <span class="lp-pair-date">@PairText(p)</span>
-                        <span class="lp-pair-shifts">D+N</span>
+                        <span class="lp-pair-shifts">@(p.Shift ?? "D+N")</span>
                         @if (p.HasDraw)
                         {
                             <span class="@(p.DrawApplied ? "tl-status tl-status-done" : "tl-status tl-status-open")"><i class="rzi">task_alt</i> @(p.DrawApplied ? "geloot" : "niet toegepast")</span>
                         }
                         <span class="lp-pair-count">
-                            <span class="@(p.DayCount > Quota ? "tc-count tc-count-over" : "tc-count")">@p.DayCount/@Quota</span>
-                            <span class="@(p.NightCount > Quota ? "tc-count tc-count-over" : "tc-count")">@p.NightCount/@Quota</span>
+                            @if (p.Shift != "N")
+                            {
+                                <span class="@(p.DayCount > Quota ? "tc-count tc-count-over" : "tc-count")">@p.DayCount/@Quota</span>
+                            }
+                            @if (p.Shift != "D")
+                            {
+                                <span class="@(p.NightCount > Quota ? "tc-count tc-count-over" : "tc-count")">@p.NightCount/@Quota</span>
+                            }
                         </span>
                     </button>
                 }
@@ -108,19 +114,18 @@ else
                 }
             </div>
 
-            @if (SelectedPair is DateTime day)
+            @if (SelectedPair != null && Pairs.FirstOrDefault(p => p.Key == SelectedPair) is Pair pair)
             {
-                var pair = Pairs.First(p => p.Day == day);
                 <div class="lp-step lp-step-2">2 · Loting @PairText(pair)</div>
-                <LotteryForm @key="@($"{day:yyyyMMdd}-{formVersion}")"
-                             DayDate="pair.Day" NightDate="pair.Night" Quota="Quota"
+                <LotteryForm @key="@($"{pair.Key}-{formVersion}")"
+                             DayDate="pair.Day" NightDate="pair.Night" Quota="Quota" OnlyShift="@pair.Shift"
                              CanApply="CanApply" AllowAddPeople="true"
                              Load="() => LoadFormContext(pair)"
                              OnRemoved="OnRemovedAsync" OnRestored="OnRestoredAsync" OnChanged="OnFormChangedAsync" />
             }
             else
             {
-                <p class="tl-hint lp-pick-hint">Kies hierboven een shiftpaar: de dag- en nachtshift worden samen genomen.</p>
+                <p class="tl-hint lp-pick-hint">@(IsNoRegime ? "Kies hierboven een shift: in Ploeg0 geldt de loting per shift." : "Kies hierboven een shiftpaar: de dag- en nachtshift worden samen genomen.")</p>
             }
         </section>
 
@@ -235,7 +240,7 @@ else
     private int MaxYear => DateTime.Now.Year + 10;
     private int SelectedMonth = 1;
     private bool OnlyOver = true;
-    private DateTime? SelectedPair;
+    private string? SelectedPair; // Pair.Key
 
     private string? SelectedTeam;
     private string? SelectedSpeciality;
@@ -261,13 +266,20 @@ else
         public int? LeaveCategoryId { get; set; }
     }
 
-    private record Pair(DateTime Day, DateTime Night, int DayCount, int NightCount, bool Over, bool HasDraw, bool DrawApplied);
+    // Shift null = paar dag + nacht; "D"/"N" = één shift (Ploeg0 zonder werkregime)
+    private record Pair(DateTime Day, DateTime Night, int DayCount, int NightCount, bool Over, bool HasDraw, bool DrawApplied, string? Shift = null)
+    {
+        public string Key => $"{Day:yyyyMMdd}{Shift}";
+    }
+
+    // Ploeg0 heeft geen werkregime: loting per shift in plaats van per paar
+    private bool IsNoRegime => SelectedTeam == "Ploeg0";
 
     private int Quota => Math.Max(1, TeamMembers.Count / 4);
     private bool CanApply => isAdmin || (perms?.CanSaveTeamCalendar ?? false);
 
     // --- Shiftparen: dagshift op dag X + nachtshift op dag X+1 ---
-    private List<Pair> Pairs => WorkDays
+    private List<Pair> Pairs => IsNoRegime ? SingleShifts : WorkDays
         .Where(w => w.Shift == "D")
         .OrderBy(w => w.Date)
         .Select(w =>
@@ -283,12 +295,27 @@ else
 
     private IEnumerable<Pair> VisiblePairs => Pairs
         .Where(p => p.Day.Month == SelectedMonth)
-        .Where(p => !OnlyOver || p.Over || p.HasDraw || p.Day == SelectedPair);
+        .Where(p => !OnlyOver || p.Over || p.HasDraw || p.Key == SelectedPair);
 
     private int OverPairsYear => Pairs.Count(p => p.Over && !p.HasDraw);
 
-    private List<LotteryDrawDTO> DrawsFor(DateTime day, DateTime night) => TeamDraws
+    // Ploeg0: elke shift apart
+    private List<Pair> SingleShifts => WorkDays
+        .OrderBy(w => w.Date).ThenBy(w => w.Shift == "D" ? 0 : 1)
+        .Select(w =>
+        {
+            var date = w.Date.Date;
+            var count = DaysOff.Count(d => d.Date.Date == date && d.Shift == w.Shift);
+            var draws = DrawsFor(date, date, w.Shift);
+            return new Pair(date, date, w.Shift == "D" ? count : 0, w.Shift == "N" ? count : 0, count > Quota,
+                draws.Any(), draws.Any() && draws.All(d => LotteryApiService.IsApplied(d) || !d.Losers.Any()), w.Shift);
+        })
+        .ToList();
+
+    // Lotingen voor een periode; met shift enkel lotingen op een paar of op precies die shift
+    private List<LotteryDrawDTO> DrawsFor(DateTime day, DateTime night, string? shift = null) => TeamDraws
         .Where(d => d.FromDate.Date <= night && d.ToDate.Date >= day)
+        .Where(d => shift == null || d.Shift == null || d.Shift == shift)
         .ToList();
 
     // Lotingen van deze ploeg/specialiteit: minstens één deelnemer is lid
@@ -316,14 +343,15 @@ else
     private static string ShortMonth(int month) =>
         new DateTime(2000, month, 1).ToString("MMM", new CultureInfo("nl-BE")).TrimEnd('.');
 
-    private string PairText(Pair p) =>
-        $"{p.Day.ToString("ddd d", Nl)} – {p.Night.ToString(p.Day.Month == p.Night.Month ? "ddd d" : "ddd d MMM", Nl)}";
+    private string PairText(Pair p) => p.Shift != null
+        ? $"{p.Day.ToString("ddd d", Nl)} · {(p.Shift == "D" ? "dag" : "nacht")}"
+        : $"{p.Day.ToString("ddd d", Nl)} – {p.Night.ToString(p.Day.Month == p.Night.Month ? "ddd d" : "ddd d MMM", Nl)}";
 
     private string DrawPeriod(LotteryDrawDTO d)
     {
         if (d.FromDate.Date == d.ToDate.Date)
         {
-            var shift = WorkDays.FirstOrDefault(w => w.Date.Date == d.FromDate.Date)?.Shift;
+            var shift = d.Shift ?? WorkDays.FirstOrDefault(w => w.Date.Date == d.FromDate.Date)?.Shift;
             return $"{d.FromDate.ToString("ddd d MMM", Nl)}{(shift != null ? $" ({shift})" : "")}";
         }
         var sameMonth = d.FromDate.Month == d.ToDate.Month;
@@ -422,7 +450,7 @@ else
         return new LotteryForm.Context
         {
             Candidates = BuildCandidates(pair.Day, pair.Night),
-            ExistingDraws = DrawsFor(pair.Day, pair.Night),
+            ExistingDraws = DrawsFor(pair.Day, pair.Night, pair.Shift),
             TeamMembers = TeamMembers,
             Stats = LotteryApiService.StatsFor(TeamDraws, SelectedYear),
             NextDrawNumber = Draws.Count == 0 ? 1 : Draws.Max(d => d.DrawNumber) + 1
