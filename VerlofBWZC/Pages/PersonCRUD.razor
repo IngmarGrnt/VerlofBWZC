@@ -186,7 +186,28 @@ else
                                     Style="width:100%"
                                     Change="@(args => grid.Reload())" />
                 </FilterTemplate>
-                <Template Context="person">@person.Role</Template>
+                <Template Context="person">
+                    @if (isAdmin && person.Role == "Manager")
+                    {
+                        @* Manager: klik op de rol om de beheerde ploegen aan te passen; extra ploegen klein eronder *@
+                        var extra = ScopesOf(person.Id);
+                        <button type="button" class="pc-role" title="Beheerde ploegen aanpassen" @onclick="() => OpenScopesAsync(person)">
+                            <span class="pc-role-name">Manager</span>
+                            @if (extra.Any())
+                            {
+                                <span class="pc-role-scopes">ook @string.Join(", ", extra.Select(s => string.IsNullOrEmpty(s.Speciality) ? $"{s.Team} (alle)" : $"{s.Team} · {s.Speciality}"))</span>
+                            }
+                            else
+                            {
+                                <span class="pc-role-scopes pc-role-hint">ploegen toevoegen</span>
+                            }
+                        </button>
+                    }
+                    else
+                    {
+                        @person.Role
+                    }
+                </Template>
                 <EditTemplate Context="person">
                     <RadzenDropDown Data="@EditableRoleOptions"
                                     @bind-Value="person.Role"
@@ -195,33 +216,6 @@ else
                                     Style="width:100%" />
                 </EditTemplate>
             </RadzenDataGridColumn>
-
-            @if (isAdmin)
-            {
-                @* Welke ploegen een manager beheert: eigen ploeg + extra; potlood om aan te passen *@
-                <RadzenDataGridColumn TItem="PersonBaseDTO" Title="Beheert" Sortable="false" Filterable="false" Width="260px">
-                    <Template Context="person">
-                        @if (person.Role == "Manager")
-                        {
-                            <div class="pc-scopes">
-                                <span class="pc-scope pc-scope-own" title="Eigen ploeg en specialiteit">@ManagerScopesDialog.ChipText(person.Team, person.Speciality)</span>
-                                @foreach (var s in ScopesOf(person.Id))
-                                {
-                                    <span class="pc-scope">@ManagerScopesDialog.ChipText(s.Team, s.Speciality)</span>
-                                }
-                                <button type="button" class="pc-scope-edit" title="Beheerde ploegen aanpassen" aria-label="Beheerde ploegen aanpassen"
-                                        @onclick="() => OpenScopesAsync(person)">
-                                    <i class="rzi">edit</i>
-                                </button>
-                            </div>
-                        }
-                        else
-                        {
-                            <span class="pc-scope-none">–</span>
-                        }
-                    </Template>
-                </RadzenDataGridColumn>
-            }
 
             <RadzenDataGridColumn TItem="PersonBaseDTO" Property="LeaveAllowance" Title="Verlof/jaar (shiften)" Width="150px">
                 <Template Context="person">@(person.LeaveAllowance?.ToString() ?? "-")</Template>
