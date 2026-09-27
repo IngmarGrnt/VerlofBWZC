@@ -55,6 +55,11 @@ namespace VerlofBWZC.Services
                 .ToList() ?? new();
         }
 
+        // Ploegen waarvan de gebruiker deze specialiteit mag zien (teamkalender "Alle ploegen")
+        public List<string> TeamsFor(string? speciality) => IsAdmin
+            ? _allTeams ?? new()
+            : Teams.Where(t => Covers(t, speciality)).ToList();
+
         // "Alle specialiteiten" van een ploeg (teamkalender)
         public bool CanSeeAllSpecialities(string? team) =>
             IsAdmin || (_scope?.Scopes.Any(s => s.Team == team && s.Speciality == null) ?? false);
