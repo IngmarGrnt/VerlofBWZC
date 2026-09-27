@@ -17,6 +17,17 @@ namespace VerlofBWZC.Api.Helpers
             var start = new DateTime(year, 1, 1);
             var end = new DateTime(year, 12, 31);
 
+            // Ploeg0 heeft geen vast werkregime: elke dag een dag- en een nachtshift
+            if (team.Name == DataAccess.Enums.TeamName.Ploeg0)
+            {
+                for (var day = start; day <= end; day = day.AddDays(1))
+                {
+                    calendar.Add(new WorkDay { Date = day, Shift = "D" });
+                    calendar.Add(new WorkDay { Date = day, Shift = "N" });
+                }
+                return calendar;
+            }
+
             // Bepaal de offset vanaf het team startmoment
             int offset = (int)(start - team.StartDate).TotalDays % 4;
             if (offset < 0) offset += 4;
