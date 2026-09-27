@@ -1,0 +1,134 @@
+@using System.Net.Http.Json
+@using Radzen
+@using Radzen.Blazor
+@using VerlofBWZC.DataContracts.DTO.Access
+@inject HttpClient Http
+@inject DialogService DialogService
+@inject NotificationService NotificationService
+
+@* Admin: welke ploegen en specialiteiten een manager beheert, bovenop zijn eigen ploeg en specialiteit *@
+
+<div class="ms">
+    <div class="ms-label">Eigen ploeg (altijd)</div>
+    <div class="ms-chips">
+        <span class="ms-chip ms-chip-own">@ChipText(OwnTeam, OwnSpeciality)</span>
+    </div>
+
+    <div class="ms-label">Beheert ook</div>
+    <div class="ms-chips">
+        @foreach (var s in items)
+        {
+            <span class="ms-chip">
+                @ChipText(s.Team, s.Speciality)
+                <button type="button" class="ms-chip-x" aria-label="@($"{ChipText(s.Team, s.Speciality)} verwijderen")" title="Verwijderen"
+                        @onclick="() => items.Remove(s)">
+                    <i class="rzi">close</i>
+                </button>
+            </span>
+        }
+        @if (!items.Any())
+        {
+            <span class="tl-hint">Nog niets: enkel de eigen ploeg en specialiteit.</span>
+        }
+    </div>
+
+    <div class="ms-add">
+        <RadzenDropDown TValue="string" Data="@Teams" @bind-Value="newTeam" Placeholder="Ploeg" Style="width:150px" />
+        <RadzenDropDown TValue="string" Data="@SpecialityChoices" @bind-Value="newSpeciality" Placeholder="Specialiteit" Style="width:210px" />
+        <RadzenButton Text="Toevoegen" Icon="add" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Outlined" Disabled="@(!CanAdd)" Click="Add" />
+    </div>
+    @if (addHint != null)
+    {
+        <div class="tl-hint">@addHint</div>
+    }
+
+    <div class="uc-actions ms-actions">
+        <RadzenButton Text="Annuleren" ButtonStyle="ButtonStyle.Light" Click="@(() => DialogService.Close(false))" />
+        <RadzenButton Text="Opslaan" Icon="save" ButtonStyle="ButtonStyle.Primary" Disabled="@busy" Click="SaveAsync" />
+    </div>
+</div>
+
+@code {
+    public const string AllLabel = "Alle specialiteiten";
+
+    [Parameter] public int PersonId { get; set; }
+    [Parameter] public string PersonName { get; set; } = "";
+    [Parameter] public string? OwnTeam { get; set; }
+    [Parameter] public string? OwnSpeciality { get; set; }
+    [Parameter] public List<string> Teams { get; set; } = new();
+    [Parameter] public List<string> Specialities { get; set; } = new();
+    [Parameter] public List<ScopeItemDTO> Current { get; set; } = new();
+
+    private List<ScopeItemDTO> items = new();
+    private string? newTeam;
+    private string? newSpeciality;
+    private string? addHint;
+    private bool busy;
+
+    private List<string> SpecialityChoices => new List<string> { AllLabel }.Concat(Specialities).ToList();
+
+    protected override void OnInitialized()
+    {
+        items = Current.Select(s => new ScopeItemDTO { Team = s.Team, Speciality = s.Speciality }).ToList();
+    }
+
+    public static string ChipText(string? team, string? speciality) =>
+        string.IsNullOrEmpty(speciality) ? $"{team} · alle specialiteiten" : $"{team} · {speciality}";
+
+    private bool CanAdd => !string.IsNullOrEmpty(newTeam) && !string.IsNullOrEmpty(newSpeciality);
+
+    private void Add()
+    {
+        addHint = null;
+        var spec = newSpeciality == AllLabel ? null : newSpeciality;
+
+        if (spec != null && newTeam == OwnTeam && spec == OwnSpeciality)
+        {
+            addHint = "Dat is de eigen ploeg en specialiteit; die telt altijd mee.";
+            return;
+        }
+        if (items.Any(i => i.Team == newTeam && string.IsNullOrEmpty(i.Speciality)))
+        {
+            addHint = $"{newTeam} staat er al met alle specialiteiten.";
+            return;
+        }
+        if (items.Any(i => i.Team == newTeam && i.Speciality == spec))
+        {
+            addHint = "Staat er al.";
+            return;
+        }
+
+        // "Alle specialiteiten" vervangt de losse specialiteiten van die ploeg
+        if (spec == null)
+            items.RemoveAll(i => i.Team == newTeam);
+        items.Add(new ScopeItemDTO { Team = newTeam!, Speciality = spec });
+        items = items.OrderBy(i => Teams.IndexOf(i.Team)).ThenBy(i => i.Speciality == null ? -1 : Specialities.IndexOf(i.Speciality)).ToList();
+        newSpeciality = null;
+    }
+
+    private async Task SaveAsync()
+    {
+        busy = true;
+        try
+        {
+            var resp = await Http.PutAsJsonAsync($"api/manager-scopes/{PersonId}", items);
+            if (resp.IsSuccessStatusCode)
+            {
+                NotificationService.Notify(NotificationSeverity.Success, "Opgeslagen", $"{PersonName}: beheerde ploegen aangepast.");
+                DialogService.Close(true);
+                return;
+            }
+            var text = (await resp.Content.ReadAsStringAsync()).Trim().Trim('"');
+            NotificationService.Notify(NotificationSeverity.Error, "Niet opgeslagen",
+                string.IsNullOrWhiteSpace(text) || text.StartsWith("{") ? $"Opslaan mislukt ({(int)resp.StatusCode})." : text);
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Fout", ex.Message);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}

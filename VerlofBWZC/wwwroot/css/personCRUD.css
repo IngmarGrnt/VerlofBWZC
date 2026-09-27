@@ -6,6 +6,7 @@
         overflow-x: hidden; /* voorkom paginabrede horizontale scroll */
         box-sizing: border-box;
     }
+}
     /* --- PERSONCRUD (responsive voorbeeld) --- */
     @media (max-width: 640px) {
         .responsive-datagrid-container .rz-grid-table {
@@ -130,4 +131,92 @@
     border-radius: 999px;
     padding: .05rem .5rem;
     vertical-align: middle;
+}
+
+/* Rol + oranje knop voor de beheerde ploegen van een manager */
+.pc-role-cell {
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+}
+
+/* Venster: beheerde ploegen van een manager */
+.ms-label {
+    font-size: .8rem;
+    color: var(--bwzc-muted);
+    margin-bottom: .35rem;
+}
+
+.ms-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4rem;
+    margin-bottom: 1rem;
+}
+
+.ms-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    font-size: .85rem;
+    color: var(--bwzc-navy);
+    background: var(--bwzc-ice);
+    border: 1px solid var(--bwzc-line);
+    border-radius: 999px;
+    padding: .2rem .4rem .2rem .75rem;
+}
+
+.ms-chip-own {
+    background: var(--bwzc-white);
+    padding-right: .75rem;
+}
+
+.ms-chip-x {
+    border: none;
+    background: transparent;
+    color: var(--bwzc-muted);
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+}
+
+    .ms-chip-x .rzi {
+        font-size: .9rem;
+    }
+
+    .ms-chip-x:hover {
+        background: rgba(241, 63, 63, 0.12);
+        color: var(--bwzc-red-dark);
+    }
+
+.ms-add {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    align-items: center;
+    padding-top: .9rem;
+    border-top: 1px solid var(--bwzc-line);
+}
+
+.ms-actions {
+    margin-top: 1.25rem;
+}
+
+.ms-add .rz-dropdown {
+    border: 1px solid var(--bwzc-line);
+    border-radius: var(--bwzc-radius);
+    box-shadow: none;
+}
+
+    .ms-add .rz-dropdown:hover {
+        border-color: var(--bwzc-navy);
+    }
+
+.ms-add .rz-dropdown-label {
+    color: var(--bwzc-navy);
 }

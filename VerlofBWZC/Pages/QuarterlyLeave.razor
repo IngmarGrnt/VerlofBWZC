@@ -10,6 +10,7 @@
 @inject IJSRuntime JS
 @inject PersonApiService PersonApi
 @inject NotificationService NotificationService
+@inject ScopeService Scope
 
 @using Microsoft.AspNetCore.Authorization
 @attribute [Authorize]
@@ -23,10 +24,10 @@
                         Placeholder="Selecteer een jaar"
                         Style="width:180px"
                         Change="OnYearChanged" />
-        @if (isAdmin)
+        @if (Scope.HasChoice)
         {
-            @* Admin: elke ploeg en specialiteit; anderen hun eigen ploeg *@
-            <RadzenDropDown TValue="string" @bind-Value="SelectedTeam" Data="@TeamOptions" Placeholder="Ploeg" Style="width:160px" Change="@(async _ => await LoadQuarterlyData())" />
+            @* Admin: elke ploeg en specialiteit; Manager: wat hij beheert; anderen hun eigen ploeg *@
+            <RadzenDropDown TValue="string" @bind-Value="SelectedTeam" Data="@TeamOptions" Placeholder="Ploeg" Style="width:160px" Change="@(async _ => { SelectedSpeciality = Scope.FixSpeciality(SelectedTeam, SelectedSpeciality); SpecialityOptions = Scope.SpecialitiesFor(SelectedTeam); await LoadQuarterlyData(); })" />
             <RadzenDropDown TValue="string" @bind-Value="SelectedSpeciality" Data="@SpecialityOptions" Placeholder="Specialiteit" Style="width:200px" Change="@(async _ => await LoadQuarterlyData())" />
         }
 
@@ -132,10 +133,14 @@ else
         SelectedSpeciality = person?.Speciality;
         isAdmin = string.Equals(person?.Role, "Admin", StringComparison.OrdinalIgnoreCase);
 
-        if (isAdmin)
+        // Admin: alle ploegen; Manager: de ploegen en specialiteiten die hij beheert
+        await Scope.LoadAsync(refresh: true);
+        if (Scope.HasChoice)
         {
-            TeamOptions = await Http.GetFromJsonAsync<List<string>>("api/meta/teams") ?? new();
-            SpecialityOptions = await Http.GetFromJsonAsync<List<string>>("api/meta/specialities") ?? new();
+            TeamOptions = Scope.Teams;
+            if (!TeamOptions.Contains(SelectedTeam ?? "")) SelectedTeam = TeamOptions.FirstOrDefault();
+            SelectedSpeciality = Scope.FixSpeciality(SelectedTeam, SelectedSpeciality);
+            SpecialityOptions = Scope.SpecialitiesFor(SelectedTeam);
         }
 
         await LoadQuarterlyData();

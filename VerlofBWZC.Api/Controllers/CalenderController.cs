@@ -244,18 +244,25 @@ namespace VerlofBWZC.Api.Controllers
         [Authorize(Roles = "Admin,Manager")]
         public async Task<IActionResult> AddMultiplePersonsDayOffs([FromBody] AddTeamDayOffsRequest request)
         {
-            if (!await HasPermissionAsync(request.Year, p => p.CanSaveTeamCalendar))
-                return Forbid();
-
-            // Een manager mag enkel personen van zijn eigen team en specialiteit aanpassen
+            // Een manager mag enkel personen aanpassen van de ploegen en specialiteiten die hij beheert,
+            // en enkel als de regels (Manager Paneel) van die ploeg/specialiteit opslaan toelaten
             if (!_me.IsAdmin)
             {
-                var own = await _me.GetTeamAsync();
                 var ids = request.Persons.Select(p => p.PersoonId).Distinct().ToList();
-                var allowedCount = await _context.Persons
-                    .CountAsync(p => ids.Contains(p.Id) && p.Team == own.Team && p.Speciality == own.Speciality);
-                if (own.Team == null || allowedCount != ids.Count)
+                var targets = await _context.Persons.AsNoTracking()
+                    .Where(p => ids.Contains(p.Id))
+                    .Select(p => new { p.Team, p.Speciality })
+                    .ToListAsync();
+                if (targets.Count != ids.Count)
                     return Forbid();
+                foreach (var group in targets.Distinct())
+                {
+                    if (!await _me.CanManageTeamAsync(group.Team, group.Speciality))
+                        return Forbid();
+                    var perms = await _access.GetPermissionsAsync(User, group.Team!.Value, group.Speciality!.Value, request.Year);
+                    if (!perms.CanSaveTeamCalendar)
+                        return Forbid();
+                }
             }
 
             var personIds = request.Persons.Select(p => p.PersoonId).Distinct().ToList();

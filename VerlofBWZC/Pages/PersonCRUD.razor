@@ -6,6 +6,7 @@
 @using System.Net.Http.Json
 @using VerlofBWZC.DataContracts
 @using VerlofBWZC.DataContracts.DTO
+@using VerlofBWZC.DataContracts.DTO.Access
 @using VerlofBWZC.Services
 @inject HttpClient Http
 @inject PersonApiService PersonApi
@@ -185,7 +186,20 @@ else
                                     Style="width:100%"
                                     Change="@(args => grid.Reload())" />
                 </FilterTemplate>
-                <Template Context="person">@person.Role</Template>
+                <Template Context="person">
+                    <span class="pc-role-cell">
+                        @person.Role
+                        @if (isAdmin && person.Role == "Manager")
+                        {
+                            @* Manager: beheerde ploegen aanpassen; de tooltip toont wat hij beheert *@
+                            var extra = ScopesOf(person.Id).Count;
+                            <RadzenButton Icon="groups" ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.ExtraSmall"
+                                          Text="@(extra > 0 ? $"+{extra}" : null)"
+                                          title="@($"Beheerde ploegen: {ScopesTooltip(person)}")"
+                                          Click="@(() => OpenScopesAsync(person))" />
+                        }
+                    </span>
+                </Template>
                 <EditTemplate Context="person">
                     <RadzenDropDown Data="@EditableRoleOptions"
                                     @bind-Value="person.Role"
@@ -267,7 +281,48 @@ else
     {
         persons = await PersonApi.GetAllPersonsAsync();
         originalInitials = persons.ToDictionary(p => p.Id, p => PersonInitials.For(p));
+        if (isAdmin)
+        {
+            try
+            {
+                managerScopes = await Http.GetFromJsonAsync<List<ManagerScopesDTO>>("api/manager-scopes") ?? new();
+            }
+            catch
+            {
+                managerScopes = new();
+            }
+        }
         StateHasChanged();
+    }
+
+    // Extra ploegen/specialiteiten per manager (bovenop de eigen)
+    private List<ManagerScopesDTO> managerScopes = new();
+
+    private List<ScopeItemDTO> ScopesOf(int personId) =>
+        managerScopes.FirstOrDefault(m => m.PersonId == personId)?.Scopes ?? new();
+
+    // Bv. "Ploeg1 · IGS (eigen), Ploeg2 · IGS, Ploeg3 · alle specialiteiten"
+    private string ScopesTooltip(PersonBaseDTO person) =>
+        string.Join(", ", new[] { $"{ManagerScopesDialog.ChipText(person.Team, person.Speciality)} (eigen)" }
+            .Concat(ScopesOf(person.Id).Select(s => ManagerScopesDialog.ChipText(s.Team, s.Speciality))));
+
+    private async Task OpenScopesAsync(PersonBaseDTO person)
+    {
+        var saved = await DialogService.OpenAsync<ManagerScopesDialog>(
+            $"Beheert · {person.FirstName} {person.LastName}",
+            new Dictionary<string, object>
+            {
+                { nameof(ManagerScopesDialog.PersonId), person.Id },
+                { nameof(ManagerScopesDialog.PersonName), $"{person.FirstName} {person.LastName}" },
+                { nameof(ManagerScopesDialog.OwnTeam), person.Team },
+                { nameof(ManagerScopesDialog.OwnSpeciality), person.Speciality },
+                { nameof(ManagerScopesDialog.Teams), TeamOptions },
+                { nameof(ManagerScopesDialog.Specialities), SpecialityOptions },
+                { nameof(ManagerScopesDialog.Current), ScopesOf(person.Id) }
+            },
+            new DialogOptions { Width = "580px", CloseDialogOnEsc = true });
+        if (saved is true)
+            await LoadPersons();
     }
 
     private async Task AddPerson()

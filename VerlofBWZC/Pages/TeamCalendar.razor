@@ -15,6 +15,7 @@
 @inject PersonApiService PersonApi
 @inject NotificationService NotificationService
 @inject DialogService DialogService
+@inject ScopeService Scope
 
 @using Microsoft.AspNetCore.Authorization
 @attribute [Authorize]
@@ -48,13 +49,13 @@ else
                     <i class="rzi">chevron_right</i>
                 </button>
             </div>
-            @if (IsAdmin)
+            @if (Scope.HasChoice)
             {
                 <RadzenDropDown TValue="string" @bind-Value="SelectedTeam"
                                 Data="@TeamOptions"
                                 Placeholder="Ploeg"
                                 Style="width:140px"
-                                Change="OnTeamOrSpecialityChanged" />
+                                Change="OnTeamChanged" />
                 <RadzenDropDown TValue="string" @bind-Value="SelectedSpeciality"
                                 Data="@SpecialityOptions"
                                 Placeholder="Specialiteit"
@@ -87,12 +88,20 @@ else
         <div class="wc-stat">
             <div class="wc-stat-label">Personen</div>
             <div class="wc-stat-value">@TeamMembers.Count</div>
-            <div class="wc-stat-note">@(IsAdmin && ShowAllSpecialities ? CompositionText : SelectedSpeciality)</div>
+            <div class="wc-stat-note">@(ShowAllSpecialities ? CompositionText : ShowAllTeams ? TeamCompositionText : SelectedSpeciality)</div>
         </div>
         <div class="wc-stat">
             <div class="wc-stat-label">Max per shift</div>
-            <div class="wc-stat-value">@DailyQuota</div>
-            <div class="wc-stat-note">min. verlof p.p.: @MinimumLeavePerPersonText</div>
+            @if (ShowAllTeams)
+            {
+                <div class="wc-stat-value">per ploeg</div>
+                <div class="wc-stat-note">@string.Join(" · ", ShownTeams.Where(t => TeamQuota(t) > 0).Select(t => $"{ShortTeam(t)}: {TeamQuota(t)}"))</div>
+            }
+            else
+            {
+                <div class="wc-stat-value">@DailyQuota</div>
+                <div class="wc-stat-note">min. verlof p.p.: @MinimumLeavePerPersonText</div>
+            }
         </div>
         @{
             var overRows = OverQuotaRows;
@@ -203,8 +212,12 @@ else
                         var used = YearCount(member.Id);
                         var allowance = member.LeaveAllowance;
                         var over = allowance is int a && used > a;
-                        <th class="@(over ? "tc-col-member tc-member-over" : "tc-col-member")"
+                        <th class="@("tc-col-member" + (over ? " tc-member-over" : "") + (IsTeamStart(member) ? " tc-team-start" : ""))"
                             title="@MemberTitle(member)">
+                            @if (ShowAllTeams)
+                            {
+                                <span class="tc-team">@ShortTeam(member.Team)</span>
+                            }
                             <span class="tc-initials">@GetInitials(member)</span>
                             @if (ShowAllSpecialities)
                             {
@@ -241,10 +254,12 @@ else
                                 }
                             </td>
                             <td class="tc-col-count">
-                                <span class="@(count > DailyQuota ? "tc-count tc-count-over" : count == DailyQuota ? "tc-count tc-count-full" : "tc-count")">@count/@DailyQuota</span>
-                                @if (CanManageCalendar && (PairOverQuota(wd) || HasDraw(wd.Date)))
+                                @{ var quota = QuotaFor(wd); }
+                                <span class="@(count > quota ? "tc-count tc-count-over" : count == quota ? "tc-count tc-count-full" : "tc-count")"
+                                      title="@(ShowAllTeams ? $"Werkt: {string.Join(", ", TeamsOn(wd))}" : null)">@count/@quota</span>
+                                @if (CanManageCalendar && (PairOverQuota(wd) || HasDraw(wd)))
                                 {
-                                    var hasDraw = HasDraw(wd.Date);
+                                    var hasDraw = HasDraw(wd);
                                     <button type="button" class="@(hasDraw ? "tc-lottery-btn tc-lottery-done" : "tc-lottery-btn")"
                                             title="@(hasDraw ? "Loting gedaan: resultaat bekijken of opnieuw loten" : "Wie heeft verlof? Loting houden (dag + nacht)")"
                                             aria-label="Loting"
@@ -255,6 +270,12 @@ else
                             </td>
                             @foreach (var member in TeamMembers)
                             {
+                                @if (!MemberWorks(member, wd))
+                                {
+                                    @* Alle ploegen: de ploeg van deze persoon werkt deze shift niet *@
+                                    <td class="@(IsTeamStart(member) ? "tc-cell tc-cell-off tc-team-start" : "tc-cell tc-cell-off")"></td>
+                                    continue;
+                                }
                                 var dayOff = selectedDays.FirstOrDefault(d => d.PersonId == member.Id && d.Date.Date == wd.Date.Date && d.Shift == wd.Shift);
                                 var category = dayOff?.LeaveCategoryId is int catId ? LeaveCategories.FirstOrDefault(c => c.Id == catId) : null;
                                 var isLoose = dayOff != null && IsLoose(dayOff);
@@ -263,7 +284,7 @@ else
                                 var title = $"{member.FirstName} {member.LastName} · {wd.Date.ToString("ddd d MMM", Nl)} {wd.Shift}"
                                     + (dayOff != null ? " · " + (category?.Name ?? "Verlof") : "")
                                     + (isLoose ? " · Losse shift" : "");
-                                <td class="tc-cell">
+                                <td class="@(IsTeamStart(member) ? "tc-cell tc-team-start" : "tc-cell")">
                                     @if (CanSaveTeamCalendar)
                                     {
                                         <button type="button" class="tc-cell-btn" title="@title"
@@ -347,7 +368,7 @@ else
         LeaveCategories.OrderBy(c => c.SortOrder).GroupBy(c => c.Name).Select(g => g.First());
 
     private LeaveCategoryDTO? CategoryFor(PersonBaseDTO member, string name) =>
-        LeaveCategories.FirstOrDefault(c => c.Name == name && c.Speciality == member.Speciality);
+        LeaveCategories.FirstOrDefault(c => c.Name == name && c.Team == member.Team && c.Speciality == member.Speciality);
 
     private int CategoryUsage(int personId, int categoryId) =>
         selectedDays.Count(d => d.PersonId == personId && d.LeaveCategoryId == categoryId && d.Date.Year == SelectedYear);
@@ -355,7 +376,7 @@ else
     // Tooltip per persoon, bv. " | Groot verlof 3/8, Verlof 4 1/4"
     private string CategoryUsageText(PersonBaseDTO member)
     {
-        var own = LeaveCategories.Where(c => c.Speciality == member.Speciality).OrderBy(c => c.SortOrder).ToList();
+        var own = LeaveCategories.Where(c => c.Team == member.Team && c.Speciality == member.Speciality).OrderBy(c => c.SortOrder).ToList();
         return own.Count == 0 ? "" : " | " + string.Join(", ", own.Select(c => $"{c.Name} {CategoryUsage(member.Id, c.Id)}/{c.MaxShifts}"));
     }
     //-------------------------------------------------------------
@@ -367,6 +388,45 @@ else
 
     // Quota per dag (zelfde logica als in de cel-weergave)
     private int DailyQuota => Math.Max(1, TeamMembers.Count / 4);
+
+    // --- Alle ploegen (zelfde specialiteit van elke ploeg naast elkaar) ---
+    private const string AllTeams = "Alle ploegen";
+    private bool ShowAllTeams => SelectedTeam == AllTeams;
+    private List<string> ShownTeams = new();
+    private Dictionary<string, List<WorkDay>> WorkDaysByTeam = new();
+    private Dictionary<(DateTime Date, string Shift), List<string>> RowTeams = new();
+
+    private List<string> TeamsOn(WorkDay wd) =>
+        RowTeams.TryGetValue((wd.Date.Date, wd.Shift), out var teams) ? teams : new List<string>();
+
+    // Werkt de ploeg van deze persoon deze shift?
+    private bool MemberWorks(PersonBaseDTO member, WorkDay wd) =>
+        !ShowAllTeams || TeamsOn(wd).Contains(member.Team ?? "");
+
+    // Maximum per shift van één ploeg: een kwart van de getoonde leden van die ploeg
+    private int TeamQuota(string team)
+    {
+        var count = TeamMembers.Count(m => m.Team == team);
+        return count == 0 ? 0 : Math.Max(1, count / 4); // ploeg zonder personen telt niet mee
+    }
+
+    // Maximum voor een rij: bij alle ploegen de som van de ploegen die die shift werken
+    private int QuotaFor(WorkDay wd) => ShowAllTeams
+        ? Math.Max(1, TeamsOn(wd).Sum(TeamQuota))
+        : DailyQuota;
+
+    private int QuotaFor(DateTime date, string shift) => QuotaFor(new WorkDay { Date = date, Shift = shift });
+
+    private static string ShortTeam(string? team) =>
+        string.IsNullOrEmpty(team) ? "-" : team.Replace("Ploeg", "P");
+
+    // Eerste kolom van een ploeg: dikkere lijn als scheiding
+    private bool IsTeamStart(PersonBaseDTO member) =>
+        ShowAllTeams && TeamMembers.FirstOrDefault(m => m.Team == member.Team)?.Id == member.Id
+        && TeamMembers.FirstOrDefault()?.Id != member.Id;
+
+    private string TeamCompositionText => string.Join(", ", ShownTeams.Where(t => TeamMembers.Any(m => m.Team == t))
+        .Select(t => $"{ShortTeam(t)} {TeamMembers.Count(m => m.Team == t)}"));
 
     // Minimum verlof per persoon = totaal werkdagen * quota / aantal personen
     private double MinimumLeavePerPerson => TeamMembers.Count == 0
@@ -410,15 +470,18 @@ else
         SelectedSpeciality = person?.Speciality;
         CurrentUserRole = person?.Role; // capture role for authorization
 
-        if (IsAdmin)
+        // Admin: alle ploegen; Manager: de ploegen en specialiteiten die hij beheert
+        await Scope.LoadAsync(refresh: true);
+        if (Scope.HasChoice)
         {
-            TeamOptions = await Http.GetFromJsonAsync<List<string>>("api/meta/teams") ?? new();
-            SpecialityOptions = new List<string> { AllSpecialities };
-            SpecialityOptions.AddRange(await Http.GetFromJsonAsync<List<string>>("api/meta/specialities") ?? new());
-
-            // Link vanaf de loterijpagina: die ploeg/specialiteit tonen
-            if (!string.IsNullOrEmpty(Ploeg)) SelectedTeam = Ploeg;
+            // Link vanaf de loterijpagina: die ploeg/specialiteit tonen (als dat mag)
             if (!string.IsNullOrEmpty(Spec)) SelectedSpeciality = Spec;
+            BuildTeamOptions();
+            if (!string.IsNullOrEmpty(Ploeg) && TeamOptions.Contains(Ploeg)) SelectedTeam = Ploeg;
+            if (!TeamOptions.Contains(SelectedTeam ?? "")) SelectedTeam = TeamOptions.FirstOrDefault();
+            SelectedSpeciality = ShowAllTeams ? Dispatching : Scope.FixSpeciality(SelectedTeam, SelectedSpeciality, allowAll: true);
+            BuildSpecialityOptions();
+            BuildTeamOptions();
         }
 
         if (Jaar is int y && Years.Contains(y))
@@ -435,8 +498,44 @@ else
     [SupplyParameterFromQuery(Name = "ploeg")] public string? Ploeg { get; set; }
     [SupplyParameterFromQuery(Name = "spec")] public string? Spec { get; set; }
 
+    // Specialiteiten van de gekozen ploeg, met "Alle specialiteiten" als dat mag
+    private void BuildSpecialityOptions()
+    {
+        SpecialityOptions = new List<string>();
+        if (ShowAllTeams)
+        {
+            // Alle ploegen bestaat enkel voor Dispatching
+            SpecialityOptions.Add(Dispatching);
+            return;
+        }
+        if (Scope.CanSeeAllSpecialities(SelectedTeam))
+            SpecialityOptions.Add(AllSpecialities);
+        SpecialityOptions.AddRange(Scope.SpecialitiesFor(SelectedTeam));
+    }
+
+    // Ploegen; bij Dispatching ook "Alle ploegen" als de gebruiker Dispatching van minstens 2 ploegen mag zien
+    private const string Dispatching = "Dispatching";
+
+    private void BuildTeamOptions()
+    {
+        TeamOptions = Scope.Teams.ToList();
+        if (SelectedSpeciality == Dispatching && Scope.TeamsFor(Dispatching).Count >= 2)
+            TeamOptions.Add(AllTeams);
+    }
+
+    private async Task OnTeamChanged(object value)
+    {
+        SelectedSpeciality = ShowAllTeams ? Dispatching : Scope.FixSpeciality(SelectedTeam, SelectedSpeciality, allowAll: true);
+        BuildSpecialityOptions();
+        BuildTeamOptions();
+        await LoadPermissions();
+        await LoadTeamCalendar();
+    }
+
     private async Task OnTeamOrSpecialityChanged(object value)
     {
+        BuildTeamOptions();
+        await LoadPermissions();
         // De dropdown is dan al gewijzigd: niet-opgeslagen wijzigingen van de vorige selectie vervallen
         await LoadTeamCalendar();
     }
@@ -534,7 +633,7 @@ else
 
     // Shiften (rijen) waar meer personen verlof hebben dan het maximum
     private List<WorkDay> OverQuotaRows => WorkDays
-        .Where(wd => GetTotalSelectedDays(wd) > DailyQuota)
+        .Where(wd => GetTotalSelectedDays(wd) > QuotaFor(wd))
         .OrderBy(wd => wd.Date).ThenBy(wd => wd.Shift == "D" ? 0 : 1)
         .ToList();
 
@@ -544,7 +643,7 @@ else
         .ToList();
 
     private bool MonthHasIssue(MonthGroup mg) =>
-        mg.Days.Any(wd => GetTotalSelectedDays(wd) > DailyQuota)
+        mg.Days.Any(wd => GetTotalSelectedDays(wd) > QuotaFor(wd))
         || selectedDays.Any(d => d.Date.Year == mg.Year && d.Date.Month == mg.Month && TeamMembers.Any(m => m.Id == d.PersonId) && IsLoose(d));
 
     // --- Loting vanuit de teamkalender (bewaard via api/lottery, dus ook op de loterijpagina) ---
@@ -573,7 +672,8 @@ else
         .Where(d => d.Winners.Concat(d.Losers).Any(p => TeamMembers.Any(m => m.Id == p.PersonId)))
         .ToList();
 
-    private bool HasDraw(DateTime date) => DrawsFor(date).Any();
+    // Loting op deze shift: een loting op een paar (Shift null) of op precies deze shift
+    private bool HasDraw(WorkDay wd) => DrawsFor(wd.Date).Any(d => d.Shift == null || d.Shift == wd.Shift);
 
     // Een loting gaat altijd over een paar: dagshift op dag X + nachtshift op dag X+1
     private static (DateTime Day, DateTime Night) PairOf(WorkDay wd) =>
@@ -582,10 +682,27 @@ else
     private int ShiftCount(DateTime date, string shift) =>
         selectedDays.Count(d => d.Date.Date == date && d.Shift == shift);
 
+    // Ploeg0: geen vast werkregime (elke dag D en N); losse shiften en paren gelden er niet
+    private const string NoRegimeTeam = "Ploeg0";
+
+    private bool IsNoRegime(int personId) =>
+        TeamMembers.FirstOrDefault(m => m.Id == personId)?.Team == NoRegimeTeam;
+
+    // Loting per shift in plaats van per paar: de getoonde ploeg is Ploeg0, of iedereen op die shift zit in Ploeg0
+    private bool LotteryPerShift(WorkDay wd)
+    {
+        if (!ShowAllTeams)
+            return SelectedTeam == NoRegimeTeam;
+        var teams = TeamsOn(wd);
+        return teams.Count > 0 && teams.All(t => t == NoRegimeTeam);
+    }
+
     private bool PairOverQuota(WorkDay wd)
     {
+        if (LotteryPerShift(wd))
+            return ShiftCount(wd.Date.Date, wd.Shift) > QuotaFor(wd);
         var (day, night) = PairOf(wd);
-        return ShiftCount(day, "D") > DailyQuota || ShiftCount(night, "N") > DailyQuota;
+        return ShiftCount(day, "D") > QuotaFor(day, "D") || ShiftCount(night, "N") > QuotaFor(night, "N");
     }
 
     // Iedereen met verlof op de dag- en/of nachtshift van het paar
@@ -617,16 +734,19 @@ else
     // Popup met het gedeelde lotingformulier (zelfde als op de loterijpagina)
     private async Task OpenLottery(WorkDay wd)
     {
-        var (day, night) = PairOf(wd);
+        // Ploeg0: loting op deze ene shift; anders per paar (dag + nacht erna)
+        var perShift = LotteryPerShift(wd);
+        var (day, night) = perShift ? (wd.Date.Date, wd.Date.Date) : PairOf(wd);
         var dayText = day.Month == night.Month ? day.ToString("%d", Nl) : day.ToString("d MMMM", Nl);
+        var title = perShift
+            ? $"Loting · {wd.Date.ToString("d MMMM yyyy", Nl)} · {(wd.Shift == "D" ? "dagshift" : "nachtshift")}"
+            : $"Loting · {dayText}–{night.ToString("d MMMM yyyy", Nl)}";
 
-        await DialogService.OpenAsync<LotteryForm>(
-            $"Loting · {dayText}–{night.ToString("d MMMM yyyy", Nl)}",
-            new Dictionary<string, object>
+        var parameters = new Dictionary<string, object>
             {
                 { nameof(LotteryForm.DayDate), day },
                 { nameof(LotteryForm.NightDate), night },
-                { nameof(LotteryForm.Quota), DailyQuota },
+                { nameof(LotteryForm.Quota), perShift ? QuotaFor(wd) : Math.Max(QuotaFor(day, "D"), QuotaFor(night, "N")) },
                 { nameof(LotteryForm.CanApply), CanSaveTeamCalendar },
                 { nameof(LotteryForm.AllowAddPeople), true },
                 { nameof(LotteryForm.Load), new Func<Task<LotteryForm.Context>>(async () =>
@@ -635,7 +755,8 @@ else
                         return new LotteryForm.Context
                         {
                             Candidates = BuildCandidates(day, night),
-                            ExistingDraws = DrawsFor(day).Concat(DrawsFor(night)).GroupBy(d => d.DrawNumber).Select(g => g.First()).ToList(),
+                            ExistingDraws = DrawsFor(day).Concat(DrawsFor(night)).GroupBy(d => d.DrawNumber).Select(g => g.First())
+                                .Where(d => !perShift || d.Shift == null || d.Shift == wd.Shift).ToList(),
                             TeamMembers = TeamMembers,
                             Stats = LotteryApiService.StatsFor(Draws, SelectedYear),
                             NextDrawNumber = Draws.Count == 0 ? 1 : Draws.Max(d => d.DrawNumber) + 1
@@ -656,7 +777,11 @@ else
                         return Task.CompletedTask;
                     }) },
                 { nameof(LotteryForm.OnClose), EventCallback.Factory.Create(this, () => DialogService.Close()) }
-            },
+            };
+        if (perShift)
+            parameters[nameof(LotteryForm.OnlyShift)] = wd.Shift;
+
+        await DialogService.OpenAsync<LotteryForm>(title, parameters,
             new DialogOptions { Width = "580px", CloseDialogOnEsc = true });
 
         await LoadDraws();
@@ -692,7 +817,11 @@ else
         {
             var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
 
-            using var req = new HttpRequestMessage(HttpMethod.Get, $"api/access/calendar-permissions?year={SelectedYear}");
+            // Rechten van de getoonde ploeg/specialiteit (een manager kan meerdere ploegen beheren)
+            var url = $"api/access/calendar-permissions?year={SelectedYear}";
+            if (!string.IsNullOrEmpty(SelectedTeam) && !string.IsNullOrEmpty(SelectedSpeciality) && !ShowAllSpecialities && !ShowAllTeams)
+                url += $"&team={Uri.EscapeDataString(SelectedTeam)}&speciality={Uri.EscapeDataString(SelectedSpeciality)}";
+            using var req = new HttpRequestMessage(HttpMethod.Get, url);
             if (!string.IsNullOrEmpty(token))
                 req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
@@ -813,7 +942,7 @@ private void OnDayClicked(int personId, WorkDay day)
 
     // Only notify for the row the user just edited
     var count = selectedDays.Count(d => d.Date.Date == day.Date.Date && d.Shift == day.Shift);
-    var quota = Math.Max(1, TeamMembers.Count / 4);
+    var quota = QuotaFor(day);
 
     if (count > quota)
     {
@@ -829,40 +958,69 @@ private void OnDayClicked(int personId, WorkDay day)
 
     private async Task LoadTeamCalendar()
     {
-        var teamName = SelectedTeam;
         var speciality = SelectedSpeciality;
 
-        // Haal teamleden op
-        TeamMembers = ShowAllSpecialities
-            ? await Http.GetFromJsonAsync<List<PersonBaseDTO>>($"api/person/team/{teamName}") ?? new()
-            : await Http.GetFromJsonAsync<List<PersonBaseDTO>>($"api/person/team/{teamName}/{speciality}") ?? new();
+        // "Alle ploegen": dezelfde specialiteit van elke ploeg die de gebruiker mag zien, naast elkaar
+        ShownTeams = ShowAllTeams
+            ? Scope.TeamsFor(speciality)
+            : new List<string> { SelectedTeam ?? "" };
 
-        // Haal werkdagen op
-        WorkDays = await Http.GetFromJsonAsync<List<WorkDay>>($"api/calender?teamName={teamName}&year={SelectedYear}");
+        var members = new List<PersonBaseDTO>();
+        var daysOff = new List<TeamDayOffDTO>();
+        var categories = new List<LeaveCategoryDTO>();
+        WorkDaysByTeam = new();
+        foreach (var teamName in ShownTeams)
+        {
+            // Teamleden
+            members.AddRange(ShowAllSpecialities
+                ? await Http.GetFromJsonAsync<List<PersonBaseDTO>>($"api/person/team/{teamName}") ?? new()
+                : await Http.GetFromJsonAsync<List<PersonBaseDTO>>($"api/person/team/{teamName}/{speciality}") ?? new());
 
-        // Haal alle verlofdagen van het team op PER SPECIALITEIT
-        var daysOffUrl = ShowAllSpecialities
-            ? $"api/person/team-days-off/{teamName}/{SelectedYear}"
-            : $"api/person/team-days-off/{teamName}/{SelectedYear}/{speciality}";
-        TeamDaysOff = await Http.GetFromJsonAsync<List<TeamDayOffDTO>>(daysOffUrl);
+            // Werkdagen van de ploeg (elke ploeg heeft zijn eigen rooster)
+            WorkDaysByTeam[teamName] = await Http.GetFromJsonAsync<List<WorkDay>>($"api/calender?teamName={teamName}&year={SelectedYear}") ?? new();
+
+            // Verlofdagen per ploeg (en specialiteit)
+            var daysOffUrl = ShowAllSpecialities
+                ? $"api/person/team-days-off/{teamName}/{SelectedYear}"
+                : $"api/person/team-days-off/{teamName}/{SelectedYear}/{speciality}";
+            daysOff.AddRange(await Http.GetFromJsonAsync<List<TeamDayOffDTO>>(daysOffUrl) ?? new());
+
+            // Verlofcategorieën (kleuren) per ploeg/specialiteit
+            try
+            {
+                var catUrl = ShowAllSpecialities
+                    ? $"api/leave-categories?team={teamName}&year={SelectedYear}"
+                    : $"api/leave-categories?team={teamName}&speciality={speciality}&year={SelectedYear}";
+                categories.AddRange(await Http.GetFromJsonAsync<List<LeaveCategoryDTO>>(catUrl) ?? new());
+            }
+            catch
+            {
+                // geen categorieën voor deze ploeg
+            }
+        }
+
+        // Gegroepeerd per ploeg (volgorde van de keuzelijst)
+        TeamMembers = members.OrderBy(m => ShownTeams.IndexOf(m.Team ?? "")).ToList();
+        LeaveCategories = categories.GroupBy(c => c.Id).Select(g => g.First()).ToList();
+        TeamDaysOff = daysOff;
+
+        // Rijen: elke shift waarop minstens één getoonde ploeg werkt (bij alle ploegen: enkel ploegen met personen)
+        var rowSource = ShowAllTeams && TeamMembers.Any()
+            ? WorkDaysByTeam.Where(kv => TeamMembers.Any(m => m.Team == kv.Key))
+            : WorkDaysByTeam;
+        RowTeams = rowSource
+            .SelectMany(kv => kv.Value.Select(w => (Key: (w.Date.Date, w.Shift), Team: kv.Key)))
+            .GroupBy(x => x.Key)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.Team).Distinct().ToList());
+        WorkDays = RowTeams.Keys
+            .OrderBy(k => k.Date).ThenBy(k => k.Shift == "D" ? 0 : 1)
+            .Select(k => new WorkDay { Date = k.Date, Shift = k.Shift })
+            .ToList();
 
         // Synchroniseer selectie met bestaande verlofdagen
         selectedDays = TeamDaysOff
             .Select(d => new SelectedDayOffDTO { PersonId = d.PersonId, Date = d.Date, Shift = d.Shift, LeaveCategoryId = d.LeaveCategoryId })
             .ToList();
-
-        // Verlofcategorieën (kleuren) van deze ploeg/specialiteit
-        try
-        {
-            var catUrl = ShowAllSpecialities
-                ? $"api/leave-categories?team={teamName}&year={SelectedYear}"
-                : $"api/leave-categories?team={teamName}&speciality={speciality}&year={SelectedYear}";
-            LeaveCategories = await Http.GetFromJsonAsync<List<LeaveCategoryDTO>>(catUrl) ?? new();
-        }
-        catch
-        {
-            LeaveCategories = new();
-        }
 
         if (ActiveCategoryName != null && LeaveCategories.All(c => c.Name != ActiveCategoryName))
             ActiveCategoryName = null;
@@ -924,12 +1082,14 @@ private void OnDayClicked(int personId, WorkDay day)
     // Per persoon: categorieën met "aansluitend" waarvan de shiften geen ononderbroken reeks in het rooster vormen
     private List<string> NotConsecutiveWarnings()
     {
-        var roster = WorkDays.OrderBy(w => w.Date).ThenBy(w => w.Shift == "D" ? 0 : 1).ToList();
+        var allRoster = WorkDays.OrderBy(w => w.Date).ThenBy(w => w.Shift == "D" ? 0 : 1).ToList();
         var warnings = new List<string>();
 
         foreach (var member in TeamMembers)
         {
-            foreach (var category in LeaveCategories.Where(c => c.MustBeConsecutive && c.Speciality == member.Speciality))
+            // Rooster van de ploeg van deze persoon (bij alle ploegen verschilt het per persoon)
+            var roster = WorkDaysByTeam.TryGetValue(member.Team ?? "", out var own) ? own.OrderBy(w => w.Date).ThenBy(w => w.Shift == "D" ? 0 : 1).ToList() : allRoster;
+            foreach (var category in LeaveCategories.Where(c => c.MustBeConsecutive && c.Team == member.Team && c.Speciality == member.Speciality))
             {
                 var positions = roster
                     .Select((w, i) => (w, i))
@@ -948,6 +1108,9 @@ private void OnDayClicked(int personId, WorkDay day)
     // Een losse shift is een aangeduide shift waarvan de partner (voor dezelfde persoon) niet aangeduid is.
     private bool IsLoose(SelectedDayOffDTO day)
     {
+        // Ploeg0 heeft geen werkregime: daar gelden losse shiften en paren niet
+        if (IsNoRegime(day.PersonId))
+            return false;
         var partnerDate = day.Shift == "D" ? day.Date.Date.AddDays(1) : day.Date.Date.AddDays(-1);
         var partnerShift = day.Shift == "D" ? "N" : "D";
         return !selectedDays.Any(d => d.PersonId == day.PersonId && d.Date.Date == partnerDate && d.Shift == partnerShift);

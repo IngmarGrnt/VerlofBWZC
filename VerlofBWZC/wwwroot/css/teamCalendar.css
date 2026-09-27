@@ -842,3 +842,23 @@
     font-size: .65rem;
     font-weight: 400;
 }
+
+/* Alle ploegen (Dispatching): ploeg boven de initialen, scheiding tussen ploegen, lege cel als de ploeg niet werkt */
+.tc-team {
+    font-size: .62rem;
+    font-weight: 600;
+    color: var(--bwzc-red-dark);
+    letter-spacing: .03em;
+}
+
+.tc-grid .tc-team-start {
+    border-left: 2px solid var(--bwzc-navy);
+}
+
+.tc-cell-off {
+    background: repeating-linear-gradient(135deg, #F4F6FA, #F4F6FA 4px, #ECEFF5 4px, #ECEFF5 8px);
+}
+
+.tc-row:hover .tc-cell-off {
+    background: repeating-linear-gradient(135deg, #EAF0F8, #EAF0F8 4px, #E1E8F2 4px, #E1E8F2 8px);
+}

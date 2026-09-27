@@ -6,7 +6,7 @@ using VerlofBWZC.DataAccess.Enums;
 
 namespace VerlofBWZC.Api.Services
 {
-    // De ingelogde gebruiker: id, rol, ploeg en specialiteit.
+    // De ingelogde gebruiker: id, rol, ploeg en specialiteit, en welke ploegen/specialiteiten hij mag zien of beheren.
     // In demo modus komen rol/ploeg/specialiteit uit de demo-token (claims), anders uit de databank.
     public class UserContext
     {
@@ -14,9 +14,17 @@ namespace VerlofBWZC.Api.Services
         public const string TeamClaim = "team";
         public const string SpecialityClaim = "speciality";
 
+        // Een ploeg met een specialiteit, of (Speciality null) alle specialiteiten van die ploeg
+        public record Scope(TeamName Team, Speciality? Speciality)
+        {
+            public bool Covers(TeamName team, Speciality? speciality) =>
+                Team == team && (Speciality == null || Speciality == speciality);
+        }
+
         private readonly IHttpContextAccessor _http;
         private readonly VerlofBWZC_DbContext _db;
         private (TeamName? Team, Speciality? Speciality)? _cached;
+        private List<Scope>? _scopes;
 
         public UserContext(IHttpContextAccessor http, VerlofBWZC_DbContext db)
         {
@@ -30,6 +38,7 @@ namespace VerlofBWZC.Api.Services
         public bool IsAdmin => User.IsAdmin();
         public bool IsManager => !IsAdmin && User.IsInRole("Manager");
 
+        // Eigen ploeg en specialiteit (werkkalender, eigen verlofregels)
         public async Task<(TeamName? Team, Speciality? Speciality)> GetTeamAsync()
         {
             if (_cached != null)
@@ -53,19 +62,63 @@ namespace VerlofBWZC.Api.Services
             return _cached.Value;
         }
 
-        // Lezen van teamgegevens: Admin alles; anderen enkel hun eigen ploeg én specialiteit
+        // Wat de gebruiker ziet (en als Manager beheert): eigen ploeg + specialiteit,
+        // voor een Manager aangevuld met de ploegen die de Admin hem gaf. Niet gebruikt voor Admin (die ziet alles).
+        public async Task<IReadOnlyList<Scope>> GetScopesAsync()
+        {
+            if (_scopes != null)
+                return _scopes;
+
+            var scopes = new List<Scope>();
+            var own = await GetTeamAsync();
+            if (own.Team != null && own.Speciality != null)
+                scopes.Add(new Scope(own.Team.Value, own.Speciality.Value));
+
+            // Demo modus: enkel de gekozen ploeg en specialiteit
+            if (IsManager && !IsDemo && Id is int id)
+            {
+                var extra = await _db.ManagerScopes.AsNoTracking()
+                    .Where(s => s.PersonId == id)
+                    .Select(s => new Scope(s.Team, s.Speciality))
+                    .ToListAsync();
+                scopes.AddRange(extra);
+            }
+
+            _scopes = scopes.Distinct().ToList();
+            return _scopes;
+        }
+
+        // Alle (ploeg, specialiteit)-combinaties binnen de scopes, voor filters in databankqueries
+        public async Task<List<int>> GetScopeKeysAsync()
+        {
+            var keys = new List<int>();
+            foreach (var s in await GetScopesAsync())
+            {
+                if (s.Speciality is Speciality spec)
+                    keys.Add(Key(s.Team, spec));
+                else
+                    keys.AddRange(Enum.GetValues<Speciality>().Select(sp => Key(s.Team, sp)));
+            }
+            return keys.Distinct().ToList();
+        }
+
+        // Sleutel voor een (ploeg, specialiteit): in queries te gebruiken als keys.Contains(ploeg * 100 + specialiteit)
+        public static int Key(TeamName team, Speciality speciality) => (int)team * 100 + (int)speciality;
+
+        // Lezen van teamgegevens: Admin alles; anderen binnen hun scopes.
+        // Zonder specialiteit (hele ploeg): enkel met "alle specialiteiten" van die ploeg.
         public async Task<bool> CanReadTeamAsync(TeamName team, Speciality? speciality)
         {
             if (IsAdmin)
                 return true;
-            if (speciality == null)
-                return false;
 
-            var own = await GetTeamAsync();
-            return own.Team == team && own.Speciality == speciality;
+            var scopes = await GetScopesAsync();
+            return speciality == null
+                ? scopes.Any(s => s.Team == team && s.Speciality == null)
+                : scopes.Any(s => s.Covers(team, speciality));
         }
 
-        // Beheren (regels, personen van het team): Admin alles; Manager enkel eigen ploeg én specialiteit
+        // Beheren (regels, personen, teamkalender, lotingen): Admin alles; Manager binnen zijn scopes
         public async Task<bool> CanManageTeamAsync(TeamName? team, Speciality? speciality)
         {
             if (IsAdmin)
@@ -73,8 +126,7 @@ namespace VerlofBWZC.Api.Services
             if (!IsManager || team == null || speciality == null)
                 return false;
 
-            var own = await GetTeamAsync();
-            return own.Team == team && own.Speciality == speciality;
+            return (await GetScopesAsync()).Any(s => s.Covers(team.Value, speciality.Value));
         }
     }
 }

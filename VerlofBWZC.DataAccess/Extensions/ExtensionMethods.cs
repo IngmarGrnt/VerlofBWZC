@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using System;
 using System.Reflection.Emit;
 using VerlofBWZC.DataAccess.Entities;
@@ -122,5 +122,21 @@ namespace VerlofBWZC.DataAccess.Extensions
             mb.Entity<QuarterLimit>()
                 .HasIndex(q => new { q.Team, q.Speciality, q.Year });
         }
+
+        public static void ManagerScopeConfig(this ModelBuilder mb)
+        {
+            // Persoon verwijderen verwijdert ook zijn beheerde ploegen
+            mb.Entity<ManagerScope>()
+                .HasOne(s => s.Person)
+                .WithMany()
+                .HasForeignKey(s => s.PersonId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            mb.Entity<ManagerScope>()
+                .HasIndex(s => new { s.PersonId, s.Team, s.Speciality })
+                .IsUnique()
+                .HasFilter(null); // ook 'alle specialiteiten' (null) maar één keer per ploeg
+        }
     }
 }
+
