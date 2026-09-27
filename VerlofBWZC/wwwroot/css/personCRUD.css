@@ -132,54 +132,7 @@
     vertical-align: middle;
 }
 
-/* Beheerde ploegen van een manager: rol als link in Personen + venster */
-.pc-role {
-    font: inherit;
-    text-align: left;
-    background: none;
-    border: none;
-    padding: 0;
-    cursor: pointer;
-    display: flex;
-    flex-direction: column;
-    line-height: 1.25;
-    color: inherit;
-}
-
-.pc-role-name {
-    text-decoration: underline dotted var(--bwzc-line);
-    text-underline-offset: 3px;
-}
-
-.pc-role:hover .pc-role-name,
-.pc-role:focus-visible .pc-role-name {
-    color: var(--bwzc-navy);
-    text-decoration-color: var(--bwzc-navy);
-}
-
-.pc-role:focus-visible {
-    outline: 2px solid var(--bwzc-blue);
-    outline-offset: 2px;
-    border-radius: 4px;
-}
-
-.pc-role-scopes {
-    font-size: .72rem;
-    color: var(--bwzc-muted);
-    white-space: normal;
-}
-
-/* "ploegen toevoegen" enkel zichtbaar bij het aanwijzen van de rij */
-.pc-role-hint {
-    opacity: 0;
-    transition: opacity .15s ease;
-}
-
-.rz-data-row:hover .pc-role-hint,
-.pc-role:focus-visible .pc-role-hint {
-    opacity: 1;
-}
-
+/* Venster: beheerde ploegen van een manager */
 .ms-label {
     font-size: .8rem;
     color: var(--bwzc-muted);

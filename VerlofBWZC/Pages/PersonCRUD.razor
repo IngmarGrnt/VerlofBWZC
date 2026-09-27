@@ -186,28 +186,7 @@ else
                                     Style="width:100%"
                                     Change="@(args => grid.Reload())" />
                 </FilterTemplate>
-                <Template Context="person">
-                    @if (isAdmin && person.Role == "Manager")
-                    {
-                        @* Manager: klik op de rol om de beheerde ploegen aan te passen; extra ploegen klein eronder *@
-                        var extra = ScopesOf(person.Id);
-                        <button type="button" class="pc-role" title="Beheerde ploegen aanpassen" @onclick="() => OpenScopesAsync(person)">
-                            <span class="pc-role-name">Manager</span>
-                            @if (extra.Any())
-                            {
-                                <span class="pc-role-scopes">ook @string.Join(", ", extra.Select(s => string.IsNullOrEmpty(s.Speciality) ? $"{s.Team} (alle)" : $"{s.Team} · {s.Speciality}"))</span>
-                            }
-                            else
-                            {
-                                <span class="pc-role-scopes pc-role-hint">ploegen toevoegen</span>
-                            }
-                        </button>
-                    }
-                    else
-                    {
-                        @person.Role
-                    }
-                </Template>
+                <Template Context="person">@person.Role</Template>
                 <EditTemplate Context="person">
                     <RadzenDropDown Data="@EditableRoleOptions"
                                     @bind-Value="person.Role"
@@ -238,6 +217,13 @@ else
                     @if (isAdmin || person.Role != "Admin")
                     {
                         <RadzenButton Icon="lock_reset" ButtonStyle="ButtonStyle.Info" title="Wachtwoord resetten (tijdelijk wachtwoord)" Click="@(() => ResetPasswordAsync(person))" />
+                    }
+                    @if (isAdmin && person.Role == "Manager")
+                    {
+                        @* Manager: beheerde ploegen aanpassen; de tooltip toont wat hij beheert *@
+                        <RadzenButton Icon="groups" ButtonStyle="ButtonStyle.Warning" Style="margin-left: 5px"
+                                      title="@($"Beheerde ploegen: {ScopesTooltip(person)}")"
+                                      Click="@(() => OpenScopesAsync(person))" />
                     }
                 </Template>
                 <EditTemplate Context="person">
@@ -308,6 +294,11 @@ else
 
     private List<ScopeItemDTO> ScopesOf(int personId) =>
         managerScopes.FirstOrDefault(m => m.PersonId == personId)?.Scopes ?? new();
+
+    // Bv. "Ploeg1 · IGS (eigen), Ploeg2 · IGS, Ploeg3 · alle specialiteiten"
+    private string ScopesTooltip(PersonBaseDTO person) =>
+        string.Join(", ", new[] { $"{ManagerScopesDialog.ChipText(person.Team, person.Speciality)} (eigen)" }
+            .Concat(ScopesOf(person.Id).Select(s => ManagerScopesDialog.ChipText(s.Team, s.Speciality))));
 
     private async Task OpenScopesAsync(PersonBaseDTO person)
     {
