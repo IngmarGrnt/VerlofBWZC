@@ -69,8 +69,9 @@ namespace VerlofBWZC.Api.Controllers
             var query = _context.LeaveCategories.AsNoTracking();
             if (!_me.IsAdmin)
             {
-                var own = await _me.GetTeamAsync();
-                query = query.Where(c => c.Team == own.Team && c.Speciality == own.Speciality);
+                // Manager: de ploegen en specialiteiten die hij beheert
+                var keys = await _me.GetScopeKeysAsync();
+                query = query.Where(c => keys.Contains((int)c.Team * 100 + (int)c.Speciality));
             }
 
             var items = await query

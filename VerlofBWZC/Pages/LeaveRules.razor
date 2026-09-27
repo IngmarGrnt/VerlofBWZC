@@ -6,6 +6,7 @@
 @using System.Net.Http.Json
 @using VerlofBWZC.DataContracts.DTO.Leave
 @inject HttpClient Http
+@inject ScopeService Scope
 @inject NotificationService Notifications
 @inject DialogService DialogService
 @inject VerlofBWZC.Services.CurrentPersonService CurrentPerson
@@ -22,11 +23,11 @@
 <RadzenStack Orientation="Orientation.Horizontal" Wrap="FlexWrap.Wrap" Gap="0.5rem" AlignItems="AlignItems.End" Style="margin-bottom:1rem">
     <div>
         <label>Ploeg</label>
-        <RadzenDropDown TValue="string" Data="@teams" @bind-Value="teamFilter" AllowClear="@isAdmin" Placeholder="Alle" Style="width:160px" />
+        <RadzenDropDown TValue="string" Data="@teams" @bind-Value="teamFilter" AllowClear="@(isAdmin || Scope.HasChoice)" Placeholder="Alle" Style="width:160px" />
     </div>
     <div>
         <label>Specialiteit</label>
-        <RadzenDropDown TValue="string" Data="@specialities" @bind-Value="specialityFilter" AllowClear="@isAdmin" Placeholder="Alle" Style="width:200px" />
+        <RadzenDropDown TValue="string" Data="@specialities" @bind-Value="specialityFilter" AllowClear="@(isAdmin || Scope.HasChoice)" Placeholder="Alle" Style="width:200px" />
     </div>
     <RadzenButton Icon="add" Text="Categorie toevoegen" Click="@StartCreate" Disabled="@(editing != null)" />
 </RadzenStack>
@@ -162,10 +163,15 @@
         isAdmin = CurrentPersonService.IsAdmin(me);
         if (!isAdmin && me != null)
         {
-            teams = new List<string> { me.Team };
-            specialities = new List<string> { me.Speciality };
-            teamFilter = me.Team;
-            specialityFilter = me.Speciality;
+            // Manager: de ploegen en specialiteiten die hij beheert (de API controleert dit ook)
+            await Scope.LoadAsync(refresh: true);
+            teams = Scope.Teams;
+            specialities = teams.SelectMany(t => Scope.SpecialitiesFor(t)).Distinct().OrderBy(s => Scope.AllSpecialityNames.IndexOf(s)).ToList();
+            if (!Scope.HasChoice)
+            {
+                teamFilter = me.Team;
+                specialityFilter = me.Speciality;
+            }
         }
 
         await LoadRules();

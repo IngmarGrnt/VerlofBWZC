@@ -19,6 +19,7 @@
 @inject HttpClient Http
 @inject IJSRuntime JS
 @inject NavigationManager Nav
+@inject ScopeService Scope
 
 <PageTitle>Loterij</PageTitle>
 
@@ -42,9 +43,9 @@ else
                     <i class="rzi">chevron_right</i>
                 </button>
             </div>
-            @if (isAdmin)
+            @if (Scope.HasChoice)
             {
-                <RadzenDropDown TValue="string" @bind-Value="SelectedTeam" Data="@TeamOptions" Placeholder="Ploeg" Style="width:140px" Change="@(async _ => await ReloadAllAsync())" />
+                <RadzenDropDown TValue="string" @bind-Value="SelectedTeam" Data="@TeamOptions" Placeholder="Ploeg" Style="width:140px" Change="@(async _ => { SelectedSpeciality = Scope.FixSpeciality(SelectedTeam, SelectedSpeciality); SpecialityOptions = Scope.SpecialitiesFor(SelectedTeam); await ReloadAllAsync(); })" />
                 <RadzenDropDown TValue="string" @bind-Value="SelectedSpeciality" Data="@SpecialityOptions" Placeholder="Specialiteit" Style="width:200px" Change="@(async _ => await ReloadAllAsync())" />
             }
             else
@@ -340,10 +341,14 @@ else
         SelectedSpeciality = person?.Speciality;
         isAdmin = string.Equals(person?.Role, "Admin", StringComparison.OrdinalIgnoreCase);
 
-        if (isAdmin)
+        // Admin: alle ploegen; Manager: de ploegen en specialiteiten die hij beheert
+        await Scope.LoadAsync(refresh: true);
+        if (Scope.HasChoice)
         {
-            TeamOptions = await Http.GetFromJsonAsync<List<string>>("api/meta/teams") ?? new();
-            SpecialityOptions = await Http.GetFromJsonAsync<List<string>>("api/meta/specialities") ?? new();
+            TeamOptions = Scope.Teams;
+            if (!TeamOptions.Contains(SelectedTeam ?? "")) SelectedTeam = TeamOptions.FirstOrDefault();
+            SelectedSpeciality = Scope.FixSpeciality(SelectedTeam, SelectedSpeciality);
+            SpecialityOptions = Scope.SpecialitiesFor(SelectedTeam);
         }
 
         await ReloadAllAsync();
@@ -400,7 +405,8 @@ else
         if (isAdmin) { perms = null; return; }
         try
         {
-            perms = await Http.GetFromJsonAsync<CalendarPermissionsDTO>($"api/access/calendar-permissions?year={SelectedYear}");
+            // Rechten van de gekozen ploeg/specialiteit (een manager kan meerdere ploegen beheren)
+            perms = await Http.GetFromJsonAsync<CalendarPermissionsDTO>($"api/access/calendar-permissions?year={SelectedYear}&team={Uri.EscapeDataString(SelectedTeam ?? "")}&speciality={Uri.EscapeDataString(SelectedSpeciality ?? "")}");
         }
         catch
         {
@@ -521,7 +527,7 @@ else
     private void OpenInTeamCalendar(LotteryDrawDTO d)
     {
         var url = $"teamcalendar?jaar={d.FromDate.Year}&maand={d.FromDate.Month}";
-        if (isAdmin)
+        if (Scope.HasChoice)
             url += $"&ploeg={Uri.EscapeDataString(SelectedTeam ?? "")}&spec={Uri.EscapeDataString(SelectedSpeciality ?? "")}";
         Nav.NavigateTo(url);
     }

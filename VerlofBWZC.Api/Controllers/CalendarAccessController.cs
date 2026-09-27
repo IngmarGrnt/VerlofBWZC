@@ -27,8 +27,18 @@ public class CalendarAccessController : ControllerBase
 
     [Authorize]
     [HttpGet("calendar-permissions")]
-    public async Task<ActionResult<CalendarPermissionsDTO>> GetMyPermissions([FromQuery] int year)
+    public async Task<ActionResult<CalendarPermissionsDTO>> GetMyPermissions([FromQuery] int year, [FromQuery(Name = "team")] string? forTeam = null, [FromQuery(Name = "speciality")] string? forSpeciality = null)
     {
+        // Rechten voor een andere ploeg/specialiteit die de gebruiker mag zien (bv. een manager van meerdere ploegen)
+        if (!string.IsNullOrWhiteSpace(forTeam) && !string.IsNullOrWhiteSpace(forSpeciality))
+        {
+            if (!Enum.TryParse<TeamName>(forTeam, true, out var t) || !Enum.TryParse<Speciality>(forSpeciality, true, out var s))
+                return BadRequest("Ongeldige ploeg of specialiteit.");
+            if (!await _me.CanReadTeamAsync(t, s))
+                return Forbid();
+            return Ok(await _svc.GetPermissionsAsync(User, t, s, year));
+        }
+
         var teamClaim = User.FindFirst("team")?.Value;
         var specClaim = User.FindFirst("speciality")?.Value;
 
@@ -85,11 +95,11 @@ public class CalendarAccessController : ControllerBase
     {
         var q = _context.Set<CalendarAccessRule>().AsQueryable();
 
-        // Manager: enkel de regels van zijn eigen ploeg en specialiteit
+        // Manager: enkel de regels van de ploegen en specialiteiten die hij beheert
         if (!_me.IsAdmin)
         {
-            var own = await _me.GetTeamAsync();
-            q = q.Where(r => r.Team == own.Team && r.Speciality == own.Speciality);
+            var keys = await _me.GetScopeKeysAsync();
+            q = q.Where(r => keys.Contains((int)r.Team * 100 + (int)r.Speciality));
         }
 
         if (!string.IsNullOrWhiteSpace(team))

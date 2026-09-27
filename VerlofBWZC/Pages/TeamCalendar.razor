@@ -15,6 +15,7 @@
 @inject PersonApiService PersonApi
 @inject NotificationService NotificationService
 @inject DialogService DialogService
+@inject ScopeService Scope
 
 @using Microsoft.AspNetCore.Authorization
 @attribute [Authorize]
@@ -48,13 +49,13 @@ else
                     <i class="rzi">chevron_right</i>
                 </button>
             </div>
-            @if (IsAdmin)
+            @if (Scope.HasChoice)
             {
                 <RadzenDropDown TValue="string" @bind-Value="SelectedTeam"
                                 Data="@TeamOptions"
                                 Placeholder="Ploeg"
                                 Style="width:140px"
-                                Change="OnTeamOrSpecialityChanged" />
+                                Change="OnTeamChanged" />
                 <RadzenDropDown TValue="string" @bind-Value="SelectedSpeciality"
                                 Data="@SpecialityOptions"
                                 Placeholder="Specialiteit"
@@ -87,7 +88,7 @@ else
         <div class="wc-stat">
             <div class="wc-stat-label">Personen</div>
             <div class="wc-stat-value">@TeamMembers.Count</div>
-            <div class="wc-stat-note">@(IsAdmin && ShowAllSpecialities ? CompositionText : SelectedSpeciality)</div>
+            <div class="wc-stat-note">@(ShowAllSpecialities ? CompositionText : SelectedSpeciality)</div>
         </div>
         <div class="wc-stat">
             <div class="wc-stat-label">Max per shift</div>
@@ -410,15 +411,18 @@ else
         SelectedSpeciality = person?.Speciality;
         CurrentUserRole = person?.Role; // capture role for authorization
 
-        if (IsAdmin)
+        // Admin: alle ploegen; Manager: de ploegen en specialiteiten die hij beheert
+        await Scope.LoadAsync(refresh: true);
+        if (Scope.HasChoice)
         {
-            TeamOptions = await Http.GetFromJsonAsync<List<string>>("api/meta/teams") ?? new();
-            SpecialityOptions = new List<string> { AllSpecialities };
-            SpecialityOptions.AddRange(await Http.GetFromJsonAsync<List<string>>("api/meta/specialities") ?? new());
+            TeamOptions = Scope.Teams;
 
-            // Link vanaf de loterijpagina: die ploeg/specialiteit tonen
-            if (!string.IsNullOrEmpty(Ploeg)) SelectedTeam = Ploeg;
+            // Link vanaf de loterijpagina: die ploeg/specialiteit tonen (als dat mag)
+            if (!string.IsNullOrEmpty(Ploeg) && TeamOptions.Contains(Ploeg)) SelectedTeam = Ploeg;
             if (!string.IsNullOrEmpty(Spec)) SelectedSpeciality = Spec;
+            if (!TeamOptions.Contains(SelectedTeam ?? "")) SelectedTeam = TeamOptions.FirstOrDefault();
+            SelectedSpeciality = Scope.FixSpeciality(SelectedTeam, SelectedSpeciality, allowAll: true);
+            BuildSpecialityOptions();
         }
 
         if (Jaar is int y && Years.Contains(y))
@@ -435,8 +439,26 @@ else
     [SupplyParameterFromQuery(Name = "ploeg")] public string? Ploeg { get; set; }
     [SupplyParameterFromQuery(Name = "spec")] public string? Spec { get; set; }
 
+    // Specialiteiten van de gekozen ploeg, met "Alle specialiteiten" als dat mag
+    private void BuildSpecialityOptions()
+    {
+        SpecialityOptions = new List<string>();
+        if (Scope.CanSeeAllSpecialities(SelectedTeam))
+            SpecialityOptions.Add(AllSpecialities);
+        SpecialityOptions.AddRange(Scope.SpecialitiesFor(SelectedTeam));
+    }
+
+    private async Task OnTeamChanged(object value)
+    {
+        SelectedSpeciality = Scope.FixSpeciality(SelectedTeam, SelectedSpeciality, allowAll: true);
+        BuildSpecialityOptions();
+        await LoadPermissions();
+        await LoadTeamCalendar();
+    }
+
     private async Task OnTeamOrSpecialityChanged(object value)
     {
+        await LoadPermissions();
         // De dropdown is dan al gewijzigd: niet-opgeslagen wijzigingen van de vorige selectie vervallen
         await LoadTeamCalendar();
     }
@@ -692,7 +714,11 @@ else
         {
             var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
 
-            using var req = new HttpRequestMessage(HttpMethod.Get, $"api/access/calendar-permissions?year={SelectedYear}");
+            // Rechten van de getoonde ploeg/specialiteit (een manager kan meerdere ploegen beheren)
+            var url = $"api/access/calendar-permissions?year={SelectedYear}";
+            if (!string.IsNullOrEmpty(SelectedTeam) && !string.IsNullOrEmpty(SelectedSpeciality) && !ShowAllSpecialities)
+                url += $"&team={Uri.EscapeDataString(SelectedTeam)}&speciality={Uri.EscapeDataString(SelectedSpeciality)}";
+            using var req = new HttpRequestMessage(HttpMethod.Get, url);
             if (!string.IsNullOrEmpty(token))
                 req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 

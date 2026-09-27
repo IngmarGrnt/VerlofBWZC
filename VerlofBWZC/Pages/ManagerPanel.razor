@@ -6,6 +6,7 @@
 @using VerlofBWZC.DataContracts.DTO.Access
 @using System.Net.Http.Json
 @inject HttpClient Http
+@inject ScopeService Scope
 @inject NotificationService Notifications
 @inject VerlofBWZC.Services.CurrentPersonService CurrentPerson
 @using VerlofBWZC.Services
@@ -342,10 +343,15 @@
         var me = await CurrentPerson.GetAsync();
         if (!CurrentPersonService.IsAdmin(me) && me != null)
         {
-            teams = new List<string> { me.Team };
-            specialities = new List<string> { me.Speciality };
-            teamFilter = me.Team;
-            specialityFilter = me.Speciality;
+            // Manager: de ploegen en specialiteiten die hij beheert (de API controleert dit ook)
+            await Scope.LoadAsync(refresh: true);
+            teams = Scope.Teams;
+            specialities = teams.SelectMany(t => Scope.SpecialitiesFor(t)).Distinct().OrderBy(s => Scope.AllSpecialityNames.IndexOf(s)).ToList();
+            if (!Scope.HasChoice)
+            {
+                teamFilter = me.Team;
+                specialityFilter = me.Speciality;
+            }
         }
     }
 

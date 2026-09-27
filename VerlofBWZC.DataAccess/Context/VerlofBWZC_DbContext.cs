@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using VerlofBWZC.DataAccess.Entities;
 using VerlofBWZC.DataAccess.Extensions;
 
@@ -12,6 +12,7 @@ public class VerlofBWZC_DbContext : DbContext
     public DbSet<CalendarAccessRule> CalendarAccessRules { get; set; }
     public DbSet<LeaveCategory> LeaveCategories { get; set; }
     public DbSet<QuarterLimit> QuarterLimits { get; set; }
+    public DbSet<ManagerScope> ManagerScopes { get; set; }
 
     public DbSet<LotteryDraw> LotteryDraws => Set<LotteryDraw>();
     public DbSet<LotteryWinner> LotteryWinners => Set<LotteryWinner>();
@@ -25,6 +26,7 @@ public class VerlofBWZC_DbContext : DbContext
         modelBuilder.CalendarAccessRuleConfig();
         modelBuilder.LeaveCategoryConfig();
         modelBuilder.QuarterLimitConfig();
+        modelBuilder.ManagerScopeConfig();
         //base.OnModelCreating(modelBuilder);
     }
 }   

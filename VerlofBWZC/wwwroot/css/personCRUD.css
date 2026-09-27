@@ -131,3 +131,79 @@
     padding: .05rem .5rem;
     vertical-align: middle;
 }
+
+/* Beheerde ploegen van een manager */
+.pc-scope-btn {
+    font: inherit;
+    font-size: .72rem;
+    font-weight: 600;
+    color: var(--bwzc-navy);
+    background: var(--bwzc-ice);
+    border: 1px solid var(--bwzc-line);
+    border-radius: 999px;
+    padding: .05rem .5rem;
+    margin-left: .35rem;
+    display: inline-flex;
+    align-items: center;
+    gap: .2rem;
+    cursor: pointer;
+    vertical-align: middle;
+}
+
+    .pc-scope-btn .rzi {
+        font-size: .9rem;
+    }
+
+    .pc-scope-btn:hover {
+        border-color: var(--bwzc-navy);
+    }
+
+.ms-grid {
+    display: flex;
+    flex-direction: column;
+    gap: .4rem;
+    margin-bottom: 1rem;
+    max-height: 60vh;
+    overflow: auto;
+}
+
+.ms-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .3rem;
+    padding: .4rem 0;
+    border-bottom: 1px solid var(--bwzc-line);
+}
+
+.ms-team {
+    width: 4.5rem;
+    font-weight: 600;
+    color: var(--bwzc-navy);
+}
+
+.ms-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    font-size: .78rem;
+    border: 1px solid var(--bwzc-line);
+    border-radius: 999px;
+    padding: .15rem .6rem;
+    cursor: pointer;
+    background: var(--bwzc-white);
+}
+
+    .ms-chip input {
+        accent-color: var(--bwzc-navy);
+    }
+
+.ms-chip-on {
+    border-color: var(--bwzc-navy);
+    background: #F7F9FD;
+    color: var(--bwzc-navy);
+}
+
+.ms-chip-all {
+    font-weight: 600;
+}

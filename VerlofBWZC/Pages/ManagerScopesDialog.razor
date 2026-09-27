@@ -1,0 +1,116 @@
+@using System.Net.Http.Json
+@using Radzen
+@using Radzen.Blazor
+@using VerlofBWZC.DataContracts.DTO.Access
+@inject HttpClient Http
+@inject DialogService DialogService
+@inject NotificationService NotificationService
+
+@* Admin: welke ploegen en specialiteiten een manager beheert, bovenop zijn eigen ploeg en specialiteit *@
+
+<div class="ms">
+    <p class="uc-text">
+        <strong>@PersonName</strong> beheert altijd zijn eigen ploeg en specialiteit
+        (<strong>@OwnTeam · @OwnSpeciality</strong>). Vink hieronder aan wat er bij komt.
+    </p>
+    <div class="ms-grid">
+        @foreach (var team in Teams)
+        {
+            var all = allTeams.Contains(team);
+            <div class="ms-row">
+                <div class="ms-team">@team</div>
+                <label class="@(all ? "ms-chip ms-chip-on ms-chip-all" : "ms-chip ms-chip-all")"
+                       title="Alle specialiteiten van @team, ook specialiteiten die later bijkomen">
+                    <input type="checkbox" checked="@all" @onchange="e => ToggleAll(team, (bool)(e.Value ?? false))" />
+                    Alle
+                </label>
+                @foreach (var spec in Specialities)
+                {
+                    var own = team == OwnTeam && spec == OwnSpeciality;
+                    var on = all || own || selected.Contains((team, spec));
+                    <label class="@(on ? "ms-chip ms-chip-on" : "ms-chip")" title="@(own ? "Eigen ploeg en specialiteit" : null)">
+                        <input type="checkbox" checked="@on" disabled="@(all || own)"
+                               @onchange="e => Toggle(team, spec, (bool)(e.Value ?? false))" />
+                        @spec@(own ? " (eigen)" : "")
+                    </label>
+                }
+            </div>
+        }
+    </div>
+    <div class="uc-actions">
+        <RadzenButton Text="Annuleren" ButtonStyle="ButtonStyle.Light" Click="@(() => DialogService.Close(false))" />
+        <RadzenButton Text="Opslaan" Icon="save" ButtonStyle="ButtonStyle.Primary" Disabled="@busy" Click="SaveAsync" />
+    </div>
+</div>
+
+@code {
+    [Parameter] public int PersonId { get; set; }
+    [Parameter] public string PersonName { get; set; } = "";
+    [Parameter] public string? OwnTeam { get; set; }
+    [Parameter] public string? OwnSpeciality { get; set; }
+    [Parameter] public List<string> Teams { get; set; } = new();
+    [Parameter] public List<string> Specialities { get; set; } = new();
+    [Parameter] public List<ScopeItemDTO> Current { get; set; } = new();
+
+    private readonly HashSet<string> allTeams = new();
+    private readonly HashSet<(string Team, string Spec)> selected = new();
+    private bool busy;
+
+    protected override void OnInitialized()
+    {
+        foreach (var s in Current)
+        {
+            if (string.IsNullOrEmpty(s.Speciality))
+                allTeams.Add(s.Team);
+            else
+                selected.Add((s.Team, s.Speciality));
+        }
+    }
+
+    private void ToggleAll(string team, bool on)
+    {
+        if (on) allTeams.Add(team); else allTeams.Remove(team);
+    }
+
+    private void Toggle(string team, string spec, bool on)
+    {
+        if (on) selected.Add((team, spec)); else selected.Remove((team, spec));
+    }
+
+    private async Task SaveAsync()
+    {
+        busy = true;
+        var body = allTeams.Select(t => new ScopeItemDTO { Team = t })
+            .Concat(selected.Where(s => !allTeams.Contains(s.Team) && !(s.Team == OwnTeam && s.Spec == OwnSpeciality))
+                .Select(s => new ScopeItemDTO { Team = s.Team, Speciality = s.Spec }))
+            .ToList();
+        try
+        {
+            var resp = await Http.PutAsJsonAsync($"api/manager-scopes/{PersonId}", body);
+            if (resp.IsSuccessStatusCode)
+            {
+                NotificationService.Notify(NotificationSeverity.Success, "Opgeslagen", $"{PersonName} beheert nu {Summary(body, OwnTeam, OwnSpeciality)}.");
+                DialogService.Close(true);
+                return;
+            }
+            var text = (await resp.Content.ReadAsStringAsync()).Trim().Trim('"');
+            NotificationService.Notify(NotificationSeverity.Error, "Niet opgeslagen",
+                string.IsNullOrWhiteSpace(text) || text.StartsWith("{") ? $"Opslaan mislukt ({(int)resp.StatusCode})." : text);
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Fout", ex.Message);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    // Korte omschrijving, bv. "Ploeg1 · IGS + 2 extra" of "enkel de eigen ploeg"
+    public static string Summary(List<ScopeItemDTO> extra, string? ownTeam, string? ownSpeciality)
+    {
+        var parts = extra.Select(s => string.IsNullOrEmpty(s.Speciality) ? $"{s.Team} (alle)" : $"{s.Team} · {s.Speciality}").ToList();
+        return parts.Count == 0 ? "enkel de eigen ploeg en specialiteit" : $"eigen ploeg + {string.Join(", ", parts)}";
+    }
+}
