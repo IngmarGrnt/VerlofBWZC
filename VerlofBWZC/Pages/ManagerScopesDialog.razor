@@ -35,7 +35,7 @@
     <div class="ms-add">
         <RadzenDropDown TValue="string" Data="@Teams" @bind-Value="newTeam" Placeholder="Ploeg" Style="width:150px" />
         <RadzenDropDown TValue="string" Data="@SpecialityChoices" @bind-Value="newSpeciality" Placeholder="Specialiteit" Style="width:210px" />
-        <RadzenButton Text="Toevoegen" Icon="add" ButtonStyle="ButtonStyle.Light" Disabled="@(!CanAdd)" Click="Add" />
+        <RadzenButton Text="Toevoegen" Icon="add" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Outlined" Disabled="@(!CanAdd)" Click="Add" />
     </div>
     @if (addHint != null)
     {

@@ -6,6 +6,7 @@
         overflow-x: hidden; /* voorkom paginabrede horizontale scroll */
         box-sizing: border-box;
     }
+}
     /* --- PERSONCRUD (responsive voorbeeld) --- */
     @media (max-width: 640px) {
         .responsive-datagrid-container .rz-grid-table {
@@ -204,4 +205,18 @@
 
 .ms-actions {
     margin-top: 1.25rem;
+}
+
+.ms-add .rz-dropdown {
+    border: 1px solid var(--bwzc-line);
+    border-radius: var(--bwzc-radius);
+    box-shadow: none;
+}
+
+    .ms-add .rz-dropdown:hover {
+        border-color: var(--bwzc-navy);
+    }
+
+.ms-add .rz-dropdown-label {
+    color: var(--bwzc-navy);
 }
