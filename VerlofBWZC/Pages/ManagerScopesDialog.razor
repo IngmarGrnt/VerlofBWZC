@@ -9,41 +9,48 @@
 @* Admin: welke ploegen en specialiteiten een manager beheert, bovenop zijn eigen ploeg en specialiteit *@
 
 <div class="ms">
-    <p class="uc-text">
-        <strong>@PersonName</strong> beheert altijd zijn eigen ploeg en specialiteit
-        (<strong>@OwnTeam · @OwnSpeciality</strong>). Vink hieronder aan wat er bij komt.
-    </p>
-    <div class="ms-grid">
-        @foreach (var team in Teams)
+    <div class="ms-label">Eigen ploeg (altijd)</div>
+    <div class="ms-chips">
+        <span class="ms-chip ms-chip-own">@ChipText(OwnTeam, OwnSpeciality)</span>
+    </div>
+
+    <div class="ms-label">Beheert ook</div>
+    <div class="ms-chips">
+        @foreach (var s in items)
         {
-            var all = allTeams.Contains(team);
-            <div class="ms-row">
-                <div class="ms-team">@team</div>
-                <label class="@(all ? "ms-chip ms-chip-on ms-chip-all" : "ms-chip ms-chip-all")"
-                       title="Alle specialiteiten van @team, ook specialiteiten die later bijkomen">
-                    <input type="checkbox" checked="@all" @onchange="e => ToggleAll(team, (bool)(e.Value ?? false))" />
-                    Alle
-                </label>
-                @foreach (var spec in Specialities)
-                {
-                    var own = team == OwnTeam && spec == OwnSpeciality;
-                    var on = all || own || selected.Contains((team, spec));
-                    <label class="@(on ? "ms-chip ms-chip-on" : "ms-chip")" title="@(own ? "Eigen ploeg en specialiteit" : null)">
-                        <input type="checkbox" checked="@on" disabled="@(all || own)"
-                               @onchange="e => Toggle(team, spec, (bool)(e.Value ?? false))" />
-                        @spec@(own ? " (eigen)" : "")
-                    </label>
-                }
-            </div>
+            <span class="ms-chip">
+                @ChipText(s.Team, s.Speciality)
+                <button type="button" class="ms-chip-x" aria-label="@($"{ChipText(s.Team, s.Speciality)} verwijderen")" title="Verwijderen"
+                        @onclick="() => items.Remove(s)">
+                    <i class="rzi">close</i>
+                </button>
+            </span>
+        }
+        @if (!items.Any())
+        {
+            <span class="tl-hint">Nog niets: enkel de eigen ploeg en specialiteit.</span>
         }
     </div>
-    <div class="uc-actions">
+
+    <div class="ms-add">
+        <RadzenDropDown TValue="string" Data="@Teams" @bind-Value="newTeam" Placeholder="Ploeg" Style="width:150px" />
+        <RadzenDropDown TValue="string" Data="@SpecialityChoices" @bind-Value="newSpeciality" Placeholder="Specialiteit" Style="width:210px" />
+        <RadzenButton Text="Toevoegen" Icon="add" ButtonStyle="ButtonStyle.Light" Disabled="@(!CanAdd)" Click="Add" />
+    </div>
+    @if (addHint != null)
+    {
+        <div class="tl-hint">@addHint</div>
+    }
+
+    <div class="uc-actions ms-actions">
         <RadzenButton Text="Annuleren" ButtonStyle="ButtonStyle.Light" Click="@(() => DialogService.Close(false))" />
         <RadzenButton Text="Opslaan" Icon="save" ButtonStyle="ButtonStyle.Primary" Disabled="@busy" Click="SaveAsync" />
     </div>
 </div>
 
 @code {
+    public const string AllLabel = "Alle specialiteiten";
+
     [Parameter] public int PersonId { get; set; }
     [Parameter] public string PersonName { get; set; } = "";
     [Parameter] public string? OwnTeam { get; set; }
@@ -52,44 +59,62 @@
     [Parameter] public List<string> Specialities { get; set; } = new();
     [Parameter] public List<ScopeItemDTO> Current { get; set; } = new();
 
-    private readonly HashSet<string> allTeams = new();
-    private readonly HashSet<(string Team, string Spec)> selected = new();
+    private List<ScopeItemDTO> items = new();
+    private string? newTeam;
+    private string? newSpeciality;
+    private string? addHint;
     private bool busy;
+
+    private List<string> SpecialityChoices => new List<string> { AllLabel }.Concat(Specialities).ToList();
 
     protected override void OnInitialized()
     {
-        foreach (var s in Current)
+        items = Current.Select(s => new ScopeItemDTO { Team = s.Team, Speciality = s.Speciality }).ToList();
+    }
+
+    public static string ChipText(string? team, string? speciality) =>
+        string.IsNullOrEmpty(speciality) ? $"{team} · alle specialiteiten" : $"{team} · {speciality}";
+
+    private bool CanAdd => !string.IsNullOrEmpty(newTeam) && !string.IsNullOrEmpty(newSpeciality);
+
+    private void Add()
+    {
+        addHint = null;
+        var spec = newSpeciality == AllLabel ? null : newSpeciality;
+
+        if (spec != null && newTeam == OwnTeam && spec == OwnSpeciality)
         {
-            if (string.IsNullOrEmpty(s.Speciality))
-                allTeams.Add(s.Team);
-            else
-                selected.Add((s.Team, s.Speciality));
+            addHint = "Dat is de eigen ploeg en specialiteit; die telt altijd mee.";
+            return;
         }
-    }
+        if (items.Any(i => i.Team == newTeam && string.IsNullOrEmpty(i.Speciality)))
+        {
+            addHint = $"{newTeam} staat er al met alle specialiteiten.";
+            return;
+        }
+        if (items.Any(i => i.Team == newTeam && i.Speciality == spec))
+        {
+            addHint = "Staat er al.";
+            return;
+        }
 
-    private void ToggleAll(string team, bool on)
-    {
-        if (on) allTeams.Add(team); else allTeams.Remove(team);
-    }
-
-    private void Toggle(string team, string spec, bool on)
-    {
-        if (on) selected.Add((team, spec)); else selected.Remove((team, spec));
+        // "Alle specialiteiten" vervangt de losse specialiteiten van die ploeg
+        if (spec == null)
+            items.RemoveAll(i => i.Team == newTeam);
+        items.Add(new ScopeItemDTO { Team = newTeam!, Speciality = spec });
+        items = items.OrderBy(i => Teams.IndexOf(i.Team)).ThenBy(i => i.Speciality == null ? -1 : Specialities.IndexOf(i.Speciality)).ToList();
+        newSpeciality = null;
     }
 
     private async Task SaveAsync()
     {
         busy = true;
-        var body = allTeams.Select(t => new ScopeItemDTO { Team = t })
-            .Concat(selected.Where(s => !allTeams.Contains(s.Team) && !(s.Team == OwnTeam && s.Spec == OwnSpeciality))
-                .Select(s => new ScopeItemDTO { Team = s.Team, Speciality = s.Spec }))
-            .ToList();
         try
         {
-            var resp = await Http.PutAsJsonAsync($"api/manager-scopes/{PersonId}", body);
+            var resp = await Http.PutAsJsonAsync($"api/manager-scopes/{PersonId}", items);
             if (resp.IsSuccessStatusCode)
             {
-                NotificationService.Notify(NotificationSeverity.Success, "Opgeslagen", $"{PersonName} beheert nu {Summary(body, OwnTeam, OwnSpeciality)}.");
+                NotificationService.Notify(NotificationSeverity.Success, "Opgeslagen", $"{PersonName}: beheerde ploegen aangepast.");
                 DialogService.Close(true);
                 return;
             }
@@ -105,12 +130,5 @@
         {
             busy = false;
         }
-    }
-
-    // Korte omschrijving, bv. "Ploeg1 · IGS + 2 extra" of "enkel de eigen ploeg"
-    public static string Summary(List<ScopeItemDTO> extra, string? ownTeam, string? ownSpeciality)
-    {
-        var parts = extra.Select(s => string.IsNullOrEmpty(s.Speciality) ? $"{s.Team} (alle)" : $"{s.Team} · {s.Speciality}").ToList();
-        return parts.Count == 0 ? "enkel de eigen ploeg en specialiteit" : $"eigen ploeg + {string.Join(", ", parts)}";
     }
 }

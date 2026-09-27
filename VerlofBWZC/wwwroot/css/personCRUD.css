@@ -132,78 +132,116 @@
     vertical-align: middle;
 }
 
-/* Beheerde ploegen van een manager */
-.pc-scope-btn {
-    font: inherit;
+/* Beheerde ploegen van een manager (kolom Beheert en venster) */
+.pc-scopes {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .25rem;
+}
+
+.pc-scope {
     font-size: .72rem;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--bwzc-navy);
     background: var(--bwzc-ice);
     border: 1px solid var(--bwzc-line);
     border-radius: 999px;
     padding: .05rem .5rem;
-    margin-left: .35rem;
+    white-space: nowrap;
+}
+
+.pc-scope-own {
+    background: var(--bwzc-white);
+}
+
+.pc-scope-none {
+    color: var(--bwzc-muted);
+}
+
+.pc-scope-edit {
+    border: none;
+    background: transparent;
+    color: var(--bwzc-navy);
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
     display: inline-flex;
     align-items: center;
-    gap: .2rem;
+    justify-content: center;
     cursor: pointer;
-    vertical-align: middle;
 }
 
-    .pc-scope-btn .rzi {
-        font-size: .9rem;
+    .pc-scope-edit .rzi {
+        font-size: 1rem;
     }
 
-    .pc-scope-btn:hover {
-        border-color: var(--bwzc-navy);
+    .pc-scope-edit:hover {
+        background: var(--bwzc-ice);
     }
 
-.ms-grid {
-    display: flex;
-    flex-direction: column;
-    gap: .4rem;
-    margin-bottom: 1rem;
-    max-height: 60vh;
-    overflow: auto;
+.ms-label {
+    font-size: .8rem;
+    color: var(--bwzc-muted);
+    margin-bottom: .35rem;
 }
 
-.ms-row {
+.ms-chips {
     display: flex;
     flex-wrap: wrap;
-    align-items: center;
-    gap: .3rem;
-    padding: .4rem 0;
-    border-bottom: 1px solid var(--bwzc-line);
-}
-
-.ms-team {
-    width: 4.5rem;
-    font-weight: 600;
-    color: var(--bwzc-navy);
+    gap: .4rem;
+    margin-bottom: 1rem;
 }
 
 .ms-chip {
     display: inline-flex;
     align-items: center;
-    gap: .25rem;
-    font-size: .78rem;
+    gap: .3rem;
+    font-size: .85rem;
+    color: var(--bwzc-navy);
+    background: var(--bwzc-ice);
     border: 1px solid var(--bwzc-line);
     border-radius: 999px;
-    padding: .15rem .6rem;
-    cursor: pointer;
-    background: var(--bwzc-white);
+    padding: .2rem .4rem .2rem .75rem;
 }
 
-    .ms-chip input {
-        accent-color: var(--bwzc-navy);
+.ms-chip-own {
+    background: var(--bwzc-white);
+    padding-right: .75rem;
+}
+
+.ms-chip-x {
+    border: none;
+    background: transparent;
+    color: var(--bwzc-muted);
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+}
+
+    .ms-chip-x .rzi {
+        font-size: .9rem;
     }
 
-.ms-chip-on {
-    border-color: var(--bwzc-navy);
-    background: #F7F9FD;
-    color: var(--bwzc-navy);
+    .ms-chip-x:hover {
+        background: rgba(241, 63, 63, 0.12);
+        color: var(--bwzc-red-dark);
+    }
+
+.ms-add {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    align-items: center;
+    padding-top: .9rem;
+    border-top: 1px solid var(--bwzc-line);
 }
 
-.ms-chip-all {
-    font-weight: 600;
+.ms-actions {
+    margin-top: 1.25rem;
 }
