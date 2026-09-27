@@ -186,7 +186,20 @@ else
                                     Style="width:100%"
                                     Change="@(args => grid.Reload())" />
                 </FilterTemplate>
-                <Template Context="person">@person.Role</Template>
+                <Template Context="person">
+                    <span class="pc-role-cell">
+                        @person.Role
+                        @if (isAdmin && person.Role == "Manager")
+                        {
+                            @* Manager: beheerde ploegen aanpassen; de tooltip toont wat hij beheert *@
+                            var extra = ScopesOf(person.Id).Count;
+                            <RadzenButton Icon="groups" ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.ExtraSmall"
+                                          Text="@(extra > 0 ? $"+{extra}" : null)"
+                                          title="@($"Beheerde ploegen: {ScopesTooltip(person)}")"
+                                          Click="@(() => OpenScopesAsync(person))" />
+                        }
+                    </span>
+                </Template>
                 <EditTemplate Context="person">
                     <RadzenDropDown Data="@EditableRoleOptions"
                                     @bind-Value="person.Role"
@@ -217,13 +230,6 @@ else
                     @if (isAdmin || person.Role != "Admin")
                     {
                         <RadzenButton Icon="lock_reset" ButtonStyle="ButtonStyle.Info" title="Wachtwoord resetten (tijdelijk wachtwoord)" Click="@(() => ResetPasswordAsync(person))" />
-                    }
-                    @if (isAdmin && person.Role == "Manager")
-                    {
-                        @* Manager: beheerde ploegen aanpassen; de tooltip toont wat hij beheert *@
-                        <RadzenButton Icon="groups" ButtonStyle="ButtonStyle.Warning" Style="margin-left: 5px"
-                                      title="@($"Beheerde ploegen: {ScopesTooltip(person)}")"
-                                      Click="@(() => OpenScopesAsync(person))" />
                     }
                 </Template>
                 <EditTemplate Context="person">

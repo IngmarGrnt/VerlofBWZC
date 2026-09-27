@@ -132,6 +132,13 @@
     vertical-align: middle;
 }
 
+/* Rol + oranje knop voor de beheerde ploegen van een manager */
+.pc-role-cell {
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+}
+
 /* Venster: beheerde ploegen van een manager */
 .ms-label {
     font-size: .8rem;
