@@ -28,6 +28,38 @@ else
     <p class="rz-text-secondary">Personen van je eigen ploeg en specialiteit. Je kan naam, initialen, e-mail, rol (geen Admin) en verlofaantal aanpassen, en het wachtwoord resetten.</p>
 }
 
+@if (pending.Any())
+{
+    @* Zelf geregistreerde personen: pas na goedkeuring kunnen ze inloggen *@
+    <div class="pc-pending">
+        <div class="pc-pending-title"><i class="rzi">how_to_reg</i> Wacht op goedkeuring (@pending.Count)</div>
+        @foreach (var p in pending)
+        {
+            var dup = SameInitials(p);
+            <div class="pc-pending-row">
+                <div class="pc-pending-who">
+                    <span class="pc-pending-name">@p.FirstName @p.LastName</span>
+                    <span class="pc-pending-meta">
+                        @p.Email · @p.Team · @p.Speciality · @p.Grade
+                        @if (p.RegisteredAtUtc is DateTime at)
+                        {
+                            <text> · aangevraagd @at.ToLocalTime().ToString("d MMM HH:mm", new System.Globalization.CultureInfo("nl-BE"))</text>
+                        }
+                    </span>
+                    @if (dup.Any())
+                    {
+                        <span class="pc-pending-warn"><i class="rzi">warning</i> Initialen @PersonInitials.For(p) al gebruikt door @string.Join(", ", dup.Select(d => $"{d.FirstName} {d.LastName}")): pas ze na goedkeuring aan.</span>
+                    }
+                </div>
+                <div class="pc-pending-actions">
+                    <RadzenButton Text="Goedkeuren" Icon="check" ButtonStyle="ButtonStyle.Success" Size="ButtonSize.Small" Disabled="@busyPending" Click="@(() => ApproveAsync(p))" />
+                    <RadzenButton Text="Weigeren" Icon="close" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Outlined" Size="ButtonSize.Small" Disabled="@busyPending" Click="@(() => RejectAsync(p))" />
+                </div>
+            </div>
+        }
+    </div>
+}
+
 <div class="responsive-datagrid-container">
     <RadzenDataGrid TItem="PersonBaseDTO" Data="@persons" @ref="grid"
                     AllowFiltering="true"
@@ -281,6 +313,7 @@ else
     {
         persons = await PersonApi.GetAllPersonsAsync();
         originalInitials = persons.ToDictionary(p => p.Id, p => PersonInitials.For(p));
+        pending = await PersonApi.GetPendingAsync();
         if (isAdmin)
         {
             try
@@ -293,6 +326,45 @@ else
             }
         }
         StateHasChanged();
+    }
+
+    // --- Registraties die wachten op goedkeuring ---
+    private List<PersonBaseDTO> pending = new();
+    private bool busyPending;
+
+    private async Task ApproveAsync(PersonBaseDTO p)
+    {
+        busyPending = true;
+        var result = await PersonApi.ApproveAsync(p.Id);
+        busyPending = false;
+        if (!result.Ok)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Niet goedgekeurd", result.Error);
+            return;
+        }
+        NotificationService.Notify(NotificationSeverity.Success, "Goedgekeurd", $"{p.FirstName} {p.LastName} kan nu inloggen.");
+        await LoadPersons();
+    }
+
+    private async Task RejectAsync(PersonBaseDTO p)
+    {
+        var confirmed = await DialogService.Confirm(
+            $"De registratie van {p.FirstName} {p.LastName} ({p.Email}) weigeren? De aanvraag wordt verwijderd.",
+            "Registratie weigeren",
+            new ConfirmOptions { OkButtonText = "Weigeren", CancelButtonText = "Annuleren" });
+        if (confirmed != true)
+            return;
+
+        busyPending = true;
+        var result = await PersonApi.RejectAsync(p.Id);
+        busyPending = false;
+        if (!result.Ok)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Niet geweigerd", result.Error);
+            return;
+        }
+        NotificationService.Notify(NotificationSeverity.Info, "Geweigerd", $"De registratie van {p.FirstName} {p.LastName} is verwijderd.");
+        await LoadPersons();
     }
 
     // Extra ploegen/specialiteiten per manager (bovenop de eigen)

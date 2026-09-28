@@ -72,6 +72,53 @@ namespace VerlofBWZC.Services
             }
         }
 
+        // Zelf registreren (zonder login)
+        public async Task<Result<bool>> RegisterAsync(RegisterDTO dto)
+        {
+            try
+            {
+                var response = await _http.PostAsJsonAsync("api/person/register", dto);
+                if (response.IsSuccessStatusCode)
+                    return new(true, null);
+                if ((int)response.StatusCode == 429)
+                    return new(false, "Te veel aanvragen. Probeer het over enkele minuten opnieuw.");
+                return new(false, await ErrorAsync(response, "Registreren is mislukt."));
+            }
+            catch
+            {
+                return new(false, "De server is niet bereikbaar. Probeer het later opnieuw.");
+            }
+        }
+
+        // Registraties die wachten op goedkeuring (Admin/Manager)
+        public async Task<List<PersonBaseDTO>> GetPendingAsync()
+        {
+            try
+            {
+                return await _http.GetFromJsonAsync<List<PersonBaseDTO>>("api/person/pending") ?? new();
+            }
+            catch
+            {
+                return new();
+            }
+        }
+
+        public async Task<Result<bool>> ApproveAsync(int id) => await PostAsync($"api/person/{id}/approve", "Goedkeuren is mislukt.");
+        public async Task<Result<bool>> RejectAsync(int id) => await PostAsync($"api/person/{id}/reject", "Weigeren is mislukt.");
+
+        private async Task<Result<bool>> PostAsync(string url, string fallback)
+        {
+            try
+            {
+                var response = await _http.PostAsync(url, null);
+                return response.IsSuccessStatusCode ? new(true, null) : new(false, await ErrorAsync(response, fallback));
+            }
+            catch (Exception ex)
+            {
+                return new(false, ex.Message);
+            }
+        }
+
         public async Task<List<PersonBaseDTO>?> GetAllPersonsAsync()
         {
             return await _http.GetFromJsonAsync<List<PersonBaseDTO>>("api/allPersons");

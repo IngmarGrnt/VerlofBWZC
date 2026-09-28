@@ -12,11 +12,14 @@ namespace VerlofBWZC.Api.Controllers
         public ActionResult<IEnumerable<string>> GetTeams()
             => Ok(Enum.GetNames(typeof(TeamName)));
 
+        // Ook zonder login nodig (registratieformulier)
         [HttpGet("specialities")]
+        [Microsoft.AspNetCore.Authorization.AllowAnonymous]
         public ActionResult<IEnumerable<string>> GetSpecialities()
             => Ok(Enum.GetNames(typeof(Speciality)));
 
         [HttpGet("grades")]
+        [Microsoft.AspNetCore.Authorization.AllowAnonymous]
         public ActionResult<IEnumerable<string>> GetGrades()
            => Ok(Enum.GetNames(typeof(Grade)));
 
