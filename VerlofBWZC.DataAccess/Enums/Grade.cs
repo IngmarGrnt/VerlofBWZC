@@ -12,6 +12,8 @@ namespace VerlofBWZC.DataAccess.Enums
         Luitenant,
         Kapitein,
         Majoor,
-        Kolonenl
+        Kolonel,
+        // Nieuwe graden altijd achteraan toevoegen: de databank bewaart de positie (0 = Brandweerman, ...)
+        Administratie
     }
 }
