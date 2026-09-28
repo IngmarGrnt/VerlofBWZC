@@ -207,6 +207,10 @@ else
                 <tr>
                     <th class="tc-col-date">@GridTitle</th>
                     <th class="tc-col-count">Bezet</th>
+                    @if (ShowTotalColumn)
+                    {
+                        <th class="tc-col-total" title="Alle personen met verlof op die shift, ook Ploeg0">Totaal</th>
+                    }
                     @foreach (var member in TeamMembers)
                     {
                         var used = YearCount(member.Id);
@@ -236,6 +240,10 @@ else
                         <tr class="tc-month-row">
                             <td class="tc-col-date">@Capitalize(new DateTime(mg.Year, mg.Month, 1).ToString("MMMM", Nl))</td>
                             <td class="tc-col-count"></td>
+                            @if (ShowTotalColumn)
+                            {
+                                <td class="tc-col-total"></td>
+                            }
                             <td colspan="@Math.Max(1, TeamMembers.Count)"></td>
                         </tr>
                     }
@@ -268,6 +276,13 @@ else
                                     </button>
                                 }
                             </td>
+                            @if (ShowTotalColumn)
+                            {
+                                @* Dispatching, alle ploegen: totaal met verlof op deze shift, Ploeg0 inbegrepen *@
+                                <td class="tc-col-total" title="Totaal met verlof op deze shift, Ploeg0 inbegrepen">
+                                    <span class="tc-total">@TotalOnShift(wd)</span>
+                                </td>
+                            }
                             @foreach (var member in TeamMembers)
                             {
                                 @if (!MemberWorks(member, wd))
@@ -706,6 +721,12 @@ else
 
     // Bij "Alle ploegen" telt Ploeg0 niet mee voor de bezetting van een andere ploeg (enkel in de eigen weergave van Ploeg0)
     private bool CountsForOccupancy(int personId) => !ShowAllTeams || !IsNoRegime(personId);
+
+    // Extra kolom "Totaal" (Ploeg0 inbegrepen): enkel bij alle ploegen, als er Ploeg0-personen getoond worden
+    private bool ShowTotalColumn => ShowAllTeams && TeamMembers.Any(m => m.Team == NoRegimeTeam);
+
+    private int TotalOnShift(WorkDay wd) =>
+        selectedDays.Count(d => d.Date.Date == wd.Date.Date && d.Shift == wd.Shift && TeamMembers.Any(m => m.Id == d.PersonId));
 
     // Ploeg0: geen vast werkregime (elke dag D en N); losse shiften en paren gelden er niet
     private const string NoRegimeTeam = "Ploeg0";

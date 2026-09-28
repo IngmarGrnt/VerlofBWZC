@@ -862,3 +862,45 @@
 .tc-row:hover .tc-cell-off {
     background: repeating-linear-gradient(135deg, #EAF0F8, #EAF0F8 4px, #E1E8F2 4px, #E1E8F2 8px);
 }
+
+/* Dispatching, alle ploegen: kolom Totaal (Ploeg0 inbegrepen) naast Bezet */
+.tc-col-total {
+    position: sticky;
+    z-index: 1;
+    left: 176px;
+    box-sizing: border-box;
+    width: 58px;
+    min-width: 58px;
+    max-width: 58px;
+    background: var(--bwzc-white);
+    border-right: 1px solid var(--bwzc-line);
+}
+
+.tc-grid thead .tc-col-total {
+    z-index: 3;
+    background: var(--bwzc-ice);
+    font-size: .75rem;
+}
+
+.tc-row-night .tc-col-total {
+    background: #F4F7FC;
+}
+
+.tc-row:hover .tc-col-total {
+    background: var(--bwzc-ice);
+}
+
+.tc-total {
+    font-size: .75rem;
+    color: var(--bwzc-navy);
+    font-weight: 600;
+}
+
+@media (max-width: 640px) {
+    .tc-col-total {
+        left: 158px;
+        width: 48px;
+        min-width: 48px;
+        max-width: 48px;
+    }
+}
