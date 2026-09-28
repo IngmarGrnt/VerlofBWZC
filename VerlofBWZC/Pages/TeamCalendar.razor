@@ -222,7 +222,7 @@ else
                     <th class="tc-col-count">Bezet</th>
                     @if (ShowTotalColumn)
                     {
-                        <th class="tc-col-total" title="Alle personen met verlof op die shift, ook Ploeg0">Totaal</th>
+                        <th class="tc-col-total" title="Alle personen met verlof op die shift, ook Ploeg0; kleur tegenover het maximum van de ploeg van dienst">Totaal</th>
                     }
                     @foreach (var member in TeamMembers)
                     {
@@ -306,8 +306,10 @@ else
                             @if (ShowTotalColumn)
                             {
                                 @* Dispatching, alle ploegen: totaal met verlof op deze shift, Ploeg0 inbegrepen *@
-                                <td class="tc-col-total" title="Totaal met verlof op deze shift, Ploeg0 inbegrepen">
-                                    <span class="tc-total">@TotalOnShift(wd)</span>
+                                @* Kleur zoals Bezet: tegenover het maximum van de ploeg die deze shift werkt *@
+                                var total = TotalOnShift(wd);
+                                <td class="tc-col-total" title="@($"Totaal met verlof op deze shift, Ploeg0 inbegrepen · maximum {quota} (ploeg van dienst)")">
+                                    <span class="@(total > quota ? "tc-count tc-count-over" : total == quota ? "tc-count tc-count-full" : "tc-count")">@total</span>
                                 </td>
                             }
                             @foreach (var member in TeamMembers)
