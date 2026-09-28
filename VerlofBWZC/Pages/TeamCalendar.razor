@@ -222,7 +222,7 @@ else
                     <th class="tc-col-count">Bezet</th>
                     @if (ShowTotalColumn)
                     {
-                        <th class="tc-col-total" title="Alle personen met verlof op die shift, ook Ploeg0; kleur tegenover het maximum van de ploeg van dienst">Totaal</th>
+                        <th class="tc-col-total" title="Aanwezig (ploeg van dienst, Ploeg0 en extra shiften, zonder verlof) / minimum (personen van de ploeg van dienst min het verlofmaximum). Rood = te weinig.">Totaal</th>
                     }
                     @foreach (var member in TeamMembers)
                     {
@@ -305,11 +305,11 @@ else
                             </td>
                             @if (ShowTotalColumn)
                             {
-                                @* Dispatching, alle ploegen: totaal met verlof op deze shift, Ploeg0 inbegrepen *@
-                                @* Kleur zoals Bezet: tegenover het maximum van de ploeg die deze shift werkt *@
-                                var total = TotalOnShift(wd);
-                                <td class="tc-col-total" title="@($"Totaal met verlof op deze shift, Ploeg0 inbegrepen · maximum {quota} (ploeg van dienst)")">
-                                    <span class="@(total > quota ? "tc-count tc-count-over" : total == quota ? "tc-count tc-count-full" : "tc-count")">@total</span>
+                                @* Dispatching, alle ploegen: wie deze shift werkt (ploeg van dienst + Ploeg0 + extra shiften) tegenover het minimum *@
+                                var present = PresentOnShift(wd);
+                                var minimum = MinimumOnShift(wd);
+                                <td class="tc-col-total" title="@($"Aanwezig: {present} (ploeg van dienst, Ploeg0 en extra shiften, zonder verlof) · minimum {minimum}" + (present < minimum ? $" · {minimum - present} te weinig" : ""))">
+                                    <span class="@(present < minimum ? "tc-count tc-count-over" : "tc-count")">@present/@minimum</span>
                                 </td>
                             }
                             @foreach (var member in TeamMembers)
@@ -859,11 +859,19 @@ else
     private bool CountsForOccupancy(int personId) =>
         !ShowAllTeams || Werkregels.CountsForOtherTeamsOccupancy(TeamMembers.FirstOrDefault(m => m.Id == personId)?.Team);
 
-    // Extra kolom "Totaal" (Ploeg0 inbegrepen): enkel bij alle ploegen, als er Ploeg0-personen getoond worden
+    // Extra kolom "Totaal": enkel bij alle ploegen, als er Ploeg0-personen getoond worden
     private bool ShowTotalColumn => ShowAllTeams && TeamMembers.Any(m => m.Team == NoRegimeTeam);
 
-    private int TotalOnShift(WorkDay wd) =>
-        selectedDays.Count(d => d.Date.Date == wd.Date.Date && d.Shift == wd.Shift && TeamMembers.Any(m => m.Id == d.PersonId));
+    // Aanwezig op deze shift: wie werkt (eigen ploeg van dienst, Ploeg0, of een extra shift) en geen verlof heeft
+    private int PresentOnShift(WorkDay wd) => TeamMembers.Count(m =>
+        (MemberWorks(m, wd) || ExtraOf(m.Id, wd) != null)
+        && !selectedDays.Any(d => d.PersonId == m.Id && d.Date.Date == wd.Date.Date && d.Shift == wd.Shift));
+
+    // Minimum aanwezig: per ploeg van dienst (Ploeg1-4) het aantal personen min het verlofmaximum van die shift.
+    // Zonder de verhoging door extra shiften: wie bijspringt telt al als aanwezig.
+    private int MinimumOnShift(WorkDay wd) => TeamsOn(wd)
+        .Where(Werkregels.CountsForOtherTeamsOccupancy)
+        .Sum(t => Math.Max(0, TeamMembers.Count(m => m.Team == t) - TeamQuota(t, wd.Shift)));
 
     // Ploeg zonder vast werkregime (Werkregels.NoRegimeTeam, nu Ploeg0): elke dag D en N; losse shiften en paren gelden er niet
     private const string NoRegimeTeam = Werkregels.NoRegimeTeam;

@@ -23,7 +23,7 @@ namespace VerlofBWZC.DataContracts
         public static bool LotteryPerShift(string? team) => HasNoRegime(team);
 
         // Telt deze ploeg mee voor de bezetting ("Bezet") van een andere ploeg die dezelfde shift werkt?
-        // Nee voor de ploeg zonder werkregime (die telt enkel in haar eigen weergave; in de kolom "Totaal" wel)
+        // Nee voor de ploeg zonder werkregime (die telt enkel in haar eigen weergave; in de kolom "Totaal" telt ze mee als aanwezig)
         public static bool CountsForOtherTeamsOccupancy(string? team) => !HasNoRegime(team);
 
         // --- Weergave "Alle ploegen" in de teamkalender ------------------------------------------
