@@ -236,7 +236,7 @@ else
             <thead>
                 <tr>
                     <th class="tc-col-date">@GridTitle</th>
-                    <th class="tc-col-count">Bezet</th>
+                    <th class="tc-col-count" title="Aantal personen met verlof op deze shift / maximum per shift">Verlof</th>
                     @if (ShowTotalColumn)
                     {
                         <th class="tc-col-total" title="Aanwezig (ploeg van dienst, Ploeg0 en extra shiften, zonder verlof) / minimum (personen van de ploeg van dienst min het verlofmaximum). Rood = te weinig.">Totaal</th>
@@ -294,7 +294,7 @@ else
                             <td class="tc-col-count">
                                 @{ var quota = QuotaFor(wd); }
                                 <span class="@(count > quota ? "tc-count tc-count-over" : count == quota ? "tc-count tc-count-full" : "tc-count")"
-                                      title="@(ShowAllTeams ? $"Werkt: {string.Join(", ", TeamsOn(wd))}" + (TeamsOn(wd).Contains(NoRegimeTeam) ? " (Ploeg0 telt niet mee in de bezetting)" : "") : null)">@count/@quota</span>
+                                      title="@(ShowAllTeams ? $"Werkt: {string.Join(", ", TeamsOn(wd))}" + (TeamsOn(wd).Contains(NoRegimeTeam) ? " (verlof van Ploeg0 telt hier niet mee)" : "") : null)">@count/@quota</span>
                                 @{ var rowExtras = ExtrasOnRow(wd); }
                                 @if (rowExtras.Any())
                                 {
@@ -1187,7 +1187,7 @@ else
         return selectedDays.Count(d => d.PersonId == personId);
     }
 
-// Aantal personen met verlof op deze shift (voor "Bezet").
+// Aantal personen met verlof op deze shift (kolom "Verlof").
 // Bij "Alle ploegen" telt Ploeg0 niet mee voor de bezetting van de andere ploegen.
 private int GetTotalSelectedDays(WorkDay wd) => ShiftCount(wd.Date.Date, wd.Shift);
 
