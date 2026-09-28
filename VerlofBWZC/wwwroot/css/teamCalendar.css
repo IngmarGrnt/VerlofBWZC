@@ -981,3 +981,28 @@ button.tc-extra-badge {
         font-weight: 700;
         font-size: .8rem;
     }
+
+/* Rust (Ploeg0): gearceerd zoals de vrije shiften van de andere ploegen */
+.tc-cell-rest,
+.tc-legend-rest {
+    background: repeating-linear-gradient(135deg, #F4F6FA, #F4F6FA 4px, #DDE3EE 4px, #DDE3EE 8px);
+}
+
+.tc-legend-rest {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    border: 1px solid var(--bwzc-line);
+}
+
+.wc-pill.tc-pill-rest {
+    border-color: var(--bwzc-navy);
+    color: var(--bwzc-navy);
+    background: repeating-linear-gradient(135deg, #fff, #fff 4px, #EEF1F6 4px, #EEF1F6 8px);
+}
+
+.wc-pill.tc-pill-rest-active {
+    background: var(--bwzc-navy);
+    color: #fff;
+}

@@ -158,24 +158,35 @@ else
 
     <!-- Aanduiden als + legende -->
     <div class="wc-toolbar">
-        @if (LeaveCategories.Any() && CanSaveTeamCalendar)
+        @if ((LeaveCategories.Any() || ShowsRest) && CanSaveTeamCalendar)
         {
+            var plainActive = ActiveCategoryName == null && !RestMode;
             <div class="wc-categories" role="group" aria-label="Aanduiden als">
                 <span class="wc-toolbar-label">Aanduiden als</span>
                 <button type="button" class="wc-pill"
-                        style="@(ActiveCategoryName == null ? "background:var(--rz-info); border-color:var(--rz-info); color:#fff;" : "border-color:var(--rz-info); color:var(--rz-info-dark);")"
-                        aria-pressed="@(ActiveCategoryName == null ? "true" : "false")"
-                        @onclick="() => ActiveCategoryName = null">
+                        style="@(plainActive ? "background:var(--rz-info); border-color:var(--rz-info); color:#fff;" : "border-color:var(--rz-info); color:var(--rz-info-dark);")"
+                        aria-pressed="@(plainActive ? "true" : "false")"
+                        @onclick="() => { ActiveCategoryName = null; RestMode = false; }">
                     Gewoon verlof
                 </button>
                 @foreach (var c in CategoryChoices)
                 {
-                    var isActive = ActiveCategoryName == c.Name;
+                    var isActive = ActiveCategoryName == c.Name && !RestMode;
                     <button type="button" class="wc-pill"
                             style="@(isActive ? $"background:{c.Color}; border-color:{c.Color}; color:#fff;" : $"border-color:{c.Color}; color:{c.Color};")"
                             aria-pressed="@(isActive ? "true" : "false")"
-                            @onclick="() => ActiveCategoryName = c.Name">
+                            @onclick="() => { ActiveCategoryName = c.Name; RestMode = false; }">
                         @c.Name
+                    </button>
+                }
+                @if (ShowsRest)
+                {
+                    @* Ploeg0 (geen werkregime): shift waarop iemand niet werkt, geen verlof *@
+                    <button type="button" class="@(RestMode ? "wc-pill tc-pill-rest tc-pill-rest-active" : "wc-pill tc-pill-rest")"
+                            aria-pressed="@(RestMode ? "true" : "false")"
+                            title="@($"Rust voor {Werkregels.NoRegimeTeam}: een shift waarop iemand niet werkt. Geen verlof, maar hij is dan niet aanwezig.")"
+                            @onclick="() => RestMode = true">
+                        Rust (@ShortTeam(Werkregels.NoRegimeTeam))
                     </button>
                 }
             </div>
@@ -198,12 +209,18 @@ else
             {
                 <span title="Werkt een shift in een andere ploeg; het maximum van die ploeg gaat met 1 omhoog"><span class="tc-legend-extra"></span>Extra shift</span>
             }
+            @if (ShowsRest)
+            {
+                <span title="@($"{Werkregels.NoRegimeTeam} werkt die shift niet (geen verlof)")"><span class="tc-legend-rest"></span>Rust</span>
+            }
         </div>
     </div>
     @if (CanSaveTeamCalendar)
     {
         <div class="wc-hint">
-            @(ActiveCategoryName == null
+            @(RestMode
+                ? $"Klik op een shift van {Werkregels.NoRegimeTeam} om rust aan of uit te zetten."
+                : ActiveCategoryName == null
                 ? "Klik op een vakje om verlof aan of uit te zetten."
                 : "Klik op een vakje om deze categorie te geven; nog eens klikken zet het weer uit.")
             @if (CanManageExtraShifts && ShowAllTeams)
@@ -219,10 +236,10 @@ else
             <thead>
                 <tr>
                     <th class="tc-col-date">@GridTitle</th>
-                    <th class="tc-col-count">Bezet</th>
+                    <th class="tc-col-count" title="Aantal personen met verlof op deze shift / maximum per shift">Verlof</th>
                     @if (ShowTotalColumn)
                     {
-                        <th class="tc-col-total" title="Alle personen met verlof op die shift, ook Ploeg0">Totaal</th>
+                        <th class="tc-col-total" title="Aanwezig (ploeg van dienst, Ploeg0 en extra shiften, zonder verlof) / minimum (personen van de ploeg van dienst min het verlofmaximum). Rood = te weinig.">Totaal</th>
                     }
                     @foreach (var member in TeamMembers)
                     {
@@ -277,7 +294,7 @@ else
                             <td class="tc-col-count">
                                 @{ var quota = QuotaFor(wd); }
                                 <span class="@(count > quota ? "tc-count tc-count-over" : count == quota ? "tc-count tc-count-full" : "tc-count")"
-                                      title="@(ShowAllTeams ? $"Werkt: {string.Join(", ", TeamsOn(wd))}" + (TeamsOn(wd).Contains(NoRegimeTeam) ? " (Ploeg0 telt niet mee in de bezetting)" : "") : null)">@count/@quota</span>
+                                      title="@(ShowAllTeams ? $"Werkt: {string.Join(", ", TeamsOn(wd))}" + (TeamsOn(wd).Contains(NoRegimeTeam) ? " (verlof van Ploeg0 telt hier niet mee)" : "") : null)">@count/@quota</span>
                                 @{ var rowExtras = ExtrasOnRow(wd); }
                                 @if (rowExtras.Any())
                                 {
@@ -305,9 +322,11 @@ else
                             </td>
                             @if (ShowTotalColumn)
                             {
-                                @* Dispatching, alle ploegen: totaal met verlof op deze shift, Ploeg0 inbegrepen *@
-                                <td class="tc-col-total" title="Totaal met verlof op deze shift, Ploeg0 inbegrepen">
-                                    <span class="tc-total">@TotalOnShift(wd)</span>
+                                @* Dispatching, alle ploegen: wie deze shift werkt (ploeg van dienst + Ploeg0 + extra shiften) tegenover het minimum *@
+                                var present = PresentOnShift(wd);
+                                var minimum = MinimumOnShift(wd);
+                                <td class="tc-col-total" title="@($"Aanwezig: {present} (ploeg van dienst, Ploeg0 en extra shiften, zonder verlof) · minimum {minimum}" + (present < minimum ? $" · {minimum - present} te weinig" : ""))">
+                                    <span class="@(present < minimum ? "tc-count tc-count-over" : "tc-count")">@present/@minimum</span>
                                 </td>
                             }
                             @foreach (var member in TeamMembers)
@@ -358,7 +377,10 @@ else
                                     + (dayOff != null ? " · " + (category?.Name ?? "Verlof") : "")
                                     + (isLoose ? " · Losse shift" : "")
                                     + (memberExtra != null ? $" · extra shift in {memberExtra.Team}" : "");
-                                <td class="@("tc-cell" + (IsTeamStart(member) ? " tc-team-start" : "") + (memberExtra != null ? " tc-cell-extra-mark" : ""))">
+                                var isRest = IsRest(member.Id, wd);
+                                if (isRest)
+                                    title += " · Rust";
+                                <td class="@("tc-cell" + (IsTeamStart(member) ? " tc-team-start" : "") + (memberExtra != null ? " tc-cell-extra-mark" : "") + (isRest ? " tc-cell-rest" : ""))">
                                     @if (CanSaveTeamCalendar)
                                     {
                                         <button type="button" class="tc-cell-btn" title="@title"
@@ -486,7 +508,7 @@ else
     // zonder regels de standaard: een kwart van de getoonde personen van die ploeg (minstens 1).
     private int TeamQuota(string team, string shift = "D")
     {
-        var members = TeamMembers.Where(m => m.Team == team).ToList();
+        var members = TeamMembers.Where(m => m.Team == team && IsStaff(m)).ToList();
         if (members.Count == 0)
             return 0; // ploeg zonder personen telt niet mee
 
@@ -793,6 +815,8 @@ else
         var loose = LooseCount(member.Id);
         if (LotteryStats.TryGetValue(member.Id, out var ls))
             text += $" | lotingen {SelectedYear}: {ls.Won} gewonnen, {ls.Lost} verloren";
+        if (!IsStaff(member))
+            text += " | manager: telt niet mee in de bezetting";
         return loose > 0 ? $"{text} | {loose} losse shift(en)" : text;
     }
 
@@ -853,15 +877,121 @@ else
     private int ShiftCount(DateTime date, string shift) =>
         selectedDays.Count(d => d.Date.Date == date && d.Shift == shift && CountsForOccupancy(d.PersonId));
 
-    // Bij "Alle ploegen" telt Ploeg0 niet mee voor de bezetting van een andere ploeg (enkel in de eigen weergave van Ploeg0)
-    private bool CountsForOccupancy(int personId) =>
-        !ShowAllTeams || Werkregels.CountsForOtherTeamsOccupancy(TeamMembers.FirstOrDefault(m => m.Id == personId)?.Team);
+    // Bij "Alle ploegen" telt Ploeg0 niet mee voor de bezetting van een andere ploeg (enkel in de eigen weergave van Ploeg0).
+    // Een manager van Dispatching telt nooit mee (Werkregels.CountsAsStaff).
+    private bool CountsForOccupancy(int personId)
+    {
+        var member = TeamMembers.FirstOrDefault(m => m.Id == personId);
+        if (member == null || !IsStaff(member))
+            return false;
+        return !ShowAllTeams || Werkregels.CountsForOtherTeamsOccupancy(member.Team);
+    }
 
-    // Extra kolom "Totaal" (Ploeg0 inbegrepen): enkel bij alle ploegen, als er Ploeg0-personen getoond worden
+    private static bool IsStaff(PersonBaseDTO m) => Werkregels.CountsAsStaff(m.Speciality, m.Role);
+
+    // Extra kolom "Totaal": enkel bij alle ploegen, als er Ploeg0-personen getoond worden
     private bool ShowTotalColumn => ShowAllTeams && TeamMembers.Any(m => m.Team == NoRegimeTeam);
 
-    private int TotalOnShift(WorkDay wd) =>
-        selectedDays.Count(d => d.Date.Date == wd.Date.Date && d.Shift == wd.Shift && TeamMembers.Any(m => m.Id == d.PersonId));
+    // Aanwezig op deze shift: wie werkt (eigen ploeg van dienst, Ploeg0, of een extra shift), geen verlof en geen rust heeft
+    private int PresentOnShift(WorkDay wd) => TeamMembers.Where(IsStaff).Count(m =>
+        (ExtraOf(m.Id, wd) != null || (MemberWorks(m, wd) && !IsRest(m.Id, wd)))
+        && !selectedDays.Any(d => d.PersonId == m.Id && d.Date.Date == wd.Date.Date && d.Shift == wd.Shift));
+
+    // --- Rust (Ploeg0, geen werkregime): shift waarop iemand niet werkt; geen verlof ---
+    private List<RestShiftDTO> restShifts = new();
+    private bool RestMode;
+
+    private bool ShowsRest => TeamMembers.Any(m => Werkregels.AllowsRestShifts(m.Team));
+
+    private bool IsRest(int personId, WorkDay wd) =>
+        restShifts.Any(r => r.PersonId == personId && r.Date.Date == wd.Date.Date && r.Shift == wd.Shift);
+
+    private void ToggleRest(int personId, WorkDay day, SelectedDayOffDTO? leave)
+    {
+        var member = TeamMembers.First(m => m.Id == personId);
+        if (!Werkregels.AllowsRestShifts(member.Team))
+        {
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Warning,
+                Summary = "Rust",
+                Detail = $"Rust aanduiden kan enkel voor {Werkregels.NoRegimeTeam}; de andere ploegen hebben hun vrije shiften al in het rooster.",
+                Duration = 4000
+            });
+            return;
+        }
+
+        var existing = restShifts.FirstOrDefault(r => r.PersonId == personId && r.Date.Date == day.Date.Date && r.Shift == day.Shift);
+        if (existing != null)
+            restShifts.Remove(existing);
+        else
+        {
+            restShifts.Add(new RestShiftDTO { PersonId = personId, Date = day.Date.Date, Shift = day.Shift });
+            // Rust en verlof samen kan niet: het verlof op die shift gaat weg
+            if (leave != null)
+                selectedDays.Remove(leave);
+        }
+        isDirty = true;
+    }
+
+    private async Task LoadRestShifts()
+    {
+        var list = new List<RestShiftDTO>();
+        foreach (var team in ShownTeams.Where(Werkregels.AllowsRestShifts))
+        {
+            var url = ShowAllSpecialities
+                ? $"api/rest-shifts?team={team}&year={SelectedYear}"
+                : $"api/rest-shifts?team={team}&year={SelectedYear}&speciality={SelectedSpeciality}";
+            try
+            {
+                list.AddRange(await Http.GetFromJsonAsync<List<RestShiftDTO>>(url) ?? new());
+            }
+            catch
+            {
+                // geen rust
+            }
+        }
+        restShifts = list;
+    }
+
+    // Rust van de getoonde Ploeg0-personen opslaan (vervangt hun rust in dit jaar). true = gelukt.
+    private async Task<bool> SaveRestShifts()
+    {
+        var persons = TeamMembers.Where(m => Werkregels.AllowsRestShifts(m.Team)).ToList();
+        if (persons.Count == 0)
+            return true;
+
+        var request = new SaveRestShiftsRequest
+        {
+            Year = SelectedYear,
+            Persons = persons.Select(m => new SaveRestShiftsRequest.PersonRestShifts
+            {
+                PersonId = m.Id,
+                Days = restShifts.Where(r => r.PersonId == m.Id && r.Date.Year == SelectedYear).ToList()
+            }).ToList()
+        };
+        var response = await Http.PostAsJsonAsync("api/rest-shifts/save", request);
+        if (response.IsSuccessStatusCode)
+            return true;
+
+        var serverText = response.StatusCode is System.Net.HttpStatusCode.BadRequest or System.Net.HttpStatusCode.Forbidden
+            ? await response.Content.ReadAsStringAsync()
+            : null;
+        NotificationService.Notify(new NotificationMessage
+        {
+            Severity = NotificationSeverity.Error,
+            Summary = "Rust niet opgeslagen",
+            Detail = string.IsNullOrWhiteSpace(serverText) ? "Opslaan van de rust mislukt." : serverText,
+            Duration = 5000
+        });
+        return false;
+    }
+
+    // Minimum aanwezig: per ploeg van dienst (Ploeg1-4) het aantal personen min het verlofmaximum van die shift.
+    // Zonder de verhoging door extra shiften: wie bijspringt telt al als aanwezig.
+    private int MinimumOnShift(WorkDay wd) => TeamsOn(wd)
+        .Where(Werkregels.CountsForOtherTeamsOccupancy)
+        .Sum(t => Math.Max(0, TeamMembers.Count(m => m.Team == t && IsStaff(m)) - TeamQuota(t, wd.Shift)));
 
     // Ploeg zonder vast werkregime (Werkregels.NoRegimeTeam, nu Ploeg0): elke dag D en N; losse shiften en paren gelden er niet
     private const string NoRegimeTeam = Werkregels.NoRegimeTeam;
@@ -1057,7 +1187,7 @@ else
         return selectedDays.Count(d => d.PersonId == personId);
     }
 
-// Aantal personen met verlof op deze shift (voor "Bezet").
+// Aantal personen met verlof op deze shift (kolom "Verlof").
 // Bij "Alle ploegen" telt Ploeg0 niet mee voor de bezetting van de andere ploegen.
 private int GetTotalSelectedDays(WorkDay wd) => ShiftCount(wd.Date.Date, wd.Shift);
 
@@ -1067,6 +1197,12 @@ private void OnDayClicked(int personId, WorkDay day)
         d.PersonId == personId &&
         d.Date.Date == day.Date.Date &&
         d.Shift == day.Shift);
+
+    if (RestMode)
+    {
+        ToggleRest(personId, day, existing);
+        return;
+    }
 
     if (ActiveCategoryName == null)
     {
@@ -1120,6 +1256,10 @@ private void OnDayClicked(int personId, WorkDay day)
     }
 
     isDirty = true;
+
+    // Verlof en rust samen kan niet: verlof gaat voor
+    if (selectedDays.Any(d => d.PersonId == personId && d.Date.Date == day.Date.Date && d.Shift == day.Shift))
+        restShifts.RemoveAll(r => r.PersonId == personId && r.Date.Date == day.Date.Date && r.Shift == day.Shift);
 
     // Only notify for the row the user just edited
     var count = GetTotalSelectedDays(day);
@@ -1230,6 +1370,9 @@ private void OnDayClicked(int personId, WorkDay day)
 
         await LoadDraws();
         await LoadExtraShifts();
+        await LoadRestShifts();
+        if (!ShowsRest)
+            RestMode = false;
 
         isDirty = false;
 
@@ -1380,12 +1523,15 @@ private void OnDayClicked(int personId, WorkDay day)
 
         if (response.IsSuccessStatusCode)
         {
+            // Daarna de rust (Ploeg0); lukt dat niet, dan blijven de wijzigingen "niet opgeslagen"
+            if (!await SaveRestShifts())
+                return;
             isDirty = false;
             NotificationService.Notify(new NotificationMessage
             {
                 Severity = NotificationSeverity.Success,
                 Summary = "Opgeslagen",
-                Detail = "Geselecteerde verlofdagen zijn opgeslagen.",
+                Detail = ShowsRest ? "Verlof en rust zijn opgeslagen." : "Geselecteerde verlofdagen zijn opgeslagen.",
                 Duration = 2000
             });
         }

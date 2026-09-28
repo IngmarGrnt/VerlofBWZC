@@ -173,6 +173,26 @@ namespace VerlofBWZC.DataAccess.Extensions
             mb.Entity<ExtraShift>()
                 .HasIndex(e => new { e.Team, e.Date });
         }
+
+        public static void RestShiftConfig(this ModelBuilder mb)
+        {
+            // Persoon weg = zijn rustshiften ook weg
+            mb.Entity<RestShift>()
+                .HasOne<Person>()
+                .WithMany()
+                .HasForeignKey(r => r.PersonId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            mb.Entity<RestShift>()
+                .Property(r => r.Shift)
+                .IsRequired()
+                .HasMaxLength(1);
+
+            // Eén keer rust per persoon, datum en shift
+            mb.Entity<RestShift>()
+                .HasIndex(r => new { r.PersonId, r.Date, r.Shift })
+                .IsUnique();
+        }
     }
 }
 
