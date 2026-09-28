@@ -76,6 +76,11 @@ else
             {
                 <RadzenButton Text="Export" Icon="download" ButtonStyle="ButtonStyle.Light" Click="@ExportToCsv" title="Exporteren naar CSV" />
             }
+            @if (CanManageExtraShifts)
+            {
+                <RadzenButton Text="Extra shift" Icon="person_add" ButtonStyle="ButtonStyle.Light" Click="@(() => OpenExtraShifts(null))"
+                              title="Iemand werkt een dag- of nachtshift in een andere ploeg" />
+            }
             @if (CanSaveTeamCalendar)
             {
                 <RadzenButton Text="Opslaan" Icon="save" ButtonStyle="ButtonStyle.Primary" Click="@SaveTeamDaysOff" />
@@ -189,6 +194,10 @@ else
             <span><span class="wc-dot-inline wc-dot-holiday"></span>Feestdag</span>
             <span><span class="tc-legend-loose"></span>Losse shift</span>
             <span><span class="tc-legend-night"></span>Nachtshift</span>
+            @if (ShowsExtraShifts)
+            {
+                <span title="Werkt een shift in een andere ploeg; het maximum van die ploeg gaat met 1 omhoog"><span class="tc-legend-extra"></span>Extra shift</span>
+            }
         </div>
     </div>
     @if (CanSaveTeamCalendar)
@@ -265,6 +274,20 @@ else
                                 @{ var quota = QuotaFor(wd); }
                                 <span class="@(count > quota ? "tc-count tc-count-over" : count == quota ? "tc-count tc-count-full" : "tc-count")"
                                       title="@(ShowAllTeams ? $"Werkt: {string.Join(", ", TeamsOn(wd))}" + (TeamsOn(wd).Contains(NoRegimeTeam) ? " (Ploeg0 telt niet mee in de bezetting)" : "") : null)">@count/@quota</span>
+                                @{ var rowExtras = ExtrasOnRow(wd); }
+                                @if (rowExtras.Any())
+                                {
+                                    var extraTitle = "Extra shift (maximum +" + rowExtras.Count + "): " + string.Join(", ", rowExtras.Select(e => $"{e.FirstName} {e.LastName} ({e.PersonTeam}) in {e.Team}"));
+                                    @if (CanManageExtraShifts)
+                                    {
+                                        <button type="button" class="tc-extra-badge" title="@extraTitle" aria-label="Extra shiften bekijken"
+                                                @onclick="() => OpenExtraShifts(wd)">+@rowExtras.Count</button>
+                                    }
+                                    else
+                                    {
+                                        <span class="tc-extra-badge" title="@extraTitle">+@rowExtras.Count</span>
+                                    }
+                                }
                                 @if (CanManageCalendar && (PairOverQuota(wd) || HasDraw(wd)))
                                 {
                                     var hasDraw = HasDraw(wd);
@@ -285,10 +308,21 @@ else
                             }
                             @foreach (var member in TeamMembers)
                             {
+                                var memberExtra = ExtraOf(member.Id, wd);
                                 @if (!MemberWorks(member, wd))
                                 {
-                                    @* Alle ploegen: de ploeg van deze persoon werkt deze shift niet *@
-                                    <td class="@(IsTeamStart(member) ? "tc-cell tc-cell-off tc-team-start" : "tc-cell tc-cell-off")"></td>
+                                    @* Alle ploegen: de ploeg van deze persoon werkt deze shift niet (of hij werkt een extra shift in een andere ploeg) *@
+                                    @if (memberExtra != null)
+                                    {
+                                        <td class="@(IsTeamStart(member) ? "tc-cell tc-cell-extra tc-team-start" : "tc-cell tc-cell-extra")"
+                                            title="@($"{member.FirstName} {member.LastName} · {wd.Date.ToString("ddd d MMM", Nl)} {wd.Shift} · extra shift in {memberExtra.Team}" + (string.IsNullOrEmpty(memberExtra.Note) ? "" : $" · {memberExtra.Note}"))">
+                                            <span class="tc-extra-team">@ShortTeam(memberExtra.Team)</span>
+                                        </td>
+                                    }
+                                    else
+                                    {
+                                        <td class="@(IsTeamStart(member) ? "tc-cell tc-cell-off tc-team-start" : "tc-cell tc-cell-off")"></td>
+                                    }
                                     continue;
                                 }
                                 var dayOff = selectedDays.FirstOrDefault(d => d.PersonId == member.Id && d.Date.Date == wd.Date.Date && d.Shift == wd.Shift);
@@ -298,8 +332,9 @@ else
                                 var blockStyle = category != null ? $"background:{category.Color};" : null;
                                 var title = $"{member.FirstName} {member.LastName} · {wd.Date.ToString("ddd d MMM", Nl)} {wd.Shift}"
                                     + (dayOff != null ? " · " + (category?.Name ?? "Verlof") : "")
-                                    + (isLoose ? " · Losse shift" : "");
-                                <td class="@(IsTeamStart(member) ? "tc-cell tc-team-start" : "tc-cell")">
+                                    + (isLoose ? " · Losse shift" : "")
+                                    + (memberExtra != null ? $" · extra shift in {memberExtra.Team}" : "");
+                                <td class="@("tc-cell" + (IsTeamStart(member) ? " tc-team-start" : "") + (memberExtra != null ? " tc-cell-extra-mark" : ""))">
                                     @if (CanSaveTeamCalendar)
                                     {
                                         <button type="button" class="tc-cell-btn" title="@title"
@@ -441,10 +476,74 @@ else
         return rules.Sum(x => x.rule?.MaxFor(shift) ?? ShiftQuotaDTO.DefaultFor(x.g.Count()));
     }
 
-    // Maximum voor een rij: bij alle ploegen de som van de ploegen die die shift werken
+    // Maximum voor een rij: bij alle ploegen de som van de ploegen die die shift werken.
+    // Elke extra shift in een ploeg verhoogt het maximum van die ploeg op die shift (Werkregels.ExtraShiftQuotaBonus).
     private int QuotaFor(WorkDay wd) => ShowAllTeams
-        ? Math.Max(1, TeamsOn(wd).Where(Werkregels.CountsForOtherTeamsOccupancy).Sum(t => TeamQuota(t, wd.Shift)))
-        : TeamQuota(SelectedTeam ?? "", wd.Shift);
+        ? Math.Max(1, TeamsOn(wd).Where(Werkregels.CountsForOtherTeamsOccupancy).Sum(t => TeamQuota(t, wd.Shift) + ExtraBonus(t, wd)))
+        : TeamQuota(SelectedTeam ?? "", wd.Shift) + ExtraBonus(SelectedTeam ?? "", wd);
+
+    // --- Extra shiften (Dispatching: iemand werkt een shift in een andere ploeg) ---
+    private List<ExtraShiftDTO> ExtraShifts = new();
+
+    // Enkel waar de specialiteit het toelaat (Werkregels.AllowsExtraShifts)
+    private bool ShowsExtraShifts => Werkregels.AllowsExtraShifts(SelectedSpeciality);
+    private bool CanManageExtraShifts => ShowsExtraShifts && CanSaveTeamCalendar;
+
+    // Extra shiften die in deze ploeg op deze shift gewerkt worden
+    private List<ExtraShiftDTO> ExtrasIn(string team, WorkDay wd) => ExtraShifts
+        .Where(e => e.Team == team && e.Date.Date == wd.Date.Date && e.Shift == wd.Shift)
+        .ToList();
+
+    private int ExtraBonus(string team, WorkDay wd) => ExtrasIn(team, wd).Count * Werkregels.ExtraShiftQuotaBonus;
+
+    // Extra shiften op deze rij in de getoonde ploeg(en)
+    private List<ExtraShiftDTO> ExtrasOnRow(WorkDay wd) => ShowAllTeams
+        ? TeamsOn(wd).SelectMany(t => ExtrasIn(t, wd)).ToList()
+        : ExtrasIn(SelectedTeam ?? "", wd);
+
+    // Extra shift van een persoon op deze rij (in welke ploeg dan ook)
+    private ExtraShiftDTO? ExtraOf(int personId, WorkDay wd) =>
+        ExtraShifts.FirstOrDefault(e => e.PersonId == personId && e.Date.Date == wd.Date.Date && e.Shift == wd.Shift);
+
+    private async Task LoadExtraShifts()
+    {
+        if (!ShowsExtraShifts) { ExtraShifts = new(); return; }
+        var list = new List<ExtraShiftDTO>();
+        // Getoonde ploegen en (voor wie bij een andere ploeg bijspringt) alle ploegen van deze specialiteit
+        foreach (var team in ShownTeams.Union(Scope.TeamsFor(SelectedSpeciality)).Distinct())
+        {
+            try
+            {
+                list.AddRange(await Http.GetFromJsonAsync<List<ExtraShiftDTO>>($"api/extra-shifts?team={team}&year={SelectedYear}&speciality={SelectedSpeciality}") ?? new());
+            }
+            catch
+            {
+                // geen toegang tot die ploeg
+            }
+        }
+        ExtraShifts = list.GroupBy(e => e.Id).Select(g => g.First()).ToList();
+    }
+
+    private async Task OpenExtraShifts(WorkDay? wd)
+    {
+        var firstDay = WorkDays.FirstOrDefault(w => SelectedMonth == null || w.Date.Month == SelectedMonth);
+        var date = wd?.Date ?? (SelectedYear == DateTime.Today.Year && (SelectedMonth == null || SelectedMonth == DateTime.Today.Month) ? DateTime.Today : firstDay?.Date ?? new DateTime(SelectedYear, 1, 1));
+        var team = ShowAllTeams
+            ? (wd != null ? TeamsOn(wd).FirstOrDefault(Werkregels.CountsForOtherTeamsOccupancy) : null)
+            : SelectedTeam;
+
+        await DialogService.OpenAsync<ExtraShiftDialog>("Extra shift", new Dictionary<string, object?>
+            {
+                { nameof(ExtraShiftDialog.Date), date },
+                { nameof(ExtraShiftDialog.Shift), wd?.Shift ?? "D" },
+                { nameof(ExtraShiftDialog.Team), team },
+                { nameof(ExtraShiftDialog.OnClose), EventCallback.Factory.Create(this, () => DialogService.Close()) }
+            },
+            new DialogOptions { Width = "520px", CloseDialogOnEsc = true });
+
+        await LoadExtraShifts();
+        StateHasChanged();
+    }
 
     private bool QuotaDiffersPerShift => TeamQuota(SelectedTeam ?? "", "D") != TeamQuota(SelectedTeam ?? "", "N");
 
@@ -1095,6 +1194,7 @@ private void OnDayClicked(int personId, WorkDay day)
         }
 
         await LoadDraws();
+        await LoadExtraShifts();
 
         isDirty = false;
 

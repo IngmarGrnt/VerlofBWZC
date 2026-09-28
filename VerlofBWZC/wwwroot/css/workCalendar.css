@@ -522,3 +522,27 @@
     vertical-align: -3px;
     margin-right: .25rem;
 }
+
+/* Extra shift in een andere ploeg (Dispatching): geen verlof, niet klikbaar */
+.wc-chip-extra {
+    background: #7B4FB8;
+    border-color: #7B4FB8;
+    cursor: default;
+}
+
+    .wc-chip-extra:hover {
+        border-color: #5B3592;
+    }
+
+    .wc-chip-extra:active {
+        transform: none;
+    }
+
+    .wc-chip-extra .wc-chip-day,
+    .wc-chip-extra .wc-chip-meta {
+        color: #fff;
+    }
+
+.wc-chip-extra-mark {
+    box-shadow: inset 0 -3px 0 #7B4FB8;
+}

@@ -904,3 +904,59 @@
         max-width: 48px;
     }
 }
+
+/* Extra shift (Dispatching): iemand werkt een shift in een andere ploeg */
+.tc-legend-extra {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    background: #7B4FB8;
+}
+
+.tc-extra-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 20px;
+    padding: 0 .3rem;
+    margin-left: .25rem;
+    border: 1px solid #7B4FB8;
+    border-radius: 6px;
+    background: #F1EAFA;
+    color: #5B3592;
+    font-size: .72rem;
+    font-weight: 700;
+    vertical-align: middle;
+}
+
+button.tc-extra-badge {
+    cursor: pointer;
+}
+
+    button.tc-extra-badge:hover {
+        background: #7B4FB8;
+        color: #fff;
+    }
+
+.tc-cell-extra {
+    background: #EFE6FA;
+    text-align: center;
+}
+
+.tc-extra-team {
+    display: inline-block;
+    min-width: 22px;
+    padding: 1px 3px;
+    border-radius: 5px;
+    background: #7B4FB8;
+    color: #fff;
+    font-size: .65rem;
+    font-weight: 700;
+    line-height: 16px;
+}
+
+.tc-cell-extra-mark {
+    box-shadow: inset 0 -3px 0 #7B4FB8;
+}

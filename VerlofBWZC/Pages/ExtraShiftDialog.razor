@@ -1,0 +1,260 @@
+@using System.Globalization
+@using Radzen
+@using Radzen.Blazor
+@using VerlofBWZC.DataContracts
+@using VerlofBWZC.DataContracts.DTO
+@using VerlofBWZC.DataContracts.DTO.Calendar
+@using VerlofBWZC.Services
+@inject HttpClient Http
+@inject ScopeService Scope
+@inject NotificationService NotificationService
+
+@* Extra shift: iemand (Dispatching) werkt een dag- of nachtshift in een andere ploeg.
+   Geen verlof; het verlofmaximum van die ploeg op die shift gaat met 1 omhoog. Wordt meteen bewaard. *@
+
+<div class="xs">
+    @if (loading)
+    {
+        <p class="tl-hint">Laden…</p>
+    }
+    else
+    {
+        <div class="xs-form">
+            <div class="xs-field">
+                <label>Datum</label>
+                <RadzenDatePicker TValue="DateTime" Value="@date" ValueChanged="@(async (DateTime d) => await SetDate(d))"
+                                  DateFormat="ddd d MMMM yyyy" ShowTime="false" Style="width:100%" />
+            </div>
+            <div class="xs-field">
+                <label>Shift</label>
+                <div class="tl-scope" role="group" aria-label="Shift">
+                    @foreach (var s in new[] { "D", "N" })
+                    {
+                        <button type="button" class="@(shift == s ? "tl-scope-btn tl-scope-active" : "tl-scope-btn")"
+                                aria-pressed="@(shift == s ? "true" : "false")" @onclick="() => SetShift(s)">
+                            @(s == "D" ? "Dagshift" : "Nachtshift")
+                        </button>
+                    }
+                </div>
+            </div>
+            <div class="xs-field">
+                <label>Werkt in ploeg</label>
+                <RadzenDropDown TValue="string" Data="@TeamChoices" @bind-Value="team" Placeholder="Ploeg" Style="width:100%"
+                                Change="@(_ => personId = null)" />
+                @if (!TeamChoices.Any())
+                {
+                    <div class="tl-hint">Geen enkele ploeg werkt deze shift.</div>
+                }
+            </div>
+            <div class="xs-field">
+                <label>Persoon</label>
+                <RadzenDropDown TValue="int?" Data="@PersonChoices" TextProperty="Text" ValueProperty="Id" @bind-Value="personId"
+                                Placeholder="@(string.IsNullOrEmpty(team) ? "Kies eerst een ploeg" : "Wie springt bij?")"
+                                AllowFiltering="true" FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" Style="width:100%" />
+                @if (!string.IsNullOrEmpty(team) && !PersonChoices.Any())
+                {
+                    <div class="tl-hint">Niemand beschikbaar: de anderen werken dan zelf of springen al bij.</div>
+                }
+            </div>
+            <div class="xs-field">
+                <label>Opmerking (optioneel)</label>
+                <RadzenTextBox @bind-Value="note" MaxLength="200" Placeholder="bv. ziekte vervangen" Style="width:100%" />
+            </div>
+            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End">
+                <RadzenButton Text="Extra shift toevoegen" Icon="add" ButtonStyle="ButtonStyle.Primary" Click="Add"
+                              Disabled="@(busy || personId == null || string.IsNullOrEmpty(team))" />
+            </RadzenStack>
+        </div>
+
+        <div class="tl-section-title">Extra shiften op @date.ToString("ddd d MMMM", Nl) · @(shift == "D" ? "dag" : "nacht")</div>
+        @if (!OnThisShift.Any())
+        {
+            <p class="tl-hint">Nog geen extra shiften op deze shift.</p>
+        }
+        @foreach (var e in OnThisShift)
+        {
+            <div class="xs-item">
+                <span class="xs-swatch"></span>
+                <span class="xs-item-text">
+                    <strong>@e.FirstName @e.LastName</strong> (@e.PersonTeam) werkt in <strong>@e.Team</strong>
+                    @if (!string.IsNullOrEmpty(e.Note))
+                    {
+                        <span class="xs-note">· @e.Note</span>
+                    }
+                </span>
+                <button type="button" class="ms-chip-x" title="Extra shift verwijderen" aria-label="Extra shift verwijderen"
+                        disabled="@busy" @onclick="() => Remove(e)">
+                    <i class="rzi">delete</i>
+                </button>
+            </div>
+        }
+
+        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Style="margin-top:1rem">
+            <RadzenButton Text="Sluiten" ButtonStyle="ButtonStyle.Light" Click="@(() => OnClose.InvokeAsync())" />
+        </RadzenStack>
+    }
+</div>
+
+<style>
+    .xs-form { display:flex; flex-direction:column; gap:.6rem; margin-bottom:1rem; }
+    .xs-field label { display:block; font-size:.8rem; font-weight:600; color:var(--bwzc-navy); margin-bottom:.2rem; }
+    .xs-item { display:flex; align-items:center; gap:.5rem; padding:.35rem .5rem; border-radius:6px; background:var(--bwzc-ice); margin-bottom:.3rem; }
+    .xs-item-text { flex:1; font-size:.875rem; }
+    .xs-note { color:var(--rz-text-secondary-color); }
+    .xs-swatch { width:12px; height:12px; border-radius:3px; background:var(--bwzc-extra, #7B4FB8); flex:none; }
+</style>
+
+@code {
+    private static readonly CultureInfo Nl = new("nl-BE");
+
+    [Parameter] public DateTime Date { get; set; }
+    [Parameter] public string Shift { get; set; } = "D";
+    [Parameter] public string? Team { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private DateTime date;
+    private string shift = "D";
+    private string? team;
+    private int? personId;
+    private string? note;
+    private bool loading = true;
+    private bool busy;
+
+    private static string Speciality => Werkregels.AllTeamsSpeciality;
+    private List<string> teams = new();
+    private List<PersonBaseDTO> persons = new();
+    private List<ExtraShiftDTO> extras = new();
+    // Rooster per jaar en ploeg
+    private readonly Dictionary<(int Year, string Team), HashSet<(DateTime, string)>> rosters = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        date = Date.Date;
+        shift = Shift is "N" ? "N" : "D";
+
+        await Scope.LoadAsync();
+        teams = Scope.TeamsFor(Speciality);
+        foreach (var t in teams)
+            persons.AddRange(await Http.GetFromJsonAsync<List<PersonBaseDTO>>($"api/person/team/{t}/{Speciality}") ?? new());
+
+        await LoadYear(date.Year);
+        team = Team != null && TeamChoices.Contains(Team) ? Team : TeamChoices.FirstOrDefault(t => !Werkregels.HasNoRegime(t));
+        loading = false;
+    }
+
+    private async Task LoadYear(int year)
+    {
+        foreach (var t in teams.Where(t => !rosters.ContainsKey((year, t))))
+        {
+            var days = await Http.GetFromJsonAsync<List<WorkDay>>($"api/calender?teamName={t}&year={year}") ?? new();
+            rosters[(year, t)] = days.Select(d => (d.Date.Date, d.Shift)).ToHashSet();
+        }
+        await LoadExtras(year);
+    }
+
+    private async Task LoadExtras(int year)
+    {
+        var list = new List<ExtraShiftDTO>();
+        foreach (var t in teams)
+            list.AddRange(await Http.GetFromJsonAsync<List<ExtraShiftDTO>>($"api/extra-shifts?team={t}&year={year}&speciality={Speciality}") ?? new());
+        extras = list;
+    }
+
+    private bool Works(string? t, DateTime d, string s) =>
+        t != null && rosters.TryGetValue((d.Year, t), out var r) && r.Contains((d.Date, s));
+
+    // Ploegen die deze shift werken
+    private List<string> TeamChoices => teams.Where(t => Works(t, date, shift)).ToList();
+
+    private IEnumerable<ExtraShiftDTO> OnThisShift => extras
+        .Where(e => e.Date.Date == date && e.Shift == shift)
+        .OrderBy(e => e.Team).ThenBy(e => e.LastName);
+
+    private record PersonChoice(int Id, string Text);
+
+    // Wie kan bijspringen: andere ploeg, werkt die shift niet zelf (behalve zonder werkregime), nog geen extra shift dan
+    private List<PersonChoice> PersonChoices => string.IsNullOrEmpty(team)
+        ? new()
+        : persons
+            .Where(p => p.Team != team)
+            .Where(p => !Works(p.Team, date, shift) || Werkregels.ExtraShiftAllowedOnOwnShift(p.Team))
+            .Where(p => !extras.Any(e => e.PersonId == p.Id && e.Date.Date == date && e.Shift == shift))
+            .OrderBy(p => p.LastName).ThenBy(p => p.FirstName)
+            .Select(p => new PersonChoice(p.Id, $"{p.LastName} {p.FirstName} ({p.Team})"))
+            .ToList();
+
+    private async Task SetDate(DateTime d)
+    {
+        var year = date.Year;
+        date = d.Date;
+        if (d.Year != year)
+            await LoadYear(d.Year);
+        FixTeam();
+    }
+
+    private void SetShift(string s)
+    {
+        shift = s;
+        FixTeam();
+    }
+
+    private void FixTeam()
+    {
+        if (!TeamChoices.Contains(team ?? ""))
+            team = TeamChoices.FirstOrDefault(t => !Werkregels.HasNoRegime(t));
+        if (personId != null && PersonChoices.All(p => p.Id != personId))
+            personId = null;
+    }
+
+    private async Task Add()
+    {
+        busy = true;
+        try
+        {
+            var resp = await Http.PostAsJsonAsync("api/extra-shifts", new ExtraShiftDTO { PersonId = personId!.Value, Date = date, Shift = shift, Team = team!, Note = note });
+            if (resp.IsSuccessStatusCode)
+            {
+                personId = null;
+                note = null;
+                await LoadExtras(date.Year);
+            }
+            else
+            {
+                Notify(resp.StatusCode == System.Net.HttpStatusCode.Forbidden
+                    ? "Je mag voor deze ploeg geen extra shift aanduiden."
+                    : await resp.Content.ReadAsStringAsync());
+            }
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task Remove(ExtraShiftDTO e)
+    {
+        busy = true;
+        try
+        {
+            var resp = await Http.DeleteAsync($"api/extra-shifts/{e.Id}");
+            if (resp.IsSuccessStatusCode)
+                await LoadExtras(date.Year);
+            else
+                Notify(resp.StatusCode == System.Net.HttpStatusCode.Forbidden
+                    ? "Je mag deze extra shift niet verwijderen."
+                    : await resp.Content.ReadAsStringAsync());
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private void Notify(string detail) => NotificationService.Notify(new NotificationMessage
+    {
+        Severity = NotificationSeverity.Error,
+        Summary = "Extra shift",
+        Detail = string.IsNullOrWhiteSpace(detail) ? "Bewaren mislukt." : detail,
+        Duration = 5000
+    });
+}

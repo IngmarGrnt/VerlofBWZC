@@ -19,6 +19,8 @@ Er zijn twee soorten regels:
 | **Bezetting telt Ploeg0 niet mee** | Ploeg0 telt niet mee in "Bezet" en in het maximum van een andere ploeg die dezelfde shift werkt. In de kolom **Totaal** telt Ploeg0 wel mee. | `Werkregels.CountsForOtherTeamsOccupancy`; gebruikt in `TeamCalendar.razor` |
 | **"Alle ploegen" enkel voor Dispatching** | In de teamkalender kan de keuze "Alle ploegen" alle ploegen naast elkaar tonen. Dit kan enkel voor de specialiteit Dispatching, en enkel als je minstens 2 ploegen van Dispatching mag zien. | `Werkregels.AllTeamsSpeciality`, `MinTeamsForAllTeamsView`, `AllowsAllTeamsView` |
 | **Standaard max per shift** | Als er geen regel is bij *Max per shift*, is het maximum een kwart van de personen, met minstens 1. | `Werkregels.DefaultShiftQuota` (via `ShiftQuotaDTO.DefaultFor`) |
+| **Extra shift enkel voor Dispatching** | Iemand van Dispatching kan een dag- of nachtshift in een andere ploeg werken. Een extra shift is geen verlof: hij telt niet mee in x/44, de kwartaalmaxima of de loting. Hij kan niet in de eigen ploeg, en niet op een shift die de eigen ploeg werkt (behalve voor Ploeg0). | `Werkregels.AllowsExtraShifts`, `ExtraShiftAllowedOnOwnShift`; `ExtraShiftController.cs` |
+| **Extra shift verhoogt het maximum** | Elke extra shift in een ploeg verhoogt het verlofmaximum van die ploeg op die shift met 1. | `Werkregels.ExtraShiftQuotaBonus`; gebruikt in `TeamCalendar.razor` |
 
 Een nieuwe uitzondering toevoegen, zoals een tweede ploeg zonder werkregime, kan in `Werkregels.cs`. Alle schermen en de server volgen dan automatisch.
 
@@ -42,6 +44,7 @@ Een nieuwe uitzondering toevoegen, zoals een tweede ploeg zonder werkregime, kan
 | Wie mag de teamkalender bewerken of loten | Beheer → **Manager Paneel** | Admin of manager |
 | Extra ploegen en specialiteiten van een manager | Beheer → **Personen** (oranje knop naast "Manager") | Admin |
 | Registraties goedkeuren of weigeren | Beheer → **Personen** | Admin of manager |
+| Extra shift aanduiden of verwijderen (Dispatching) | Teamkalender → knop **Extra shift**, of de paarse **+1** naast Bezet | Admin, of een manager die beide ploegen beheert en de teamkalender mag opslaan (Manager Paneel) |
 
 ## 4. Rechten (rollen)
 
