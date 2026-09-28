@@ -26,6 +26,12 @@ namespace VerlofBWZC.DataContracts
         // Nee voor de ploeg zonder werkregime (die telt enkel in haar eigen weergave; in de kolom "Totaal" telt ze mee als aanwezig)
         public static bool CountsForOtherTeamsOccupancy(string? team) => !HasNoRegime(team);
 
+        // Telt deze persoon mee in de bezetting (Bezet, maximum per shift, minimum aanwezig, loting)?
+        // Een manager van Dispatching niet: hij staat in de kalender, maar telt niet als personeel van de ploeg.
+        public const string NotStaffRole = "Manager";
+        public static bool CountsAsStaff(string? speciality, string? role) =>
+            !(speciality == AllTeamsSpeciality && role == NotStaffRole);
+
         // --- Weergave "Alle ploegen" in de teamkalender ------------------------------------------
 
         // Specialiteit waarvoor de teamkalender alle ploegen naast elkaar kan tonen

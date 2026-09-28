@@ -488,7 +488,7 @@ else
     // zonder regels de standaard: een kwart van de getoonde personen van die ploeg (minstens 1).
     private int TeamQuota(string team, string shift = "D")
     {
-        var members = TeamMembers.Where(m => m.Team == team).ToList();
+        var members = TeamMembers.Where(m => m.Team == team && IsStaff(m)).ToList();
         if (members.Count == 0)
             return 0; // ploeg zonder personen telt niet mee
 
@@ -795,6 +795,8 @@ else
         var loose = LooseCount(member.Id);
         if (LotteryStats.TryGetValue(member.Id, out var ls))
             text += $" | lotingen {SelectedYear}: {ls.Won} gewonnen, {ls.Lost} verloren";
+        if (!IsStaff(member))
+            text += " | manager: telt niet mee in de bezetting";
         return loose > 0 ? $"{text} | {loose} losse shift(en)" : text;
     }
 
@@ -855,15 +857,23 @@ else
     private int ShiftCount(DateTime date, string shift) =>
         selectedDays.Count(d => d.Date.Date == date && d.Shift == shift && CountsForOccupancy(d.PersonId));
 
-    // Bij "Alle ploegen" telt Ploeg0 niet mee voor de bezetting van een andere ploeg (enkel in de eigen weergave van Ploeg0)
-    private bool CountsForOccupancy(int personId) =>
-        !ShowAllTeams || Werkregels.CountsForOtherTeamsOccupancy(TeamMembers.FirstOrDefault(m => m.Id == personId)?.Team);
+    // Bij "Alle ploegen" telt Ploeg0 niet mee voor de bezetting van een andere ploeg (enkel in de eigen weergave van Ploeg0).
+    // Een manager van Dispatching telt nooit mee (Werkregels.CountsAsStaff).
+    private bool CountsForOccupancy(int personId)
+    {
+        var member = TeamMembers.FirstOrDefault(m => m.Id == personId);
+        if (member == null || !IsStaff(member))
+            return false;
+        return !ShowAllTeams || Werkregels.CountsForOtherTeamsOccupancy(member.Team);
+    }
+
+    private static bool IsStaff(PersonBaseDTO m) => Werkregels.CountsAsStaff(m.Speciality, m.Role);
 
     // Extra kolom "Totaal": enkel bij alle ploegen, als er Ploeg0-personen getoond worden
     private bool ShowTotalColumn => ShowAllTeams && TeamMembers.Any(m => m.Team == NoRegimeTeam);
 
     // Aanwezig op deze shift: wie werkt (eigen ploeg van dienst, Ploeg0, of een extra shift) en geen verlof heeft
-    private int PresentOnShift(WorkDay wd) => TeamMembers.Count(m =>
+    private int PresentOnShift(WorkDay wd) => TeamMembers.Where(IsStaff).Count(m =>
         (MemberWorks(m, wd) || ExtraOf(m.Id, wd) != null)
         && !selectedDays.Any(d => d.PersonId == m.Id && d.Date.Date == wd.Date.Date && d.Shift == wd.Shift));
 
@@ -871,7 +881,7 @@ else
     // Zonder de verhoging door extra shiften: wie bijspringt telt al als aanwezig.
     private int MinimumOnShift(WorkDay wd) => TeamsOn(wd)
         .Where(Werkregels.CountsForOtherTeamsOccupancy)
-        .Sum(t => Math.Max(0, TeamMembers.Count(m => m.Team == t) - TeamQuota(t, wd.Shift)));
+        .Sum(t => Math.Max(0, TeamMembers.Count(m => m.Team == t && IsStaff(m)) - TeamQuota(t, wd.Shift)));
 
     // Ploeg zonder vast werkregime (Werkregels.NoRegimeTeam, nu Ploeg0): elke dag D en N; losse shiften en paren gelden er niet
     private const string NoRegimeTeam = Werkregels.NoRegimeTeam;

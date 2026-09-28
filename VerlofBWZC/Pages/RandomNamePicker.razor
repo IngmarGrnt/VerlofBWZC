@@ -278,7 +278,7 @@ else
 
     // Maximum per shift: ingestelde regel (Instellingen > Max per shift) of standaard een kwart van de personen
     private ShiftQuotaDTO? quotaRule;
-    private int QuotaFor(string shift) => quotaRule?.MaxFor(shift) ?? ShiftQuotaDTO.DefaultFor(TeamMembers.Count);
+    private int QuotaFor(string shift) => quotaRule?.MaxFor(shift) ?? ShiftQuotaDTO.DefaultFor(TeamMembers.Count(m => Werkregels.CountsAsStaff(m.Speciality, m.Role)));
     private bool CanApply => isAdmin || (perms?.CanSaveTeamCalendar ?? false);
 
     // --- Shiftparen: dagshift op dag X + nachtshift op dag X+1 ---
