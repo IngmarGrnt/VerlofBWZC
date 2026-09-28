@@ -12,7 +12,9 @@
 @inject VerlofBWZC.Services.CurrentPersonService CurrentPerson
 @using VerlofBWZC.Services
 
-<h3>Verlofregels</h3>
+<PageTitle>Verlofcategorieën</PageTitle>
+
+<h3>Verlofcategorieën</h3>
 <p class="rz-text-secondary" style="max-width:900px;">
     Per ploeg en specialiteit stel je verlofcategorieën in, bv. <em>Groot verlof</em> (max 8 shiften), <em>Verlof 4</em> (max 4) en <em>Verlof 2</em> (max 2).
     Medewerkers duiden die aan in hun werkkalender; in de teamkalender verschijnen ze in hun kleur.
@@ -263,5 +265,5 @@
     }
 
     private void Notify(NotificationSeverity severity, string detail)
-        => Notifications.Notify(new NotificationMessage { Severity = severity, Summary = "Verlofregels", Detail = detail, Duration = 4000 });
+        => Notifications.Notify(new NotificationMessage { Severity = severity, Summary = "Verlofcategorieën", Detail = detail, Duration = 4000 });
 }
