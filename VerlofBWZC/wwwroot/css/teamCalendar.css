@@ -960,3 +960,24 @@ button.tc-extra-badge {
 .tc-cell-extra-mark {
     box-shadow: inset 0 -3px 0 #7B4FB8;
 }
+
+/* Alle ploegen: grijs vakje aanklikken = extra shift aanduiden */
+.tc-cell-add {
+    min-height: 22px;
+}
+
+    .tc-cell-add:hover::after,
+    .tc-cell-add:focus-visible::after {
+        content: "+";
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 18px;
+        border-radius: 5px;
+        border: 1px dashed #7B4FB8;
+        background: #F1EAFA;
+        color: #5B3592;
+        font-weight: 700;
+        font-size: .8rem;
+    }

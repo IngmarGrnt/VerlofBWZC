@@ -206,6 +206,10 @@ else
             @(ActiveCategoryName == null
                 ? "Klik op een vakje om verlof aan of uit te zetten."
                 : "Klik op een vakje om deze categorie te geven; nog eens klikken zet het weer uit.")
+            @if (CanManageExtraShifts && ShowAllTeams)
+            {
+                <span> Klik op een grijs vakje om een extra shift aan te duiden.</span>
+            }
         </div>
     }
 
@@ -314,9 +318,29 @@ else
                                     @* Alle ploegen: de ploeg van deze persoon werkt deze shift niet (of hij werkt een extra shift in een andere ploeg) *@
                                     @if (memberExtra != null)
                                     {
-                                        <td class="@(IsTeamStart(member) ? "tc-cell tc-cell-extra tc-team-start" : "tc-cell tc-cell-extra")"
-                                            title="@($"{member.FirstName} {member.LastName} · {wd.Date.ToString("ddd d MMM", Nl)} {wd.Shift} · extra shift in {memberExtra.Team}" + (string.IsNullOrEmpty(memberExtra.Note) ? "" : $" · {memberExtra.Note}"))">
-                                            <span class="tc-extra-team">@ShortTeam(memberExtra.Team)</span>
+                                        var extraTitle = $"{member.FirstName} {member.LastName} · {wd.Date.ToString("ddd d MMM", Nl)} {wd.Shift} · extra shift in {memberExtra.Team}" + (string.IsNullOrEmpty(memberExtra.Note) ? "" : $" · {memberExtra.Note}");
+                                        <td class="@(IsTeamStart(member) ? "tc-cell tc-cell-extra tc-team-start" : "tc-cell tc-cell-extra")">
+                                            @if (CanManageExtraShifts)
+                                            {
+                                                <button type="button" class="tc-cell-btn" title="@(extraTitle + " · klik om te bekijken of te verwijderen")"
+                                                        @onclick="() => OpenExtraShifts(wd, null, memberExtra.Team)">
+                                                    <span class="tc-extra-team">@ShortTeam(memberExtra.Team)</span>
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <span class="tc-extra-team" title="@extraTitle">@ShortTeam(memberExtra.Team)</span>
+                                            }
+                                        </td>
+                                    }
+                                    else if (CanMarkExtraShift(member, wd))
+                                    {
+                                        @* Klikken: extra shift aanduiden, ter controle in het venster *@
+                                        <td class="@(IsTeamStart(member) ? "tc-cell tc-cell-off tc-team-start" : "tc-cell tc-cell-off")">
+                                            <button type="button" class="tc-cell-btn tc-cell-add"
+                                                    title="@($"{member.FirstName} {member.LastName} · {wd.Date.ToString("ddd d MMM", Nl)} {wd.Shift} · klik om een extra shift aan te duiden")"
+                                                    @onclick="() => OpenExtraShifts(wd, member.Id, ExtraTargetTeam(wd))">
+                                            </button>
                                         </td>
                                     }
                                     else
@@ -524,19 +548,30 @@ else
         ExtraShifts = list.GroupBy(e => e.Id).Select(g => g.First()).ToList();
     }
 
-    private async Task OpenExtraShifts(WorkDay? wd)
+    // Ploeg (met werkregime) die deze shift werkt: daar springt iemand bij
+    private string? ExtraTargetTeam(WorkDay wd) => TeamsOn(wd).FirstOrDefault(Werkregels.CountsForOtherTeamsOccupancy);
+
+    // Alle ploegen: grijs vakje (eigen ploeg werkt niet) van iemand die een extra shift mag doen, op een shift die een andere ploeg werkt
+    private bool CanMarkExtraShift(PersonBaseDTO member, WorkDay wd) =>
+        CanManageExtraShifts && ShowAllTeams
+        && Werkregels.AllowsExtraShifts(member.Speciality)
+        && ExtraTargetTeam(wd) is string t && t != member.Team;
+
+    // personId: aangeduid in het raster, het venster vraagt enkel nog bevestiging
+    private async Task OpenExtraShifts(WorkDay? wd, int? personId = null, string? targetTeam = null)
     {
         var firstDay = WorkDays.FirstOrDefault(w => SelectedMonth == null || w.Date.Month == SelectedMonth);
         var date = wd?.Date ?? (SelectedYear == DateTime.Today.Year && (SelectedMonth == null || SelectedMonth == DateTime.Today.Month) ? DateTime.Today : firstDay?.Date ?? new DateTime(SelectedYear, 1, 1));
-        var team = ShowAllTeams
-            ? (wd != null ? TeamsOn(wd).FirstOrDefault(Werkregels.CountsForOtherTeamsOccupancy) : null)
-            : SelectedTeam;
+        var team = targetTeam ?? (ShowAllTeams
+            ? (wd != null ? ExtraTargetTeam(wd) : null)
+            : SelectedTeam);
 
-        await DialogService.OpenAsync<ExtraShiftDialog>("Extra shift", new Dictionary<string, object?>
+        await DialogService.OpenAsync<ExtraShiftDialog>(personId != null ? "Extra shift bevestigen" : "Extra shift", new Dictionary<string, object?>
             {
                 { nameof(ExtraShiftDialog.Date), date },
                 { nameof(ExtraShiftDialog.Shift), wd?.Shift ?? "D" },
                 { nameof(ExtraShiftDialog.Team), team },
+                { nameof(ExtraShiftDialog.PersonId), personId },
                 { nameof(ExtraShiftDialog.OnClose), EventCallback.Factory.Create(this, () => DialogService.Close()) }
             },
             new DialogOptions { Width = "520px", CloseDialogOnEsc = true });

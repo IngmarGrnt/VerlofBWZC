@@ -61,7 +61,11 @@
                 <RadzenTextBox @bind-Value="note" MaxLength="200" Placeholder="bv. ziekte vervangen" Style="width:100%" />
             </div>
             <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End">
-                <RadzenButton Text="Extra shift toevoegen" Icon="add" ButtonStyle="ButtonStyle.Primary" Click="Add"
+                @if (PersonId != null)
+                {
+                    <RadzenButton Text="Annuleren" ButtonStyle="ButtonStyle.Light" Click="@(() => OnClose.InvokeAsync())" />
+                }
+                <RadzenButton Text="@(PersonId != null ? "Bevestigen" : "Extra shift toevoegen")" Icon="@(PersonId != null ? "check" : "add")" ButtonStyle="ButtonStyle.Primary" Click="Add"
                               Disabled="@(busy || personId == null || string.IsNullOrEmpty(team))" />
             </RadzenStack>
         </div>
@@ -89,9 +93,12 @@
             </div>
         }
 
-        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Style="margin-top:1rem">
-            <RadzenButton Text="Sluiten" ButtonStyle="ButtonStyle.Light" Click="@(() => OnClose.InvokeAsync())" />
-        </RadzenStack>
+        @if (PersonId == null)
+        {
+            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Style="margin-top:1rem">
+                <RadzenButton Text="Sluiten" ButtonStyle="ButtonStyle.Light" Click="@(() => OnClose.InvokeAsync())" />
+            </RadzenStack>
+        }
     }
 </div>
 
@@ -110,6 +117,8 @@
     [Parameter] public DateTime Date { get; set; }
     [Parameter] public string Shift { get; set; } = "D";
     [Parameter] public string? Team { get; set; }
+    // Aangeduid in de teamkalender: persoon al gekozen, enkel nog bevestigen (venster sluit na bewaren)
+    [Parameter] public int? PersonId { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
 
     private DateTime date;
@@ -139,6 +148,8 @@
 
         await LoadYear(date.Year);
         team = Team != null && TeamChoices.Contains(Team) ? Team : TeamChoices.FirstOrDefault(t => !Werkregels.HasNoRegime(t));
+        if (PersonId != null && PersonChoices.Any(p => p.Id == PersonId))
+            personId = PersonId;
         loading = false;
     }
 
@@ -214,6 +225,12 @@
             var resp = await Http.PostAsJsonAsync("api/extra-shifts", new ExtraShiftDTO { PersonId = personId!.Value, Date = date, Shift = shift, Team = team!, Note = note });
             if (resp.IsSuccessStatusCode)
             {
+                // Aangeduid in de teamkalender: bevestigd, venster dicht
+                if (PersonId != null)
+                {
+                    await OnClose.InvokeAsync();
+                    return;
+                }
                 personId = null;
                 note = null;
                 await LoadExtras(date.Year);
