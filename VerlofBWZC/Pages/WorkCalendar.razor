@@ -156,6 +156,10 @@
                 <span><span class="wc-dot-inline wc-dot-school"></span>Schoolvakantie</span>
                 <span><span class="wc-weekend-swatch"></span>Weekend</span>
                 <span><span class="wc-swatch" style="background:var(--rz-info)"></span>Verlof</span>
+                @if (ExtraShifts.Any())
+                {
+                    <span><span class="wc-swatch" style="background:#7B4FB8"></span>Extra shift</span>
+                }
             </div>
         </div>
         @if (Categories.Any() && CanSaveWork)
@@ -178,8 +182,21 @@
                         <span class="@(monthCount > 0 ? "wc-month-count wc-month-count-active" : "wc-month-count")">@monthCount verlof</span>
                     </header>
                     <div class="wc-chips">
-                        @foreach (var day in month.WorkDays)
+                        @foreach (var item in ChipItems(month))
                         {
+                            @if (item.Day == null)
+                            {
+                                @* Extra shift in een andere ploeg (aangeduid door een verantwoordelijke; geen verlof) *@
+                                var x = item.Extra!;
+                                <span class="wc-chip wc-chip-extra"
+                                      title="@($"{x.Date.ToString("dddd d MMMM", Nl)} · {(x.Shift == "D" ? "dagshift" : "nachtshift")} · extra shift in {x.Team}" + (string.IsNullOrEmpty(x.Note) ? "" : $" · {x.Note}"))">
+                                    <span class="wc-chip-day">@x.Date.ToString("dd")</span>
+                                    <span class="wc-chip-meta">@x.Shift · @x.Team.Replace("Ploeg", "P")</span>
+                                </span>
+                                continue;
+                            }
+                            var day = item.Day;
+                            var ownExtra = item.Extra;
                             var selected = selectedDays.FirstOrDefault(d => d.Date == day.Date && d.Shift == day.Shift);
                             var category = selected?.LeaveCategoryId is int catId ? Categories.FirstOrDefault(c => c.Id == catId) : null;
                             var holidayName = PublicHolidayName(day.Date);
@@ -188,9 +205,9 @@
                             var isLoose = selected != null && IsLoose(selected);
 
                             <button type="button"
-                                    class="@(ChipClass(selected != null, category != null, isWeekend) + (isLoose ? " wc-chip-loose" : ""))"
+                                    class="@(ChipClass(selected != null, category != null, isWeekend) + (isLoose ? " wc-chip-loose" : "") + (ownExtra != null ? " wc-chip-extra-mark" : ""))"
                                     style="@(category != null ? $"background:{category.Color}; border-color:{category.Color};" : null)"
-                                    title="@(ChipTitle(day, category, holidayName, schoolName) + (isLoose ? " · Losse shift" : ""))"
+                                    title="@(ChipTitle(day, category, holidayName, schoolName) + (isLoose ? " · Losse shift" : "") + (ownExtra != null ? $" · extra shift in {ownExtra.Team}" : ""))"
                                     aria-pressed="@(selected != null ? "true" : "false")"
                                     @onclick="() => OnDayClicked(day)">
                                 <span class="wc-chip-day">@day.Date.ToString("dd")</span>
@@ -524,8 +541,38 @@
             context.PreventNavigation();
     }
 
+    // Extra shiften in een andere ploeg (Dispatching), aangeduid door een verantwoordelijke
+    private List<ExtraShiftDTO> ExtraShifts = new();
+
+    private async Task LoadExtraShifts()
+    {
+        try
+        {
+            ExtraShifts = await Http.GetFromJsonAsync<List<ExtraShiftDTO>>($"api/extra-shifts/mine?year={SelectedYear}") ?? new();
+        }
+        catch
+        {
+            ExtraShifts = new();
+        }
+    }
+
+    // Eigen shiften en extra shiften van een maand, in volgorde. Extra op een eigen shift (ploeg zonder werkregime): markering.
+    private IEnumerable<(WorkDay? Day, ExtraShiftDTO? Extra)> ChipItems(MonthGroup month)
+    {
+        var monthNr = month.WorkDays.FirstOrDefault()?.Date.Month;
+        var own = month.WorkDays
+            .Select(d => ((WorkDay?)d, ExtraShifts.FirstOrDefault(x => x.Date.Date == d.Date.Date && x.Shift == d.Shift)));
+        var extra = ExtraShifts
+            .Where(x => x.Date.Month == monthNr && !month.WorkDays.Any(d => d.Date.Date == x.Date.Date && d.Shift == x.Shift))
+            .Select(x => ((WorkDay?)null, (ExtraShiftDTO?)x));
+        return own.Concat(extra)
+            .OrderBy(i => i.Item1?.Date ?? i.Item2!.Date)
+            .ThenBy(i => (i.Item1?.Shift ?? i.Item2!.Shift) == "D" ? 0 : 1);
+    }
+
     private async Task LoadWorkDays()
     {
+        await LoadExtraShifts();
         var team = string.IsNullOrWhiteSpace(PersonTeam) ? "Ploeg1" : PersonTeam;
         var workDays = await Http.GetFromJsonAsync<List<WorkDay>>($"api/calender?teamName={team}&year={SelectedYear}");
         monthGroups = workDays

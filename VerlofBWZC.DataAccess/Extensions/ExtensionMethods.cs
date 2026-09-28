@@ -146,6 +146,33 @@ namespace VerlofBWZC.DataAccess.Extensions
                 .IsUnique()
                 .HasFilter(null);
         }
+
+        public static void ExtraShiftConfig(this ModelBuilder mb)
+        {
+            // Persoon weg = zijn extra shiften ook weg
+            mb.Entity<ExtraShift>()
+                .HasOne<Person>()
+                .WithMany()
+                .HasForeignKey(e => e.PersonId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            mb.Entity<ExtraShift>()
+                .Property(e => e.Shift)
+                .IsRequired()
+                .HasMaxLength(1);
+
+            mb.Entity<ExtraShift>()
+                .Property(e => e.Note)
+                .HasMaxLength(200);
+
+            // Eén extra shift per persoon, datum en shift
+            mb.Entity<ExtraShift>()
+                .HasIndex(e => new { e.PersonId, e.Date, e.Shift })
+                .IsUnique();
+
+            mb.Entity<ExtraShift>()
+                .HasIndex(e => new { e.Team, e.Date });
+        }
     }
 }
 

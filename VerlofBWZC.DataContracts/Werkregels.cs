@@ -36,6 +36,19 @@ namespace VerlofBWZC.DataContracts
 
         public static bool AllowsAllTeamsView(string? speciality) => speciality == AllTeamsSpeciality;
 
+        // --- Extra shift (bijspringen in een andere ploeg) ----------------------------------------
+
+        // Enkel deze specialiteit kan een extra shift in een andere ploeg werken (aanduiden: manager/admin)
+        public static bool AllowsExtraShifts(string? speciality) => speciality == AllTeamsSpeciality;
+
+        // Een extra shift telt als aanwezig in de ploeg waar hij gewerkt wordt:
+        // het verlofmaximum van die ploeg op die shift gaat met zoveel omhoog
+        public const int ExtraShiftQuotaBonus = 1;
+
+        // Mag iemand van deze ploeg een extra shift doen op een shift die zijn eigen ploeg werkt?
+        // Nee (hij werkt dan al), behalve de ploeg zonder werkregime (die kan overal ingezet worden)
+        public static bool ExtraShiftAllowedOnOwnShift(string? team) => HasNoRegime(team);
+
         // --- Standaardwaarden als er niets is ingesteld -----------------------------------------
         // (zie ook: PersonDefaults.LeaveAllowance = 44, QuarterLimitDTO 14/16/14, ShiftQuotaDTO.DefaultFor)
 
