@@ -158,24 +158,24 @@ else
 
     <!-- Aanduiden als + legende -->
     <div class="wc-toolbar">
-        @if ((LeaveCategories.Any() || ShowsRest) && CanSaveTeamCalendar)
+        @if ((LeaveCategories.Any() || ShowsRest || ShowsOtherAbsences) && CanSaveTeamCalendar)
         {
-            var plainActive = ActiveCategoryName == null && !RestMode;
+            var plainActive = ActiveCategoryName == null && !RestMode && !OtherMode;
             <div class="wc-categories" role="group" aria-label="Aanduiden als">
                 <span class="wc-toolbar-label">Aanduiden als</span>
                 <button type="button" class="wc-pill"
                         style="@(plainActive ? "background:var(--rz-info); border-color:var(--rz-info); color:#fff;" : "border-color:var(--rz-info); color:var(--rz-info-dark);")"
                         aria-pressed="@(plainActive ? "true" : "false")"
-                        @onclick="() => { ActiveCategoryName = null; RestMode = false; }">
+                        @onclick="() => { ActiveCategoryName = null; RestMode = false; OtherMode = false; }">
                     Gewoon verlof
                 </button>
                 @foreach (var c in CategoryChoices)
                 {
-                    var isActive = ActiveCategoryName == c.Name && !RestMode;
+                    var isActive = ActiveCategoryName == c.Name && !RestMode && !OtherMode;
                     <button type="button" class="wc-pill"
                             style="@(isActive ? $"background:{c.Color}; border-color:{c.Color}; color:#fff;" : $"border-color:{c.Color}; color:{c.Color};")"
                             aria-pressed="@(isActive ? "true" : "false")"
-                            @onclick="() => { ActiveCategoryName = c.Name; RestMode = false; }">
+                            @onclick="() => { ActiveCategoryName = c.Name; RestMode = false; OtherMode = false; }">
                         @c.Name
                     </button>
                 }
@@ -185,8 +185,18 @@ else
                     <button type="button" class="@(RestMode ? "wc-pill tc-pill-rest tc-pill-rest-active" : "wc-pill tc-pill-rest")"
                             aria-pressed="@(RestMode ? "true" : "false")"
                             title="@($"Rust voor {Werkregels.NoRegimeTeam}: een shift waarop iemand niet werkt. Geen verlof, maar hij is dan niet aanwezig.")"
-                            @onclick="() => RestMode = true">
+                            @onclick="() => { RestMode = true; OtherMode = false; }">
                         Rust (@ShortTeam(Werkregels.NoRegimeTeam))
+                    </button>
+                }
+                @if (ShowsOtherAbsences)
+                {
+                    @* Dispatching: andere afwezigheden (ZK, OV, ...) en uurcodes (3U/, ...), gekozen in een popup per vakje *@
+                    <button type="button" class="@(OtherMode ? "wc-pill tc-pill-other tc-pill-other-active" : "wc-pill tc-pill-other")"
+                            aria-pressed="@(OtherMode ? "true" : "false")"
+                            title="Andere afwezigheden (AOV, OV, ZK, OUD, O1, DV, APL, AFL) en uren verlof (3U/, /3U, ...). Klik daarna op een vakje om een code te kiezen."
+                            @onclick="() => { OtherMode = true; RestMode = false; }">
+                        Andere…
                     </button>
                 }
             </div>
@@ -213,12 +223,19 @@ else
             {
                 <span title="@($"{Werkregels.NoRegimeTeam} werkt die shift niet (geen verlof)")"><span class="tc-legend-rest"></span>Rust</span>
             }
+            @if (ShowsOtherAbsences)
+            {
+                <span title="Andere afwezigheid: afwezig, geen verlof"><span class="tc-code tc-code-absent tc-code-legend">ZK</span>Afwezig</span>
+                <span title="Uren verlof: telt als aanwezig"><span class="tc-code tc-code-hour tc-code-legend">3U/</span>Uren</span>
+            }
         </div>
     </div>
     @if (CanSaveTeamCalendar)
     {
         <div class="wc-hint">
-            @(RestMode
+            @(OtherMode
+                ? "Klik op een vakje om een andere afwezigheid of uren verlof te kiezen."
+                : RestMode
                 ? $"Klik op een shift van {Werkregels.NoRegimeTeam} om rust aan of uit te zetten."
                 : ActiveCategoryName == null
                 ? "Klik op een vakje om verlof aan of uit te zetten."
@@ -377,17 +394,32 @@ else
                                     + (dayOff != null ? " · " + (category?.Name ?? "Verlof") : "")
                                     + (isLoose ? " · Losse shift" : "")
                                     + (memberExtra != null ? $" · extra shift in {memberExtra.Team}" : "");
-                                var isRest = IsRest(member.Id, wd);
+                                var mark = MarkOf(member.Id, wd);
+                                var isRest = mark != null && mark.Code == null;
+                                var other = Werkregels.FindOtherAbsence(mark?.Code);
                                 if (isRest)
                                     title += " · Rust";
+                                if (other != null)
+                                    title += $" · {other.Code} ({other.Name})";
                                 <td class="@("tc-cell" + (IsTeamStart(member) ? " tc-team-start" : "") + (memberExtra != null ? " tc-cell-extra-mark" : "") + (isRest ? " tc-cell-rest" : ""))">
                                     @if (CanSaveTeamCalendar)
                                     {
                                         <button type="button" class="tc-cell-btn" title="@title"
                                                 aria-pressed="@(dayOff != null ? "true" : "false")"
-                                                @onclick="() => OnDayClicked(member.Id, wd)">
-                                            <span class="@blockClass" style="@blockStyle"></span>
+                                                @onclick="() => OnCellClicked(member.Id, wd)">
+                                            @if (other != null)
+                                            {
+                                                <span class="@(other.Absent ? "tc-code tc-code-absent" : "tc-code tc-code-hour")">@other.Code</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="@blockClass" style="@blockStyle"></span>
+                                            }
                                         </button>
+                                    }
+                                    else if (other != null)
+                                    {
+                                        <span class="@(other.Absent ? "tc-code tc-code-absent" : "tc-code tc-code-hour")" title="@title">@other.Code</span>
                                     }
                                     else
                                     {
@@ -892,19 +924,86 @@ else
     // Extra kolom "Totaal": enkel bij alle ploegen, als er Ploeg0-personen getoond worden
     private bool ShowTotalColumn => ShowAllTeams && TeamMembers.Any(m => m.Team == NoRegimeTeam);
 
-    // Aanwezig op deze shift: wie werkt (eigen ploeg van dienst, Ploeg0, of een extra shift), geen verlof en geen rust heeft
+    // Aanwezig op deze shift: wie werkt (eigen ploeg van dienst, Ploeg0, of een extra shift),
+    // geen verlof, geen rust en geen afwezigheidscode heeft (uurcodes tellen als aanwezig)
     private int PresentOnShift(WorkDay wd) => TeamMembers.Where(IsStaff).Count(m =>
-        (ExtraOf(m.Id, wd) != null || (MemberWorks(m, wd) && !IsRest(m.Id, wd)))
+        (ExtraOf(m.Id, wd) != null || (MemberWorks(m, wd) && !IsAbsentByMark(m.Id, wd)))
         && !selectedDays.Any(d => d.PersonId == m.Id && d.Date.Date == wd.Date.Date && d.Shift == wd.Shift));
 
-    // --- Rust (Ploeg0, geen werkregime): shift waarop iemand niet werkt; geen verlof ---
+    // --- Status van een shift zonder verlof: rust (Ploeg0) of een andere afwezigheid/uurcode (Dispatching) ---
+    // Eén status per persoon en shift (restShifts: Code null = rust)
     private List<RestShiftDTO> restShifts = new();
     private bool RestMode;
+    private bool OtherMode;
 
     private bool ShowsRest => TeamMembers.Any(m => Werkregels.AllowsRestShifts(m.Team));
+    private bool ShowsOtherAbsences => TeamMembers.Any(m => Werkregels.AllowsOtherAbsences(m.Speciality));
 
-    private bool IsRest(int personId, WorkDay wd) =>
-        restShifts.Any(r => r.PersonId == personId && r.Date.Date == wd.Date.Date && r.Shift == wd.Shift);
+    private RestShiftDTO? MarkOf(int personId, WorkDay wd) =>
+        restShifts.FirstOrDefault(r => r.PersonId == personId && r.Date.Date == wd.Date.Date && r.Shift == wd.Shift);
+
+    private bool IsRest(int personId, WorkDay wd) => MarkOf(personId, wd) is { Code: null };
+
+    // Rust of een afwezigheidscode (niet de uurcodes)
+    private bool IsAbsentByMark(int personId, WorkDay wd) =>
+        MarkOf(personId, wd) is RestShiftDTO m && (m.Code == null || Werkregels.FindOtherAbsence(m.Code)?.Absent == true);
+
+    // Vakje aangeklikt: in de modus "Andere" een code kiezen, anders verlof/categorie/rust
+    private async Task OnCellClicked(int personId, WorkDay wd)
+    {
+        if (OtherMode)
+            await PickOtherAbsence(personId, wd);
+        else
+            OnDayClicked(personId, wd);
+    }
+
+    private async Task PickOtherAbsence(int personId, WorkDay wd)
+    {
+        var member = TeamMembers.First(m => m.Id == personId);
+        if (!Werkregels.AllowsOtherAbsences(member.Speciality))
+        {
+            NotificationService.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Warning,
+                Summary = "Andere afwezigheid",
+                Detail = $"Andere afwezigheden kunnen enkel voor {Werkregels.AllTeamsSpeciality}.",
+                Duration = 4000
+            });
+            return;
+        }
+
+        var leave = selectedDays.FirstOrDefault(d => d.PersonId == personId && d.Date.Date == wd.Date.Date && d.Shift == wd.Shift);
+        var mark = MarkOf(personId, wd);
+        var result = await DialogService.OpenAsync<OtherAbsenceDialog>($"Andere afwezigheid · {GetInitials(member)}",
+            new Dictionary<string, object?>
+            {
+                { nameof(OtherAbsenceDialog.PersonName), $"{member.FirstName} {member.LastName}" },
+                { nameof(OtherAbsenceDialog.ShiftText), $"{wd.Date.ToString("dddd d MMMM", Nl)} · {(wd.Shift == "D" ? "dagshift" : "nachtshift")}" },
+                { nameof(OtherAbsenceDialog.CurrentCode), mark?.Code },
+                { nameof(OtherAbsenceDialog.HasLeave), leave != null },
+                { nameof(OtherAbsenceDialog.HasRest), mark is { Code: null } }
+            },
+            new DialogOptions { Width = "520px", CloseDialogOnEsc = true });
+
+        if (result is not string code)
+            return; // geannuleerd
+
+        if (code == "")
+        {
+            if (mark?.Code != null)
+                restShifts.Remove(mark);
+        }
+        else
+        {
+            // Eén status per shift: code vervangt rust of een andere code; verlof gaat weg
+            restShifts.RemoveAll(r => r.PersonId == personId && r.Date.Date == wd.Date.Date && r.Shift == wd.Shift);
+            restShifts.Add(new RestShiftDTO { PersonId = personId, Date = wd.Date.Date, Shift = wd.Shift, Code = code });
+            if (leave != null)
+                selectedDays.Remove(leave);
+        }
+        isDirty = true;
+        StateHasChanged();
+    }
 
     private void ToggleRest(int personId, WorkDay day, SelectedDayOffDTO? leave)
     {
@@ -922,10 +1021,13 @@ else
         }
 
         var existing = restShifts.FirstOrDefault(r => r.PersonId == personId && r.Date.Date == day.Date.Date && r.Shift == day.Shift);
-        if (existing != null)
+        if (existing is { Code: null })
             restShifts.Remove(existing);
         else
         {
+            // Rust vervangt een eventuele code op die shift
+            if (existing != null)
+                restShifts.Remove(existing);
             restShifts.Add(new RestShiftDTO { PersonId = personId, Date = day.Date.Date, Shift = day.Shift });
             // Rust en verlof samen kan niet: het verlof op die shift gaat weg
             if (leave != null)
@@ -937,7 +1039,9 @@ else
     private async Task LoadRestShifts()
     {
         var list = new List<RestShiftDTO>();
-        foreach (var team in ShownTeams.Where(Werkregels.AllowsRestShifts))
+        // Ploegen met rust (Ploeg0), en bij Dispatching (of alle specialiteiten) elke ploeg voor de codes
+        var loadAll = ShowAllSpecialities || Werkregels.AllowsOtherAbsences(SelectedSpeciality);
+        foreach (var team in ShownTeams.Where(t => loadAll || Werkregels.AllowsRestShifts(t)))
         {
             var url = ShowAllSpecialities
                 ? $"api/rest-shifts?team={team}&year={SelectedYear}"
@@ -954,10 +1058,10 @@ else
         restShifts = list;
     }
 
-    // Rust van de getoonde Ploeg0-personen opslaan (vervangt hun rust in dit jaar). true = gelukt.
+    // Rust en codes van de getoonde personen opslaan (vervangt ze in dit jaar). true = gelukt.
     private async Task<bool> SaveRestShifts()
     {
-        var persons = TeamMembers.Where(m => Werkregels.AllowsRestShifts(m.Team)).ToList();
+        var persons = TeamMembers.Where(m => Werkregels.AllowsRestShifts(m.Team) || Werkregels.AllowsOtherAbsences(m.Speciality)).ToList();
         if (persons.Count == 0)
             return true;
 
@@ -980,8 +1084,8 @@ else
         NotificationService.Notify(new NotificationMessage
         {
             Severity = NotificationSeverity.Error,
-            Summary = "Rust niet opgeslagen",
-            Detail = string.IsNullOrWhiteSpace(serverText) ? "Opslaan van de rust mislukt." : serverText,
+            Summary = "Rust/afwezigheden niet opgeslagen",
+            Detail = string.IsNullOrWhiteSpace(serverText) ? "Opslaan van rust en afwezigheden mislukt." : serverText,
             Duration = 5000
         });
         return false;
@@ -1371,6 +1475,8 @@ private void OnDayClicked(int personId, WorkDay day)
         await LoadDraws();
         await LoadExtraShifts();
         await LoadRestShifts();
+        if (!ShowsOtherAbsences)
+            OtherMode = false;
         if (!ShowsRest)
             RestMode = false;
 
@@ -1531,7 +1637,7 @@ private void OnDayClicked(int personId, WorkDay day)
             {
                 Severity = NotificationSeverity.Success,
                 Summary = "Opgeslagen",
-                Detail = ShowsRest ? "Verlof en rust zijn opgeslagen." : "Geselecteerde verlofdagen zijn opgeslagen.",
+                Detail = ShowsOtherAbsences ? "Verlof en afwezigheden zijn opgeslagen." : ShowsRest ? "Verlof en rust zijn opgeslagen." : "Geselecteerde verlofdagen zijn opgeslagen.",
                 Duration = 2000
             });
         }

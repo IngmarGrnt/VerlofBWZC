@@ -26,6 +26,36 @@ namespace VerlofBWZC.DataContracts
         // De andere ploegen hebben hun vrije shiften al via het rooster (het gearceerde deel).
         public static bool AllowsRestShifts(string? team) => HasNoRegime(team);
 
+        // --- Andere afwezigheden en uurcodes (enkel Dispatching) ----------------------------------
+        // Aangeduid door een verantwoordelijke op een shift zonder verlof. Geen verlof: telt niet mee in
+        // het verlofaantal (x/44), de kolom Verlof of de loting.
+        // Absent = true: de persoon is die shift afwezig (telt niet als aanwezig in Totaal).
+        // Absent = false (uurcodes): hij werkt een deel van de shift en telt als aanwezig; de code is info.
+        public record OtherAbsence(string Code, string Name, bool Absent);
+
+        public static readonly IReadOnlyList<OtherAbsence> OtherAbsences = new List<OtherAbsence>
+        {
+            new("AOV", "Aanvraag onbetaald verlof", true),
+            new("OV", "Onbetaald verlof", true),
+            new("ZK", "Ziek", true),
+            new("OUD", "Ouderschapsverlof", true),
+            new("O1", "Omstandigheidsverlof", true),
+            new("DV", "Dienstvrijstelling", true),
+            new("APL", "Andere ploeg/plaats", true),
+            new("AFL", "Afgelost", true),
+            new("3U/", "Eerste 3 uur verlof", false),
+            new("6U/", "Eerste 6 uur verlof", false),
+            new("9U/", "Eerste 9 uur verlof", false),
+            new("/3U", "Laatste 3 uur verlof", false),
+            new("/6U", "Laatste 6 uur verlof", false),
+            new("/9U", "Laatste 9 uur verlof", false),
+        };
+
+        public static bool AllowsOtherAbsences(string? speciality) => speciality == AllTeamsSpeciality;
+
+        public static OtherAbsence? FindOtherAbsence(string? code) =>
+            code == null ? null : OtherAbsences.FirstOrDefault(a => a.Code == code);
+
         // Telt deze ploeg mee voor de bezetting ("Bezet") van een andere ploeg die dezelfde shift werkt?
         // Nee voor de ploeg zonder werkregime (die telt enkel in haar eigen weergave; in de kolom "Totaal" telt ze mee als aanwezig)
         public static bool CountsForOtherTeamsOccupancy(string? team) => !HasNoRegime(team);

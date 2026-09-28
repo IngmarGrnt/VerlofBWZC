@@ -188,6 +188,10 @@ namespace VerlofBWZC.DataAccess.Extensions
                 .IsRequired()
                 .HasMaxLength(1);
 
+            mb.Entity<RestShift>()
+                .Property(r => r.Code)
+                .HasMaxLength(4);
+
             // Eén keer rust per persoon, datum en shift
             mb.Entity<RestShift>()
                 .HasIndex(r => new { r.PersonId, r.Date, r.Shift })

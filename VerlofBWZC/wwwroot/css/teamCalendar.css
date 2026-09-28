@@ -1006,3 +1006,45 @@ button.tc-extra-badge {
     background: var(--bwzc-navy);
     color: #fff;
 }
+
+/* Dispatching: andere afwezigheden (grijs, afwezig) en uren verlof (geel, aanwezig) als code in het vakje */
+.tc-code {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 26px;
+    height: 18px;
+    padding: 0 2px;
+    border-radius: 5px;
+    font-size: .6rem;
+    font-weight: 700;
+    line-height: 1;
+    vertical-align: middle;
+}
+
+.tc-code-absent {
+    background: #4A5568;
+    color: #fff;
+}
+
+.tc-code-hour {
+    background: #F2C94C;
+    color: #3D2E00;
+}
+
+.tc-code-legend {
+    margin-right: .25rem;
+    height: 14px;
+    min-width: 22px;
+    font-size: .55rem;
+}
+
+.wc-pill.tc-pill-other {
+    border-color: #4A5568;
+    color: #4A5568;
+}
+
+.wc-pill.tc-pill-other-active {
+    background: #4A5568;
+    color: #fff;
+}
