@@ -25,7 +25,11 @@ namespace VerlofBWZC.Services
         }
 
         // Extra: bij Manager de extra ploegen, bv. "Ploeg2 · IGS", "Ploeg3 · alle specialiteiten"
-        public record DemoInfo(string Role, string Team, string Speciality, List<string> Extra);
+        public record DemoInfo(string Role, string Team, string Speciality, List<string> Extra)
+        {
+            // Zelfde extra ploegen als lijst (om de demo aan te passen)
+            public List<VerlofBWZC.DataContracts.DTO.Access.ScopeItemDTO> Scopes { get; init; } = new();
+        }
 
         public async Task<DemoInfo?> GetActiveAsync()
         {
@@ -41,7 +45,14 @@ namespace VerlofBWZC.Services
                     .Select(p => p.Split(':'))
                     .Where(b => b.Length == 2)
                     .Select(b => b[1] == "*" ? $"{b[0]} · alle specialiteiten" : $"{b[0]} · {b[1]}")
-                    .ToList());
+                    .ToList())
+            {
+                Scopes = (JwtUtils.GetClaim(token, "demo_scopes") ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(p => p.Split(':'))
+                    .Where(b => b.Length == 2)
+                    .Select(b => new VerlofBWZC.DataContracts.DTO.Access.ScopeItemDTO { Team = b[0], Speciality = b[1] == "*" ? null : b[1] })
+                    .ToList()
+            };
         }
 
         // Enkel een echte (niet-demo) admin kan de demo modus starten
@@ -53,18 +64,32 @@ namespace VerlofBWZC.Services
 
         public async Task<string?> StartAsync(string role, string team, string speciality, List<VerlofBWZC.DataContracts.DTO.Access.ScopeItemDTO>? scopes = null)
         {
-            var adminToken = await _js.InvokeAsync<string?>("localStorage.getItem", AuthTokenKey);
-            var response = await _http.PostAsJsonAsync("api/person/demo", new DemoRequestDTO { Role = role, Team = team, Speciality = speciality, Scopes = scopes ?? new() });
-            if (!response.IsSuccessStatusCode)
-                return "Demo modus starten mislukt.";
+            var current = await _js.InvokeAsync<string?>("localStorage.getItem", AuthTokenKey);
+            var adminToken = current;
+            if (JwtUtils.IsDemo(current))
+            {
+                // Demo aanpassen: met de bewaarde admin-token een nieuwe demo aanvragen
+                adminToken = await _js.InvokeAsync<string?>("localStorage.getItem", AdminTokenKey);
+                if (string.IsNullOrWhiteSpace(adminToken))
+                    return "Demo aanpassen mislukt: stop de demo en start ze opnieuw.";
+                await _js.InvokeVoidAsync("localStorage.setItem", AuthTokenKey, adminToken);
+            }
 
-            var result = await response.Content.ReadFromJsonAsync<TokenDto>();
+            var wasDemo = JwtUtils.IsDemo(current);
+            var response = await _http.PostAsJsonAsync("api/person/demo", new DemoRequestDTO { Role = role, Team = team, Speciality = speciality, Scopes = scopes ?? new() });
+            var result = response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<TokenDto>() : null;
             if (string.IsNullOrWhiteSpace(result?.Token))
+            {
+                // Mislukt: de lopende demo behouden
+                if (wasDemo)
+                    await _js.InvokeVoidAsync("localStorage.setItem", AuthTokenKey, current);
                 return "Demo modus starten mislukt.";
+            }
 
             await _js.InvokeVoidAsync("localStorage.setItem", AdminTokenKey, adminToken);
             await _js.InvokeVoidAsync("localStorage.setItem", AuthTokenKey, result.Token);
-            _nav.NavigateTo("/", forceLoad: true); // alles opnieuw laden als de gekozen rol
+            // Alles opnieuw laden als de gekozen rol; bij aanpassen op dezelfde pagina blijven
+            _nav.NavigateTo(wasDemo ? _nav.Uri : "/", forceLoad: true);
             return null;
         }
 

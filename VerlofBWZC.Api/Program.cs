@@ -168,7 +168,11 @@ app.Use(async (context, next) =>
 {
     var isDemo = context.User.FindFirst(UserContext.DemoClaim)?.Value == "true";
     var method = context.Request.Method;
-    if (isDemo && !HttpMethods.IsGet(method) && !HttpMethods.IsHead(method) && !HttpMethods.IsOptions(method))
+    // Inloggen en registreren blijven altijd mogelijk (ook als de browser nog een demo-token meestuurt)
+    var path = context.Request.Path;
+    var isLogin = path.StartsWithSegments("/api/person/login", StringComparison.OrdinalIgnoreCase)
+        || path.StartsWithSegments("/api/person/register", StringComparison.OrdinalIgnoreCase);
+    if (isDemo && !isLogin && !HttpMethods.IsGet(method) && !HttpMethods.IsHead(method) && !HttpMethods.IsOptions(method))
     {
         context.Response.StatusCode = StatusCodes.Status403Forbidden;
         await context.Response.WriteAsync("Demo modus: alleen bekijken, opslaan is niet mogelijk.");

@@ -3,6 +3,7 @@
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
 @inject VerlofBWZC.Services.DemoModeService Demo
+@inject DialogService DialogService
 @using Radzen
 @using Radzen.Blazor
 
@@ -40,6 +41,8 @@
                 <div class="demo-banner" role="status">
                     <i class="bi bi-eye" aria-hidden="true"></i>
                     <span><strong>Demo modus</strong> · @demo.Role · @demo.Team · @demo.Speciality@(demo.Extra.Any() ? $" (+ {string.Join(", ", demo.Extra)})" : "") · alleen bekijken, opslaan is niet mogelijk</span>
+                    <RadzenButton Text="Aanpassen" Icon="tune" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Click="@EditDemo"
+                                  title="Rol, ploeg, specialiteit of beheerde ploegen van de demo aanpassen" />
                     <RadzenButton Text="Stoppen" Icon="close" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Click="@StopDemo" />
                 </div>
             }
@@ -107,6 +110,11 @@
     private VerlofBWZC.Services.DemoModeService.DemoInfo? demo;
 
     private Task StopDemo() => Demo.StopAsync();
+
+    // Lopende demo aanpassen (bv. andere beheerde ploegen) zonder eerst te stoppen
+    private Task EditDemo() => DialogService.OpenAsync<DemoDialog>("Demo aanpassen",
+        new Dictionary<string, object> { { nameof(DemoDialog.Initial), demo! } },
+        new DialogOptions { Width = "460px" });
 
     public void Dispose()
     {

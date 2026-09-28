@@ -61,7 +61,7 @@
     }
     <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="0.5rem">
         <RadzenButton Text="Annuleren" ButtonStyle="ButtonStyle.Light" Click="@(() => DialogService.Close())" />
-        <RadzenButton Text="Demo starten" Icon="visibility" ButtonStyle="ButtonStyle.Primary" Click="@Start"
+        <RadzenButton Text="@(Initial != null ? "Demo aanpassen" : "Demo starten")" Icon="visibility" ButtonStyle="ButtonStyle.Primary" Click="@Start"
                       Disabled="@(string.IsNullOrEmpty(role) || string.IsNullOrEmpty(team) || string.IsNullOrEmpty(speciality) || busy)" />
     </RadzenStack>
 </RadzenStack>
@@ -70,6 +70,9 @@
     private List<string> roles = new();
     private List<string> teams = new();
     private List<string> specialities = new();
+    // Ingevuld bij het aanpassen van een lopende demo
+    [Parameter] public DemoModeService.DemoInfo? Initial { get; set; }
+
     private string? role = "Manager";
     private string? team;
     private string? speciality;
@@ -89,6 +92,15 @@
         specialities = await Http.GetFromJsonAsync<List<string>>("api/meta/specialities") ?? new();
         team = teams.FirstOrDefault(t => t == "Ploeg1") ?? teams.FirstOrDefault();
         speciality = specialities.FirstOrDefault();
+
+        // Lopende demo aanpassen: huidige keuzes invullen
+        if (Initial != null)
+        {
+            role = Initial.Role;
+            team = Initial.Team;
+            speciality = Initial.Speciality;
+            extra = Initial.Scopes.ToList();
+        }
     }
 
     private void Add()

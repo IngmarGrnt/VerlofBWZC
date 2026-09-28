@@ -1,6 +1,7 @@
 ﻿@page "/login"
 @inject PersonApiService PersonApi
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 @inject VerlofBWZC.Services.JwtAuthenticationStateProvider AuthProvider
 @using Radzen
 @using Radzen.Blazor
@@ -37,6 +38,9 @@
     private async Task HandleLogin()
     {
         errorMessage = null;
+        // Oude (demo-)sessie wissen: een nieuwe login begint altijd zonder demo modus
+        await JS.InvokeVoidAsync("localStorage.removeItem", VerlofBWZC.Services.DemoModeService.AdminTokenKey);
+        await JS.InvokeVoidAsync("localStorage.removeItem", "authToken");
         busy = true;
         var result = await PersonApi.LoginAsync(loginModel);
         busy = false;
