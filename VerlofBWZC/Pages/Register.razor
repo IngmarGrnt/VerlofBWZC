@@ -1,0 +1,135 @@
+@page "/registreren"
+@using System.Net.Http.Json
+@using Radzen
+@using Radzen.Blazor
+@using VerlofBWZC.DataContracts
+@using VerlofBWZC.DataContracts.DTO
+@using VerlofBWZC.Services
+@inject PersonApiService PersonApi
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<PageTitle>Registreren</PageTitle>
+
+<div class="login-container">
+    <div class="login-card">
+        <h3 class="text-center mb-2">Registreren</h3>
+
+        @if (done)
+        {
+            <p class="reg-done">
+                <i class="rzi">mark_email_read</i>
+                Je aanvraag is verstuurd. Zodra een verantwoordelijke ze goedkeurt, kan je inloggen met je e-mailadres en wachtwoord.
+            </p>
+            <RadzenButton Text="Naar inloggen" Style="width:100%" Click="@(() => Navigation.NavigateTo("/login"))" />
+        }
+        else
+        {
+            <p class="pw-hint reg-intro">Na je registratie keurt een verantwoordelijke je account goed.</p>
+            <EditForm Model="model" OnValidSubmit="SubmitAsync">
+                <div class="reg-row">
+                    <div class="mb-3">
+                        <label class="pw-label" for="firstName">Voornaam</label>
+                        <RadzenTextBox @bind-Value="model.FirstName" Name="firstName" Style="width:100%" autocomplete="given-name" MaxLength="100" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="pw-label" for="lastName">Naam</label>
+                        <RadzenTextBox @bind-Value="model.LastName" Name="lastName" Style="width:100%" autocomplete="family-name" MaxLength="100" />
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="pw-label" for="email">E-mail (@RegistrationRules.EmailDomain)</label>
+                    <RadzenTextBox @bind-Value="model.Email" Name="email" Style="width:100%" autocomplete="email"
+                                   Placeholder="@($"voornaam.naam{RegistrationRules.EmailDomain}")" />
+                </div>
+                <div class="reg-row">
+                    <div class="mb-3">
+                        <label class="pw-label">Ploeg</label>
+                        <div class="reg-fixed">@RegistrationRules.Team</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="pw-label" for="speciality">Specialiteit</label>
+                        <RadzenDropDown TValue="string" Data="@specialities" @bind-Value="model.Speciality" Name="speciality" Placeholder="Kies" Style="width:100%" />
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="pw-label" for="grade">Graad</label>
+                    <RadzenDropDown TValue="string" Data="@grades" @bind-Value="model.Grade" Name="grade" Placeholder="Kies" Style="width:100%" />
+                </div>
+                <div class="mb-3">
+                    <label class="pw-label" for="password">Wachtwoord</label>
+                    <RadzenPassword @bind-Value="model.Password" Name="password" Style="width:100%" autocomplete="new-password"
+                                    @oninput="e => pwInput = e.Value?.ToString() ?? string.Empty" />
+                    <div class="@(PolicyError == null && pwInput.Length > 0 ? "pw-hint pw-ok" : "pw-hint")">
+                        @(pwInput.Length == 0 ? $"Minstens {PasswordPolicy.MinLength} tekens, niet je naam of e-mailadres."
+                          : PolicyError ?? "Sterk genoeg.")
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="pw-label" for="confirm">Herhaal wachtwoord</label>
+                    <RadzenPassword @bind-Value="confirm" Name="confirm" Style="width:100%" autocomplete="new-password" />
+                </div>
+                <RadzenButton ButtonType="ButtonType.Submit" Text="Registreren" Icon="person_add" Style="width:100%" Disabled="@busy" />
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="text-danger mt-3 text-center">@errorMessage</div>
+                }
+            </EditForm>
+            <div class="text-center mt-3">
+                <a href="/login" class="reg-link">Heb je al een account? Inloggen</a>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private RegisterDTO model = new();
+    private string confirm = "";
+    private string pwInput = "";
+    private string? errorMessage;
+    private bool busy;
+    private bool done;
+    private List<string> specialities = new();
+    private List<string> grades = new();
+
+    private string? PolicyError => PasswordPolicy.Validate(pwInput, model.Email, model.FirstName, model.LastName);
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            specialities = await Http.GetFromJsonAsync<List<string>>("api/meta/specialities") ?? new();
+            grades = await Http.GetFromJsonAsync<List<string>>("api/meta/grades") ?? new();
+        }
+        catch
+        {
+            errorMessage = "De server is niet bereikbaar. Probeer het later opnieuw.";
+        }
+    }
+
+    private async Task SubmitAsync()
+    {
+        errorMessage = null;
+        model.Email = model.Email?.Trim() ?? "";
+        if (string.IsNullOrWhiteSpace(model.FirstName) || string.IsNullOrWhiteSpace(model.LastName))
+            errorMessage = "Vul je voornaam en naam in.";
+        else if (!model.Email.EndsWith(RegistrationRules.EmailDomain, StringComparison.OrdinalIgnoreCase))
+            errorMessage = $"Gebruik je e-mailadres van de zone ({RegistrationRules.EmailDomain}).";
+        else if (string.IsNullOrEmpty(model.Speciality) || string.IsNullOrEmpty(model.Grade))
+            errorMessage = "Kies je specialiteit en graad.";
+        else if (PasswordPolicy.Validate(model.Password, model.Email, model.FirstName, model.LastName) is string policy)
+            errorMessage = policy;
+        else if (model.Password != confirm)
+            errorMessage = "De wachtwoorden komen niet overeen.";
+        if (errorMessage != null)
+            return;
+
+        busy = true;
+        var result = await PersonApi.RegisterAsync(model);
+        busy = false;
+        if (result.Ok)
+            done = true;
+        else
+            errorMessage = result.Error;
+    }
+}

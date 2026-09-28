@@ -36,8 +36,11 @@ namespace VerlofBWZC.Api.Helpers
             return WriteToken(claims, config);
         }
 
+        // Demo als Manager met extra ploegen: claim "demo_scopes", bv. "Ploeg2:IGS;Ploeg3:*" (* = alle specialiteiten)
+        public const string DemoScopesClaim = "demo_scopes";
+
         // Demo modus: de admin bekijkt de app als een andere rol/ploeg/specialiteit (alleen lezen, zie Program.cs)
-        public static string GenerateDemoToken(Person admin, string role, string team, string speciality, IConfiguration config)
+        public static string GenerateDemoToken(Person admin, string role, string team, string speciality, IConfiguration config, string? scopes = null)
         {
             var claims = new List<Claim>
                     {
@@ -49,6 +52,8 @@ namespace VerlofBWZC.Api.Helpers
                         new Claim("speciality", speciality),
                         new Claim("demo", "true"),
                     };
+            if (!string.IsNullOrEmpty(scopes))
+                claims.Add(new Claim(DemoScopesClaim, scopes));
 
             return WriteToken(claims, config);
         }

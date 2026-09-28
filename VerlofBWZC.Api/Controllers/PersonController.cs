@@ -48,7 +48,8 @@ namespace VerlofBWZC.Api.Controllers
         {
             try
             {
-                var query = _context.Persons.AsQueryable();
+                // Nog niet goedgekeurde registraties staan apart (api/person/pending)
+                var query = _context.Persons.Where(p => p.IsApproved);
                 if (!_me.IsAdmin)
                 {
                     // Manager: personen van de ploegen en specialiteiten die hij beheert
@@ -115,6 +116,9 @@ namespace VerlofBWZC.Api.Controllers
             PasswordHelper.CreatePasswordHash(temporary, out string hash, out string salt);
             personDTO.PasswordHash = hash;
             personDTO.Salt = salt;
+            personDTO.Email = personDTO.Email?.Trim() ?? "";
+            personDTO.FirstName = personDTO.FirstName?.Trim() ?? "";
+            personDTO.LastName = personDTO.LastName?.Trim() ?? "";
             var person = _mapper.Map<Person>(personDTO);
             person.PasswordIterations = PasswordHelper.CurrentIterations;
             person.MustChangePassword = true;
@@ -171,6 +175,10 @@ namespace VerlofBWZC.Api.Controllers
                 return Unauthorized(invalid);
             }
 
+            // Zelf geregistreerd: pas inloggen na goedkeuring
+            if (!person.IsApproved)
+                return Unauthorized("Je registratie wacht nog op goedkeuring door een verantwoordelijke.");
+
             person.FailedLoginCount = 0;
             person.LockoutUntilUtc = null;
 
@@ -191,6 +199,116 @@ namespace VerlofBWZC.Api.Controllers
 
             string token = JwtTokenHelper.GenerateJwtToken(person, _configuration);
             return Ok(new LoginResultDTO { Token = token, MustChangePassword = person.MustChangePassword });
+        }
+
+        // Zelf registreren (loginpagina): enkel @bwzc.be, Ploeg1, rol User, 44 verlofshiften, zelfgekozen wachtwoord.
+        // Het account werkt pas na goedkeuring door de Admin of een Manager van die ploeg en specialiteit.
+        [HttpPost("register")]
+        [AllowAnonymous]
+        [EnableRateLimiting("register")]
+        public async Task<IActionResult> Register([FromBody] RegisterDTO dto)
+        {
+            var firstName = dto.FirstName?.Trim() ?? "";
+            var lastName = dto.LastName?.Trim() ?? "";
+            var email = dto.Email?.Trim().ToLowerInvariant() ?? "";
+
+            if (firstName.Length == 0 || lastName.Length == 0)
+                return BadRequest("Vul je voornaam en naam in.");
+            if (firstName.Length > 100 || lastName.Length > 100)
+                return BadRequest("Voornaam of naam is te lang.");
+            if (!email.EndsWith(RegistrationRules.EmailDomain) || email.Length <= RegistrationRules.EmailDomain.Length
+                || email.Count(c => c == '@') != 1 || email.Contains(' '))
+                return BadRequest($"Gebruik je e-mailadres van de zone ({RegistrationRules.EmailDomain}).");
+            if (!Enum.TryParse<Speciality>(dto.Speciality, true, out var speciality))
+                return BadRequest("Kies je specialiteit.");
+            if (!Enum.TryParse<Grade>(dto.Grade, true, out var grade))
+                return BadRequest("Kies je graad.");
+            if (PasswordPolicy.Validate(dto.Password, email, firstName, lastName) is string policyError)
+                return BadRequest(policyError);
+
+            if (await _context.Persons.AnyAsync(p => p.Email == email))
+                return BadRequest("Dit adres heeft al een account. Wachtwoord vergeten? Vraag je verantwoordelijke om het te resetten.");
+
+            PasswordHelper.CreatePasswordHash(dto.Password, out var hash, out var salt);
+            var person = new Person
+            {
+                FirstName = firstName,
+                LastName = lastName,
+                Email = email,
+                PasswordHash = hash,
+                Salt = salt,
+                PasswordIterations = PasswordHelper.CurrentIterations,
+                Team = Enum.Parse<TeamName>(RegistrationRules.Team),
+                Speciality = speciality,
+                Grade = grade,
+                Role = Role.User,
+                LeaveAllowance = PersonDefaults.LeaveAllowance,
+                // Dubbele initialen worden bij het goedkeuren gemeld (niet tegengehouden: de persoon kan ze niet zelf kiezen)
+                Initials = PersonInitials.Normalize(null, lastName),
+                IsApproved = false,
+                RegisteredAtUtc = DateTime.UtcNow,
+                LastUpdate = DateTime.Now
+            };
+            _context.Persons.Add(person);
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateException)
+            {
+                return BadRequest("Dit adres heeft al een account.");
+            }
+            return Ok();
+        }
+
+        // Registraties die wachten op goedkeuring (Admin: alle; Manager: zijn ploegen en specialiteiten)
+        [HttpGet("pending")]
+        [Authorize(Roles = "Admin,Manager")]
+        public async Task<ActionResult<IEnumerable<PersonBaseDTO>>> GetPending()
+        {
+            var query = _context.Persons.Where(p => !p.IsApproved);
+            if (!_me.IsAdmin)
+            {
+                var keys = await _me.GetScopeKeysAsync();
+                query = query.Where(p => p.Team != null && p.Speciality != null
+                    && keys.Contains((int)p.Team.Value * 100 + (int)p.Speciality.Value));
+            }
+            return Ok(await query
+                .OrderBy(p => p.RegisteredAtUtc)
+                .ProjectTo<PersonBaseDTO>(_mapper.ConfigurationProvider)
+                .ToListAsync());
+        }
+
+        [HttpPost("{id}/approve")]
+        [Authorize(Roles = "Admin,Manager")]
+        public async Task<IActionResult> Approve(int id)
+        {
+            var person = await _context.Persons.FindAsync(id);
+            if (person == null || person.IsApproved)
+                return NotFound();
+            if (!await _me.CanManageTeamAsync(person.Team, person.Speciality))
+                return Forbid();
+
+            person.IsApproved = true;
+            person.LastUpdate = DateTime.Now;
+            await _context.SaveChangesAsync();
+            return NoContent();
+        }
+
+        // Weigeren: de registratie wordt verwijderd (de persoon kan zich opnieuw registreren)
+        [HttpPost("{id}/reject")]
+        [Authorize(Roles = "Admin,Manager")]
+        public async Task<IActionResult> Reject(int id)
+        {
+            var person = await _context.Persons.FindAsync(id);
+            if (person == null || person.IsApproved)
+                return NotFound();
+            if (!await _me.CanManageTeamAsync(person.Team, person.Speciality))
+                return Forbid();
+
+            _context.Persons.Remove(person);
+            await _context.SaveChangesAsync();
+            return NoContent();
         }
 
         // Zelf je wachtwoord wijzigen: huidig wachtwoord verplicht. Ook toegelaten met het beperkte token.
@@ -274,7 +392,25 @@ namespace VerlofBWZC.Api.Controllers
             if (!Enum.TryParse<Speciality>(request.Speciality, true, out var spec))
                 return BadRequest("Ongeldige specialiteit.");
 
-            var token = JwtTokenHelper.GenerateDemoToken(admin, role.ToString(), team.ToString(), spec.ToString(), _configuration);
+            // Manager: optioneel extra ploegen/specialiteiten om te bekijken hoe een manager van meerdere ploegen het ziet
+            var scopeParts = new List<string>();
+            if (role == Role.Manager)
+            {
+                foreach (var s in request.Scopes ?? new())
+                {
+                    if (!Enum.TryParse<TeamName>(s.Team, true, out var st))
+                        return BadRequest($"Ongeldige ploeg: {s.Team}");
+                    if (string.IsNullOrWhiteSpace(s.Speciality))
+                        scopeParts.Add($"{st}:*");
+                    else if (Enum.TryParse<Speciality>(s.Speciality, true, out var ss))
+                        scopeParts.Add($"{st}:{ss}");
+                    else
+                        return BadRequest($"Ongeldige specialiteit: {s.Speciality}");
+                }
+            }
+
+            var token = JwtTokenHelper.GenerateDemoToken(admin, role.ToString(), team.ToString(), spec.ToString(), _configuration,
+                scopeParts.Count > 0 ? string.Join(";", scopeParts.Distinct()) : null);
             return Ok(new { token });
         }
 
@@ -286,7 +422,7 @@ namespace VerlofBWZC.Api.Controllers
                 return Forbid();
 
             var persons = await _context.Persons
-                .Where(p => p.Team == teamName && p.Speciality == speciality)
+                .Where(p => p.Team == teamName && p.Speciality == speciality && p.IsApproved)
                 .ProjectTo<PersonBaseDTO>(_mapper.ConfigurationProvider)
                 .ToListAsync();
             return Ok(persons);
@@ -300,7 +436,7 @@ namespace VerlofBWZC.Api.Controllers
                 return Forbid();
 
             var persons = await _context.Persons
-                .Where(p => p.Team == teamName)
+                .Where(p => p.Team == teamName && p.IsApproved)
                 .OrderBy(p => p.Speciality).ThenBy(p => p.LastName)
                 .ProjectTo<PersonBaseDTO>(_mapper.ConfigurationProvider)
                 .ToListAsync();

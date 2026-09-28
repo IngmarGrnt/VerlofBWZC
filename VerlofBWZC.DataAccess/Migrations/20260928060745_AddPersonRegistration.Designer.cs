@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace VerlofBWZC.DataAccess.Migrations
 {
     [DbContext(typeof(VerlofBWZC_DbContext))]
-    partial class VerlofBWZC_DbContextModelSnapshot : ModelSnapshot
+    [Migration("20260928060745_AddPersonRegistration")]
+    partial class AddPersonRegistration
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -406,43 +409,6 @@ namespace VerlofBWZC.DataAccess.Migrations
                     b.HasIndex("Team", "Speciality", "Year");
 
                     b.ToTable("QuarterLimits");
-                });
-
-            modelBuilder.Entity("VerlofBWZC.DataAccess.Entities.ShiftQuota", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("DayMax")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime>("LastUpdate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("NightMax")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Speciality")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Team")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("Year")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Team", "Speciality", "Year")
-                        .IsUnique();
-
-                    b.ToTable("ShiftQuotas");
                 });
 
             modelBuilder.Entity("VerlofBWZC.DataAccess.Entities.DayOff", b =>

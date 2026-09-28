@@ -39,10 +39,15 @@ namespace VerlofBWZC.DataAccess.Entities
         public DateTime? LockoutUntilUtc { get; set; }
         public int PasswordIterations { get; set; } = 100_000;
 
+        // Zelf geregistreerd: pas na goedkeuring door Admin of Manager kan de persoon inloggen
+        public bool IsApproved { get; set; } = true;
+        public DateTime? RegisteredAtUtc { get; set; }
+
 
         // Many-to-many relationship
         public ICollection<DayOff> DayOffs { get; set; }
     }
 }
+
 
 

@@ -262,7 +262,7 @@
     // Verlofaantal per jaar (ingesteld bij Personen); null = geen limiet
     private int? LeaveAllowance;
 
-    // Kwartaalmaxima (KW1 jan-apr, KW2 mei-aug, KW3 sep-dec), ingesteld bij Verlofregels (standaard 14/16/14)
+    // Kwartaalmaxima (KW1 jan-apr, KW2 mei-aug, KW3 sep-dec), ingesteld bij Verlofregels > Kwartaalmaxima (standaard 14/16/14)
     private QuarterLimitDTO? QuarterLimits;
 
     private int QuarterUsage(int quarter) =>
@@ -333,10 +333,10 @@
 
     // Verlof neem je normaal per 2 shiften: dagshift (D) op dag X + nachtshift (N) op dag X+1.
     // Een losse shift is een aangeduide shift waarvan de partner niet aangeduid is.
-    // Ploeg0 heeft geen werkregime: daar gelden losse shiften en paren niet.
+    // Ploeg zonder werkregime (Werkregels): daar gelden losse shiften en paren niet.
     private bool IsLoose(WorkDay day)
     {
-        if (PersonTeam == "Ploeg0")
+        if (!Werkregels.PairRulesApply(PersonTeam))
             return false;
         var partnerDate = day.Shift == "D" ? day.Date.Date.AddDays(1) : day.Date.Date.AddDays(-1);
         var partnerShift = day.Shift == "D" ? "N" : "D";

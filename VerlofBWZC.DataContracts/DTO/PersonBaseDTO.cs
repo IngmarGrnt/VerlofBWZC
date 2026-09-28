@@ -19,6 +19,8 @@ namespace VerlofBWZC.DataContracts.DTO
         public int? LeaveAllowance { get; set; } // verlofshiften per jaar
         public string? Initials { get; set; } // leeg = standaardregel op de achternaam
         public bool MustChangePassword { get; set; } // tijdelijk wachtwoord, nog niet gewijzigd (enkel lezen)
+        public bool IsApproved { get; set; } = true; // zelf geregistreerd en nog niet goedgekeurd = false (enkel lezen)
+        public DateTime? RegisteredAtUtc { get; set; }
 
     }
 }

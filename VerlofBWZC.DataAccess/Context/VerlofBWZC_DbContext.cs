@@ -13,6 +13,7 @@ public class VerlofBWZC_DbContext : DbContext
     public DbSet<LeaveCategory> LeaveCategories { get; set; }
     public DbSet<QuarterLimit> QuarterLimits { get; set; }
     public DbSet<ManagerScope> ManagerScopes { get; set; }
+    public DbSet<ShiftQuota> ShiftQuotas { get; set; }
 
     public DbSet<LotteryDraw> LotteryDraws => Set<LotteryDraw>();
     public DbSet<LotteryWinner> LotteryWinners => Set<LotteryWinner>();
@@ -27,6 +28,8 @@ public class VerlofBWZC_DbContext : DbContext
         modelBuilder.LeaveCategoryConfig();
         modelBuilder.QuarterLimitConfig();
         modelBuilder.ManagerScopeConfig();
+        modelBuilder.ShiftQuotaConfig();
         //base.OnModelCreating(modelBuilder);
     }
 }   
+

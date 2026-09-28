@@ -137,6 +137,17 @@ namespace VerlofBWZC.DataAccess.Extensions
                 .IsUnique()
                 .HasFilter(null); // ook 'alle specialiteiten' (null) maar één keer per ploeg
         }
+
+        public static void ShiftQuotaConfig(this ModelBuilder mb)
+        {
+            // Eén regel per ploeg, specialiteit en jaar (ook maar één standaardregel zonder jaar)
+            mb.Entity<ShiftQuota>()
+                .HasIndex(q => new { q.Team, q.Speciality, q.Year })
+                .IsUnique()
+                .HasFilter(null);
+        }
     }
 }
+
+
 

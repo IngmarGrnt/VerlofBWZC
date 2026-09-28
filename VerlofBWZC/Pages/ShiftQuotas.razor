@@ -1,24 +1,22 @@
-@page "/verlofregels"
+@page "/max-per-shift"
 @attribute [Authorize(Roles = "Admin,Manager")]
 @using Microsoft.AspNetCore.Authorization
 @using Radzen
 @using Radzen.Blazor
 @using System.Net.Http.Json
 @using VerlofBWZC.DataContracts.DTO.Leave
+@using VerlofBWZC.Services
 @inject HttpClient Http
 @inject ScopeService Scope
 @inject NotificationService Notifications
 @inject DialogService DialogService
-@inject VerlofBWZC.Services.CurrentPersonService CurrentPerson
-@using VerlofBWZC.Services
+@inject CurrentPersonService CurrentPerson
 
-<PageTitle>Verlofcategorieën</PageTitle>
-
-<h3>Verlofcategorieën</h3>
+<h3>Max per shift</h3>
 <p class="rz-text-secondary" style="max-width:900px;">
-    Per ploeg en specialiteit stel je verlofcategorieën in, bv. <em>Groot verlof</em> (max 8 shiften), <em>Verlof 4</em> (max 4) en <em>Verlof 2</em> (max 2).
-    Medewerkers duiden die aan in hun werkkalender; in de teamkalender verschijnen ze in hun kleur.
-    Een categorie zonder jaar geldt voor alle jaren; categorieën met een jaar vervangen voor dat jaar de standaard.
+    Hoeveel personen van een ploeg en specialiteit tegelijk verlof mogen hebben op één shift.
+    Waar niets is ingesteld geldt de standaard: <strong>een kwart van de personen</strong> (minstens 1).
+    De teamkalender kleurt een shift rood als het maximum overschreden wordt, en toont dan de knop voor een loting.
 </p>
 
 <!-- Filters -->
@@ -31,13 +29,14 @@
         <label>Specialiteit</label>
         <RadzenDropDown TValue="string" Data="@specialities" @bind-Value="specialityFilter" AllowClear="@(isAdmin || Scope.HasChoice)" Placeholder="Alle" Style="width:200px" />
     </div>
-    <RadzenButton Icon="add" Text="Categorie toevoegen" Click="@StartCreate" Disabled="@(editing != null)" />
 </RadzenStack>
+
+<RadzenButton Icon="add" Text="Regel toevoegen" Click="@StartCreate" Disabled="@(editing != null)" Style="margin-bottom:1rem" />
 
 @if (editing != null)
 {
     <RadzenCard Style="margin-bottom:1rem; max-width:900px;">
-        <h5>@(editing.Id == 0 ? "Nieuwe categorie" : "Categorie wijzigen")</h5>
+        <h5>@(editing.Id == 0 ? "Nieuwe regel" : "Regel wijzigen")</h5>
         <RadzenStack Orientation="Orientation.Horizontal" Wrap="FlexWrap.Wrap" Gap="1rem">
             @if (editing.Id == 0)
             {
@@ -66,40 +65,32 @@
                 <RadzenDropDown TValue="int?" Data="@years" @bind-Value="editing.Year" AllowClear="true" Placeholder="Alle jaren" Style="width:160px" />
             </div>
         </RadzenStack>
-
-        <RadzenStack Orientation="Orientation.Horizontal" Wrap="FlexWrap.Wrap" Gap="1rem" Style="margin-top:1rem">
+        <RadzenStack Orientation="Orientation.Horizontal" Wrap="FlexWrap.Wrap" Gap="1rem" AlignItems="AlignItems.End" Style="margin-top:1rem">
             <div>
-                <label>Naam</label>
-                <RadzenTextBox @bind-Value="editing.Name" MaxLength="50" Placeholder="bv. Groot verlof" Style="width:220px" />
+                <label class="sq-same">
+                    <input type="checkbox" checked="@sameForBoth" @onchange="e => ToggleSame((bool)(e.Value ?? false))" />
+                    Zelfde voor dag en nacht
+                </label>
             </div>
-            <div>
-                <label>Max. shiften</label>
-                <RadzenNumeric TValue="int" @bind-Value="editing.MaxShifts" Min="0" Max="366" Style="width:120px" />
-            </div>
-            <div>
-                <label>Volgorde</label>
-                <RadzenNumeric TValue="int" @bind-Value="editing.SortOrder" Min="0" Max="99" Style="width:100px" />
-            </div>
-            <div>
-                <label>Aansluitend</label>
-                <div style="display:flex; align-items:center; gap:.4rem; height:2.25rem;">
-                    <RadzenCheckBox TValue="bool" @bind-Value="editing.MustBeConsecutive" Name="consecutive" />
-                    <RadzenLabel Text="Shiften moeten een ononderbroken reeks zijn" Component="consecutive" />
+            @if (sameForBoth)
+            {
+                <div>
+                    <label>Max per shift (dag en nacht)</label>
+                    <RadzenNumeric TValue="int" Value="@editing.DayMax" ValueChanged="@(v => { editing.DayMax = v; editing.NightMax = v; })" Min="0" Max="100" Style="width:140px" />
                 </div>
-            </div>
-            <div>
-                <label>Kleur</label>
-                <div style="display:flex; align-items:center; gap:.35rem;">
-                    @foreach (var color in palette)
-                    {
-                        <button type="button" title="@color" @onclick="() => editing.Color = color"
-                                style="@($"width:24px; height:24px; border-radius:50%; background:{color}; cursor:pointer; border:{(string.Equals(editing.Color, color, StringComparison.OrdinalIgnoreCase) ? "3px solid #000" : "1px solid #ccc")};")"></button>
-                    }
-                    <RadzenTextBox @bind-Value="editing.Color" MaxLength="7" Style="width:100px" />
+            }
+            else
+            {
+                <div>
+                    <label>Max dagshift</label>
+                    <RadzenNumeric TValue="int" @bind-Value="editing.DayMax" Min="0" Max="100" Style="width:120px" />
                 </div>
-            </div>
+                <div>
+                    <label>Max nachtshift</label>
+                    <RadzenNumeric TValue="int" @bind-Value="editing.NightMax" Min="0" Max="100" Style="width:120px" />
+                </div>
+            }
         </RadzenStack>
-
         <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Style="margin-top:1rem">
             <RadzenButton Icon="save" Text="Opslaan" Click="@Save" />
             <RadzenButton Icon="close" Text="Annuleren" ButtonStyle="ButtonStyle.Light" Click="@(() => editing = null)" />
@@ -107,27 +98,16 @@
     </RadzenCard>
 }
 
-<RadzenDataGrid TItem="LeaveCategoryDTO" Data="@FilteredRules" AllowSorting="true" AllowPaging="true" PageSize="25" EmptyText="Nog geen verlofcategorieën.">
+<RadzenDataGrid TItem="ShiftQuotaDTO" Data="@FilteredRules" AllowSorting="true" EmptyText="Nog geen regels: overal geldt een kwart van de personen.">
     <Columns>
-        <RadzenDataGridColumn TItem="LeaveCategoryDTO" Property="Team" Title="Ploeg" Width="110px" />
-        <RadzenDataGridColumn TItem="LeaveCategoryDTO" Property="Speciality" Title="Specialiteit" Width="150px" />
-        <RadzenDataGridColumn TItem="LeaveCategoryDTO" Property="Year" Title="Jaar" Width="100px">
+        <RadzenDataGridColumn TItem="ShiftQuotaDTO" Property="Team" Title="Ploeg" Width="110px" />
+        <RadzenDataGridColumn TItem="ShiftQuotaDTO" Property="Speciality" Title="Specialiteit" Width="150px" />
+        <RadzenDataGridColumn TItem="ShiftQuotaDTO" Property="Year" Title="Jaar" Width="100px">
             <Template Context="r">@(r.Year?.ToString() ?? "Alle jaren")</Template>
         </RadzenDataGridColumn>
-        <RadzenDataGridColumn TItem="LeaveCategoryDTO" Property="Name" Title="Categorie">
-            <Template Context="r">
-                <span style="display:inline-flex; align-items:center; gap:.4rem;">
-                    <span style="@($"display:inline-block; width:14px; height:14px; border-radius:50%; background:{r.Color};")"></span>
-                    @r.Name
-                </span>
-            </Template>
-        </RadzenDataGridColumn>
-        <RadzenDataGridColumn TItem="LeaveCategoryDTO" Property="MaxShifts" Title="Max. shiften" Width="120px" />
-        <RadzenDataGridColumn TItem="LeaveCategoryDTO" Property="MustBeConsecutive" Title="Aansluitend" Width="120px">
-            <Template Context="r">@(r.MustBeConsecutive ? "Ja" : "Nee")</Template>
-        </RadzenDataGridColumn>
-        <RadzenDataGridColumn TItem="LeaveCategoryDTO" Property="SortOrder" Title="Volgorde" Width="100px" />
-        <RadzenDataGridColumn TItem="LeaveCategoryDTO" Title="" Width="120px" Sortable="false">
+        <RadzenDataGridColumn TItem="ShiftQuotaDTO" Property="DayMax" Title="Max dag" Width="110px" />
+        <RadzenDataGridColumn TItem="ShiftQuotaDTO" Property="NightMax" Title="Max nacht" Width="110px" />
+        <RadzenDataGridColumn TItem="ShiftQuotaDTO" Title="" Width="120px" Sortable="false">
             <Template Context="r">
                 <RadzenButton Icon="edit" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Click="@(() => StartEdit(r))" Disabled="@(editing != null)" />
                 <RadzenButton Icon="delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger" Click="@(() => Delete(r))" Disabled="@(editing != null)" />
@@ -137,21 +117,20 @@
 </RadzenDataGrid>
 
 @code {
-    private List<LeaveCategoryDTO> rules = new();
     private List<string> teams = new();
     private List<string> specialities = new();
     private List<int> years = Enumerable.Range(DateTime.Now.Year - 1, 12).ToList();
-    // Goed te onderscheiden van de huisstijl (rood #F13F3F, blauw #2F80ED) en verlof (blauwgroen), leesbaar met witte tekst
-    private readonly string[] palette = { "#E53935", "#FB8C00", "#FDD835", "#43A047", "#1E88E5", "#8E24AA", "#6D4C41", "#546E7A" };
-
     private string? teamFilter;
     private string? specialityFilter;
+    private bool isAdmin;
 
-    private LeaveCategoryDTO? editing;
+    private List<ShiftQuotaDTO> rules = new();
+    private ShiftQuotaDTO? editing;
+    private bool sameForBoth = true;
     private IEnumerable<string> createTeams = Array.Empty<string>();
     private IEnumerable<string> createSpecialities = Array.Empty<string>();
 
-    private IEnumerable<LeaveCategoryDTO> FilteredRules => rules
+    private IEnumerable<ShiftQuotaDTO> FilteredRules => rules
         .Where(r => teamFilter == null || r.Team == teamFilter)
         .Where(r => specialityFilter == null || r.Speciality == specialityFilter);
 
@@ -160,7 +139,6 @@
         teams = await Http.GetFromJsonAsync<List<string>>("api/meta/teams") ?? new();
         specialities = await Http.GetFromJsonAsync<List<string>>("api/meta/specialities") ?? new();
 
-        // Manager: enkel zijn eigen ploeg en specialiteit (de API controleert dit ook)
         var me = await CurrentPerson.GetAsync();
         isAdmin = CurrentPersonService.IsAdmin(me);
         if (!isAdmin && me != null)
@@ -179,27 +157,35 @@
         await LoadRules();
     }
 
-    private bool isAdmin;
-
     private async Task LoadRules()
-        => rules = await Http.GetFromJsonAsync<List<LeaveCategoryDTO>>("api/leave-categories/rules") ?? new();
+        => rules = await Http.GetFromJsonAsync<List<ShiftQuotaDTO>>("api/shift-quotas/rules") ?? new();
+
+    private void ToggleSame(bool on)
+    {
+        sameForBoth = on;
+        if (on && editing != null)
+            editing.NightMax = editing.DayMax;
+    }
 
     private void StartCreate()
     {
-        editing = new LeaveCategoryDTO { MaxShifts = 8, Color = palette[0], SortOrder = 1 };
+        editing = new ShiftQuotaDTO();
+        sameForBoth = true;
         createTeams = teamFilter != null ? new[] { teamFilter } : Array.Empty<string>();
         createSpecialities = specialityFilter != null ? new[] { specialityFilter } : Array.Empty<string>();
     }
 
-    private void StartEdit(LeaveCategoryDTO r) => editing = new LeaveCategoryDTO
+    private void StartEdit(ShiftQuotaDTO r)
     {
-        Id = r.Id, Team = r.Team, Speciality = r.Speciality, Year = r.Year,
-        Name = r.Name, MaxShifts = r.MaxShifts, Color = r.Color, SortOrder = r.SortOrder, MustBeConsecutive = r.MustBeConsecutive
-    };
+        editing = new ShiftQuotaDTO { Id = r.Id, Team = r.Team, Speciality = r.Speciality, Year = r.Year, DayMax = r.DayMax, NightMax = r.NightMax };
+        sameForBoth = r.DayMax == r.NightMax;
+    }
 
     private async Task Save()
     {
         if (editing == null) return;
+        if (sameForBoth)
+            editing.NightMax = editing.DayMax;
 
         if (editing.Id == 0)
         {
@@ -209,61 +195,64 @@
                 return;
             }
 
-            // Eén categorie per gekozen combinatie ploeg x specialiteit
             var created = 0;
             foreach (var team in createTeams)
             foreach (var spec in createSpecialities)
             {
-                var dto = new LeaveCategoryDTO
-                {
-                    Team = team, Speciality = spec, Year = editing.Year, Name = editing.Name,
-                    MaxShifts = editing.MaxShifts, Color = editing.Color, SortOrder = editing.SortOrder, MustBeConsecutive = editing.MustBeConsecutive
-                };
-                var resp = await Http.PostAsJsonAsync("api/leave-categories/rules", dto);
+                var dto = new ShiftQuotaDTO { Team = team, Speciality = spec, Year = editing.Year, DayMax = editing.DayMax, NightMax = editing.NightMax };
+                var resp = await Http.PostAsJsonAsync("api/shift-quotas/rules", dto);
                 if (!resp.IsSuccessStatusCode)
                 {
-                    Notify(NotificationSeverity.Error, await resp.Content.ReadAsStringAsync());
+                    Notify(NotificationSeverity.Error, await ErrorAsync(resp));
                     await LoadRules();
                     return;
                 }
                 created++;
             }
-            Notify(NotificationSeverity.Success, $"{created} categorie(ën) toegevoegd.");
+            Notify(NotificationSeverity.Success, $"{created} regel(s) toegevoegd.");
         }
         else
         {
-            var resp = await Http.PutAsJsonAsync($"api/leave-categories/rules/{editing.Id}", editing);
+            var resp = await Http.PutAsJsonAsync($"api/shift-quotas/rules/{editing.Id}", editing);
             if (!resp.IsSuccessStatusCode)
             {
-                Notify(NotificationSeverity.Error, await resp.Content.ReadAsStringAsync());
+                Notify(NotificationSeverity.Error, await ErrorAsync(resp));
                 return;
             }
-            Notify(NotificationSeverity.Success, "Categorie bijgewerkt.");
+            Notify(NotificationSeverity.Success, "Regel bijgewerkt.");
         }
 
         editing = null;
         await LoadRules();
     }
 
-    private async Task Delete(LeaveCategoryDTO r)
+    private async Task Delete(ShiftQuotaDTO r)
     {
         var ok = await DialogService.Confirm(
-            $"'{r.Name}' voor {r.Team}/{r.Speciality} verwijderen? Aangeduide shiften worden weer gewoon verlof.",
+            $"Regel voor {r.Team}/{r.Speciality} ({r.Year?.ToString() ?? "alle jaren"}) verwijderen? Daarna geldt weer de standaard (een kwart van de personen).",
             "Verwijderen", new ConfirmOptions { OkButtonText = "Verwijderen", CancelButtonText = "Annuleren" });
         if (ok != true) return;
 
-        var resp = await Http.DeleteAsync($"api/leave-categories/rules/{r.Id}");
+        var resp = await Http.DeleteAsync($"api/shift-quotas/rules/{r.Id}");
         if (resp.IsSuccessStatusCode)
         {
-            Notify(NotificationSeverity.Success, "Categorie verwijderd.");
+            Notify(NotificationSeverity.Success, "Regel verwijderd.");
             await LoadRules();
         }
         else
         {
-            Notify(NotificationSeverity.Error, "Verwijderen mislukt.");
+            Notify(NotificationSeverity.Error, await ErrorAsync(resp));
         }
     }
 
+    private static async Task<string> ErrorAsync(HttpResponseMessage resp)
+    {
+        if (resp.StatusCode == System.Net.HttpStatusCode.Forbidden)
+            return "Je hebt geen rechten voor deze ploeg of specialiteit.";
+        var text = (await resp.Content.ReadAsStringAsync()).Trim().Trim('"');
+        return string.IsNullOrWhiteSpace(text) || text.StartsWith("{") ? $"Mislukt ({(int)resp.StatusCode})." : text;
+    }
+
     private void Notify(NotificationSeverity severity, string detail)
-        => Notifications.Notify(new NotificationMessage { Severity = severity, Summary = "Verlofcategorieën", Detail = detail, Duration = 4000 });
+        => Notifications.Notify(new NotificationMessage { Severity = severity, Summary = "Max per shift", Detail = detail, Duration = 4000 });
 }

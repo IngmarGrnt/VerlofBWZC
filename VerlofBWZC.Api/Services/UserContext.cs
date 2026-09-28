@@ -74,8 +74,21 @@ namespace VerlofBWZC.Api.Services
             if (own.Team != null && own.Speciality != null)
                 scopes.Add(new Scope(own.Team.Value, own.Speciality.Value));
 
-            // Demo modus: enkel de gekozen ploeg en specialiteit
-            if (IsManager && !IsDemo && Id is int id)
+            // Demo modus: de gekozen ploeg en specialiteit, plus de extra ploegen die de admin koos (claim demo_scopes)
+            if (IsManager && IsDemo)
+            {
+                foreach (var part in (User.FindFirst(JwtTokenHelper.DemoScopesClaim)?.Value ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var bits = part.Split(':');
+                    if (bits.Length != 2 || !Enum.TryParse<TeamName>(bits[0], out var t))
+                        continue;
+                    if (bits[1] == "*")
+                        scopes.Add(new Scope(t, null));
+                    else if (Enum.TryParse<Speciality>(bits[1], out var sp))
+                        scopes.Add(new Scope(t, sp));
+                }
+            }
+            else if (IsManager && Id is int id)
             {
                 var extra = await _db.ManagerScopes.AsNoTracking()
                     .Where(s => s.PersonId == id)

@@ -56,12 +56,12 @@
                     </NavLink>
                 </div>
 
-                @* Instellingen: Admin voor alle ploegen, Manager voor zijn eigen ploeg en specialiteit *@
-                <div class="nav-section">Instellingen</div>
+                @* Verlofregels en beheer: Admin voor alle ploegen, Manager voor de ploegen en specialiteiten die hij beheert *@
+                <div class="nav-section">Verlofregels</div>
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="verlofregels">
                         <i class="bi bi-list-check" aria-hidden="true"></i>
-                        <span class="menu-text">Verlofregels</span>
+                        <span class="menu-text">Verlofcategorieën</span>
                     </NavLink>
                 </div>
                 <div class="nav-item px-3">
@@ -70,6 +70,14 @@
                         <span class="menu-text">Kwartaalmaxima</span>
                     </NavLink>
                 </div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="max-per-shift">
+                        <i class="bi bi-people" aria-hidden="true"></i>
+                        <span class="menu-text">Max per shift</span>
+                    </NavLink>
+                </div>
+
+                <div class="nav-section">Beheer</div>
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="ManagerPanel">
                         <i class="bi bi-shield-lock" aria-hidden="true"></i>
@@ -179,7 +187,7 @@
 
     private async Task OpenDemo()
     {
-        await DialogService.OpenAsync<DemoDialog>("Demo modus", options: new DialogOptions { Width = "420px" });
+        await DialogService.OpenAsync<DemoDialog>("Demo modus", options: new DialogOptions { Width = "460px" });
     }
 
     private async Task Logout()

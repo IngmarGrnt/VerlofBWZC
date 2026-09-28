@@ -58,3 +58,53 @@
 .pw-ok {
     color: #1E6B3A;
 }
+
+/* Registreren */
+.reg-intro {
+    margin-bottom: .75rem;
+}
+
+.reg-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .75rem;
+}
+
+.reg-fixed {
+    height: 38px;
+    display: flex;
+    align-items: center;
+    padding: 0 .75rem;
+    border: 1px solid var(--bwzc-line);
+    border-radius: var(--bwzc-radius);
+    background: var(--bwzc-ice);
+    color: var(--bwzc-navy);
+    font-weight: 500;
+}
+
+.reg-link {
+    font-size: .88rem;
+    color: var(--bwzc-blue);
+    text-decoration: none;
+}
+
+    .reg-link:hover {
+        text-decoration: underline;
+    }
+
+.reg-done {
+    display: flex;
+    gap: .6rem;
+    align-items: flex-start;
+    color: #1E6B3A;
+    background: #E3F4EA;
+    border-radius: var(--bwzc-radius);
+    padding: .75rem .9rem;
+}
+
+@media (max-width: 500px) {
+    .reg-row {
+        grid-template-columns: 1fr;
+        gap: 0;
+    }
+}
