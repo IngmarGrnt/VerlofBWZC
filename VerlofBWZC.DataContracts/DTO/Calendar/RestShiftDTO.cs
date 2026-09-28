@@ -2,15 +2,18 @@ using System;
 
 namespace VerlofBWZC.DataContracts.DTO.Calendar
 {
-    // Rust: een shift waarop iemand van de ploeg zonder werkregime (Ploeg0) niet werkt (geen verlof)
+    // Status van een shift zonder verlof: rust (Ploeg0) of een andere afwezigheid/uurcode (Dispatching)
     public class RestShiftDTO
     {
         public int PersonId { get; set; }
         public DateTime Date { get; set; }
         public string Shift { get; set; } = "D";
+
+        // null = rust (Ploeg0); anders een andere afwezigheid of uurcode (Werkregels.OtherAbsences)
+        public string? Code { get; set; }
     }
 
-    // Rust van personen voor een jaar opslaan: vervangt hun rust in dat jaar (lege lijst = alles weg)
+    // Rust en codes van personen voor een jaar opslaan: vervangt ze in dat jaar (lege lijst = alles weg)
     public class SaveRestShiftsRequest
     {
         public int Year { get; set; }

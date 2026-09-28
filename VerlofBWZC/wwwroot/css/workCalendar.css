@@ -560,3 +560,32 @@
     .wc-chip-rest:active {
         transform: none;
     }
+
+/* Andere afwezigheid (grijs) of uren verlof (geel), aangeduid door de verantwoordelijke; niet klikbaar */
+.wc-chip-code {
+    cursor: default;
+}
+
+    .wc-chip-code:active {
+        transform: none;
+    }
+
+.wc-chip-code-absent {
+    background: #4A5568;
+    border-color: #4A5568;
+}
+
+    .wc-chip-code-absent .wc-chip-day,
+    .wc-chip-code-absent .wc-chip-meta {
+        color: #fff;
+    }
+
+.wc-chip-code-hour {
+    background: #F2C94C;
+    border-color: #E0B532;
+}
+
+    .wc-chip-code-hour .wc-chip-day,
+    .wc-chip-code-hour .wc-chip-meta {
+        color: #3D2E00;
+    }

@@ -10,8 +10,9 @@ using VerlofBWZC.DataContracts.DTO.Calendar;
 
 namespace VerlofBWZC.Api.Controllers
 {
-    // Rust voor de ploeg zonder werkregime (Ploeg0, zie Werkregels.AllowsRestShifts):
-    // een shift waarop iemand niet werkt. Geen verlof; hij is dan niet aanwezig.
+    // Rust voor de ploeg zonder werkregime (Ploeg0, zie Werkregels.AllowsRestShifts) en andere
+    // afwezigheden/uurcodes voor Dispatching (Werkregels.OtherAbsences), op één tabel: één status per shift.
+    // Rust: een shift waarop iemand niet werkt. Codes: zie Werkregels. Geen verlof; afwezig telt niet als aanwezig.
     [ApiController]
     [Route("api/rest-shifts")]
     [Authorize]
@@ -67,7 +68,7 @@ namespace VerlofBWZC.Api.Controllers
             return Ok(items.Select(MapToDto));
         }
 
-        // Teamkalender opslaan: de rust van deze personen in dit jaar vervangen
+        // Teamkalender opslaan: de rust en codes van deze personen in dit jaar vervangen
         [HttpPost("save")]
         [Authorize(Roles = "Admin,Manager")]
         public async Task<IActionResult> Save(SaveRestShiftsRequest request)
@@ -81,8 +82,15 @@ namespace VerlofBWZC.Api.Controllers
 
             foreach (var person in persons.Values)
             {
-                if (!Werkregels.AllowsRestShifts(person.Team?.ToString()))
-                    return BadRequest($"Rust aanduiden kan enkel voor {Werkregels.NoRegimeTeam} ({person.FirstName} {person.LastName}).");
+                var name = $"{person.FirstName} {person.LastName}";
+                var own = request.Persons.Where(p => p.PersonId == person.Id).SelectMany(p => p.Days).ToList();
+                if (own.Any(d => d.Code == null) && !Werkregels.AllowsRestShifts(person.Team?.ToString()))
+                    return BadRequest($"Rust aanduiden kan enkel voor {Werkregels.NoRegimeTeam} ({name}).");
+                if (own.Any(d => d.Code != null) && !Werkregels.AllowsOtherAbsences(person.Speciality?.ToString()))
+                    return BadRequest($"Andere afwezigheden kunnen enkel voor {Werkregels.AllTeamsSpeciality} ({name}).");
+                var unknown = own.FirstOrDefault(d => d.Code != null && Werkregels.FindOtherAbsence(d.Code) == null);
+                if (unknown != null)
+                    return BadRequest($"Onbekende code '{unknown.Code}' ({name}).");
                 if (!await _me.CanManageTeamAsync(person.Team, person.Speciality))
                     return Forbid();
                 if (!_me.IsAdmin)
@@ -93,14 +101,18 @@ namespace VerlofBWZC.Api.Controllers
                 }
             }
 
-            var days = request.Persons
-                .SelectMany(p => p.Days.Select(d => (p.PersonId, Date: d.Date.Date, d.Shift)))
+            var all = request.Persons
+                .SelectMany(p => p.Days.Select(d => (p.PersonId, Date: d.Date.Date, d.Shift, d.Code)))
                 .Distinct()
                 .ToList();
-            if (days.Any(d => d.Shift is not ("D" or "N") || d.Date.Year != request.Year))
+            if (all.Any(d => d.Shift is not ("D" or "N") || d.Date.Year != request.Year))
                 return BadRequest($"Ongeldige shift of datum buiten {request.Year}.");
+            // Eén status per shift: rust of één code
+            if (all.GroupBy(d => (d.PersonId, d.Date, d.Shift)).Any(g => g.Count() > 1))
+                return BadRequest("Een shift kan maar één code of rust hebben.");
+            var days = all.Select(d => (d.PersonId, d.Date, d.Shift)).ToList();
 
-            // Rust en verlof op dezelfde shift kan niet
+            // Rust/code en verlof op dezelfde shift kan niet
             var leave = await _context.DayOffs.AsNoTracking()
                 .Where(d => ids.Contains(d.PersonId) && d.Date.Year == request.Year)
                 .Select(d => new { d.PersonId, d.Date, d.Shift })
@@ -109,18 +121,19 @@ namespace VerlofBWZC.Api.Controllers
             if (conflict != default)
             {
                 var p = persons[conflict.PersonId];
-                return BadRequest($"{p.FirstName} {p.LastName} heeft verlof op {conflict.Date:dd/MM/yyyy} {conflict.Shift}: rust en verlof samen kan niet.");
+                return BadRequest($"{p.FirstName} {p.LastName} heeft verlof op {conflict.Date:dd/MM/yyyy} {conflict.Shift}: rust of een code samen met verlof kan niet.");
             }
 
             var existing = await _context.RestShifts
                 .Where(r => ids.Contains(r.PersonId) && r.Date.Year == request.Year)
                 .ToListAsync();
             _context.RestShifts.RemoveRange(existing);
-            _context.RestShifts.AddRange(days.Select(d => new RestShift
+            _context.RestShifts.AddRange(all.Select(d => new RestShift
             {
                 PersonId = d.PersonId,
                 Date = d.Date,
                 Shift = d.Shift,
+                Code = d.Code,
                 LastUpdate = DateTime.Now
             }));
             await _context.SaveChangesAsync();
@@ -131,7 +144,8 @@ namespace VerlofBWZC.Api.Controllers
         {
             PersonId = r.PersonId,
             Date = r.Date,
-            Shift = r.Shift
+            Shift = r.Shift,
+            Code = r.Code
         };
     }
 }

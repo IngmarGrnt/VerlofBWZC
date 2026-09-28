@@ -1,0 +1,70 @@
+@using Radzen
+@using Radzen.Blazor
+@using VerlofBWZC.DataContracts
+@inject DialogService DialogService
+
+@* Andere afwezigheid of uurcode kiezen voor één shift (Dispatching). Sluit met de code, "" = weghalen, null = annuleren. *@
+
+<div class="oa">
+    <div class="oa-who">@PersonName · @ShiftText</div>
+    @if (HasLeave)
+    {
+        <div class="oa-warn"><i class="rzi">info</i> Deze shift heeft verlof. Een code kiezen haalt het verlof weg.</div>
+    }
+    else if (HasRest)
+    {
+        <div class="oa-warn"><i class="rzi">info</i> Deze shift heeft rust. Een code kiezen vervangt de rust.</div>
+    }
+
+    <div class="tl-section-title">Afwezig</div>
+    <div class="oa-grid">
+        @foreach (var a in Werkregels.OtherAbsences.Where(a => a.Absent))
+        {
+            <button type="button" class="@(a.Code == CurrentCode ? "oa-btn oa-btn-active" : "oa-btn")" title="@a.Name" @onclick="() => DialogService.Close(a.Code)">
+                <span class="oa-code">@a.Code</span>
+                <span class="oa-name">@a.Name</span>
+            </button>
+        }
+    </div>
+
+    <div class="tl-section-title">Uren verlof <span class="oa-sub">(telt als aanwezig)</span></div>
+    <div class="oa-grid">
+        @foreach (var a in Werkregels.OtherAbsences.Where(a => !a.Absent))
+        {
+            <button type="button" class="@(a.Code == CurrentCode ? "oa-btn oa-btn-hour oa-btn-active" : "oa-btn oa-btn-hour")" title="@a.Name" @onclick="() => DialogService.Close(a.Code)">
+                <span class="oa-code">@a.Code</span>
+                <span class="oa-name">@a.Name</span>
+            </button>
+        }
+    </div>
+
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="0.5rem" Style="margin-top:1rem">
+        @if (CurrentCode != null)
+        {
+            <RadzenButton Text="Code weghalen" Icon="delete" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Outlined" Click="@(() => DialogService.Close(""))" />
+        }
+        <RadzenButton Text="Annuleren" ButtonStyle="ButtonStyle.Light" Click="@(() => DialogService.Close(null))" />
+    </RadzenStack>
+</div>
+
+<style>
+    .oa-who { font-weight:600; color:var(--bwzc-navy); margin-bottom:.5rem; }
+    .oa-warn { font-size:.8rem; color:#8A5A00; background:#FFF6E0; border-radius:6px; padding:.35rem .5rem; margin-bottom:.5rem; display:flex; gap:.35rem; align-items:center; }
+    .oa-warn .rzi { font-size:16px; }
+    .oa-sub { font-weight:400; color:var(--rz-text-secondary-color); }
+    .oa-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:.35rem; margin-bottom:.5rem; }
+    .oa-btn { display:flex; align-items:center; gap:.45rem; padding:.35rem .5rem; border:1px solid var(--bwzc-line); border-radius:8px; background:var(--bwzc-white); cursor:pointer; text-align:left; font:inherit; }
+    .oa-btn:hover { border-color:var(--bwzc-navy); }
+    .oa-btn-active { border-color:var(--bwzc-navy); box-shadow:inset 0 0 0 1px var(--bwzc-navy); }
+    .oa-code { min-width:36px; padding:1px 4px; border-radius:5px; background:#4A5568; color:#fff; font-weight:700; font-size:.75rem; text-align:center; }
+    .oa-btn-hour .oa-code { background:#F2C94C; color:#3D2E00; }
+    .oa-name { font-size:.8rem; color:var(--bwzc-navy); }
+</style>
+
+@code {
+    [Parameter] public string PersonName { get; set; } = "";
+    [Parameter] public string ShiftText { get; set; } = "";
+    [Parameter] public string? CurrentCode { get; set; }
+    [Parameter] public bool HasLeave { get; set; }
+    [Parameter] public bool HasRest { get; set; }
+}
