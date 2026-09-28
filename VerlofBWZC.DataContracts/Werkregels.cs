@@ -22,6 +22,10 @@ namespace VerlofBWZC.DataContracts
         // Loting per shift in plaats van per paar
         public static bool LotteryPerShift(string? team) => HasNoRegime(team);
 
+        // Rust aanduiden (shift waarop hij niet werkt, geen verlof): enkel voor de ploeg zonder werkregime.
+        // De andere ploegen hebben hun vrije shiften al via het rooster (het gearceerde deel).
+        public static bool AllowsRestShifts(string? team) => HasNoRegime(team);
+
         // Telt deze ploeg mee voor de bezetting ("Bezet") van een andere ploeg die dezelfde shift werkt?
         // Nee voor de ploeg zonder werkregime (die telt enkel in haar eigen weergave; in de kolom "Totaal" telt ze mee als aanwezig)
         public static bool CountsForOtherTeamsOccupancy(string? team) => !HasNoRegime(team);

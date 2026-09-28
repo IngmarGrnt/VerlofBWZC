@@ -546,3 +546,17 @@
 .wc-chip-extra-mark {
     box-shadow: inset 0 -3px 0 #7B4FB8;
 }
+
+/* Rust (Ploeg0): gearceerd, niet klikbaar */
+.wc-chip-rest,
+.wc-swatch-rest {
+    background: repeating-linear-gradient(135deg, #F4F6FA, #F4F6FA 4px, #DDE3EE 4px, #DDE3EE 8px);
+}
+
+.wc-chip-rest {
+    cursor: default;
+}
+
+    .wc-chip-rest:active {
+        transform: none;
+    }

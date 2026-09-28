@@ -160,6 +160,10 @@
                 {
                     <span><span class="wc-swatch" style="background:#7B4FB8"></span>Extra shift</span>
                 }
+                @if (RestShifts.Any())
+                {
+                    <span><span class="wc-swatch wc-swatch-rest"></span>Rust</span>
+                }
             </div>
         </div>
         @if (Categories.Any() && CanSaveWork)
@@ -197,6 +201,15 @@
                             }
                             var day = item.Day;
                             var ownExtra = item.Extra;
+                            @if (ownExtra == null && RestShifts.Any(r => r.Date.Date == day.Date.Date && r.Shift == day.Shift))
+                            {
+                                @* Rust (Ploeg0): aangeduid door een verantwoordelijke; geen verlof, niet klikbaar *@
+                                <span class="wc-chip wc-chip-rest" title="@($"{day.Date.ToString("dddd d MMMM", Nl)} · {(day.Shift == "D" ? "dagshift" : "nachtshift")} · rust")">
+                                    <span class="wc-chip-day">@day.Date.ToString("dd")</span>
+                                    <span class="wc-chip-meta">@day.Shift · rust</span>
+                                </span>
+                                continue;
+                            }
                             var selected = selectedDays.FirstOrDefault(d => d.Date == day.Date && d.Shift == day.Shift);
                             var category = selected?.LeaveCategoryId is int catId ? Categories.FirstOrDefault(c => c.Id == catId) : null;
                             var holidayName = PublicHolidayName(day.Date);
@@ -544,6 +557,9 @@
     // Extra shiften in een andere ploeg (Dispatching), aangeduid door een verantwoordelijke
     private List<ExtraShiftDTO> ExtraShifts = new();
 
+    // Rust (Ploeg0, geen werkregime): shiften waarop hij niet werkt, aangeduid door een verantwoordelijke
+    private List<RestShiftDTO> RestShifts = new();
+
     private async Task LoadExtraShifts()
     {
         try
@@ -553,6 +569,16 @@
         catch
         {
             ExtraShifts = new();
+        }
+        try
+        {
+            RestShifts = Werkregels.AllowsRestShifts(PersonTeam)
+                ? await Http.GetFromJsonAsync<List<RestShiftDTO>>($"api/rest-shifts/mine?year={SelectedYear}") ?? new()
+                : new();
+        }
+        catch
+        {
+            RestShifts = new();
         }
     }
 
