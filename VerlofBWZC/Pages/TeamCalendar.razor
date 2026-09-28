@@ -95,11 +95,11 @@ else
             @if (ShowAllTeams)
             {
                 <div class="wc-stat-value">per ploeg</div>
-                <div class="wc-stat-note">@string.Join(" · ", ShownTeams.Where(t => TeamQuota(t) > 0).Select(t => $"{ShortTeam(t)}: {TeamQuota(t)}"))</div>
+                <div class="wc-stat-note">@string.Join(" · ", ShownTeams.Where(t => TeamQuota(t) > 0).Select(t => TeamQuota(t, "D") == TeamQuota(t, "N") ? $"{ShortTeam(t)}: {TeamQuota(t)}" : $"{ShortTeam(t)}: D {TeamQuota(t, "D")} / N {TeamQuota(t, "N")}"))</div>
             }
             else
             {
-                <div class="wc-stat-value">@DailyQuota</div>
+                <div class="wc-stat-value">@MaxPerShiftText</div>
                 <div class="wc-stat-note">min. verlof p.p.: @MinimumLeavePerPersonText</div>
             }
         </div>
@@ -387,7 +387,8 @@ else
 
 
     // Quota per dag (zelfde logica als in de cel-weergave)
-    private int DailyQuota => Math.Max(1, TeamMembers.Count / 4);
+    // Maximum voor de dagshift van de getoonde ploeg (samenvatting, minimum verlof p.p.)
+    private int DailyQuota => Math.Max(1, TeamQuota(SelectedTeam ?? "", "D"));
 
     // --- Alle ploegen (zelfde specialiteit van elke ploeg naast elkaar) ---
     private const string AllTeams = "Alle ploegen";
@@ -404,16 +405,37 @@ else
         !ShowAllTeams || TeamsOn(wd).Contains(member.Team ?? "");
 
     // Maximum per shift van één ploeg: een kwart van de getoonde leden van die ploeg
-    private int TeamQuota(string team)
+    // Ingestelde maxima per shift (Instellingen > Max per shift) van de getoonde ploegen
+    private List<ShiftQuotaDTO> ShiftQuotaRules = new();
+
+    // Maximum van één ploeg voor een shift. Per specialiteit geldt de ingestelde regel;
+    // zonder regels de standaard: een kwart van de getoonde personen van die ploeg (minstens 1).
+    private int TeamQuota(string team, string shift = "D")
     {
-        var count = TeamMembers.Count(m => m.Team == team);
-        return count == 0 ? 0 : Math.Max(1, count / 4); // ploeg zonder personen telt niet mee
+        var members = TeamMembers.Where(m => m.Team == team).ToList();
+        if (members.Count == 0)
+            return 0; // ploeg zonder personen telt niet mee
+
+        var bySpec = members.GroupBy(m => m.Speciality ?? "").ToList();
+        var rules = bySpec
+            .Select(g => (g, rule: ShiftQuotaRules.FirstOrDefault(r => r.Team == team && r.Speciality == g.Key)))
+            .ToList();
+        if (rules.All(x => x.rule == null))
+            return ShiftQuotaDTO.DefaultFor(members.Count);
+
+        return rules.Sum(x => x.rule?.MaxFor(shift) ?? ShiftQuotaDTO.DefaultFor(x.g.Count()));
     }
 
     // Maximum voor een rij: bij alle ploegen de som van de ploegen die die shift werken
     private int QuotaFor(WorkDay wd) => ShowAllTeams
-        ? Math.Max(1, TeamsOn(wd).Sum(TeamQuota))
-        : DailyQuota;
+        ? Math.Max(1, TeamsOn(wd).Sum(t => TeamQuota(t, wd.Shift)))
+        : TeamQuota(SelectedTeam ?? "", wd.Shift);
+
+    private bool QuotaDiffersPerShift => TeamQuota(SelectedTeam ?? "", "D") != TeamQuota(SelectedTeam ?? "", "N");
+
+    private string MaxPerShiftText => QuotaDiffersPerShift
+        ? $"D {TeamQuota(SelectedTeam ?? "", "D")} · N {TeamQuota(SelectedTeam ?? "", "N")}"
+        : DailyQuota.ToString();
 
     private int QuotaFor(DateTime date, string shift) => QuotaFor(new WorkDay { Date = date, Shift = shift });
 
@@ -968,6 +990,7 @@ private void OnDayClicked(int personId, WorkDay day)
         var members = new List<PersonBaseDTO>();
         var daysOff = new List<TeamDayOffDTO>();
         var categories = new List<LeaveCategoryDTO>();
+        var quotaRules = new List<ShiftQuotaDTO>();
         WorkDaysByTeam = new();
         foreach (var teamName in ShownTeams)
         {
@@ -997,7 +1020,18 @@ private void OnDayClicked(int personId, WorkDay day)
             {
                 // geen categorieën voor deze ploeg
             }
+
+            // Ingestelde maxima per shift van deze ploeg (zonder regel: standaard)
+            try
+            {
+                quotaRules.AddRange(await Http.GetFromJsonAsync<List<ShiftQuotaDTO>>($"api/shift-quotas?team={teamName}&year={SelectedYear}") ?? new());
+            }
+            catch
+            {
+                // standaard
+            }
         }
+        ShiftQuotaRules = quotaRules;
 
         // Gegroepeerd per ploeg (volgorde van de keuzelijst)
         TeamMembers = members.OrderBy(m => ShownTeams.IndexOf(m.Team ?? "")).ToList();

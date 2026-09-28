@@ -116,6 +116,9 @@ namespace VerlofBWZC.Api.Controllers
             PasswordHelper.CreatePasswordHash(temporary, out string hash, out string salt);
             personDTO.PasswordHash = hash;
             personDTO.Salt = salt;
+            personDTO.Email = personDTO.Email?.Trim() ?? "";
+            personDTO.FirstName = personDTO.FirstName?.Trim() ?? "";
+            personDTO.LastName = personDTO.LastName?.Trim() ?? "";
             var person = _mapper.Map<Person>(personDTO);
             person.PasswordIterations = PasswordHelper.CurrentIterations;
             person.MustChangePassword = true;
