@@ -1,6 +1,8 @@
 @using Radzen
 @using Radzen.Blazor
+@using VerlofBWZC.DataContracts.DTO.Access
 @using VerlofBWZC.Services
+@using VerlofBWZC.Pages
 @inject HttpClient Http
 @inject DemoModeService Demo
 @inject DialogService DialogService
@@ -23,6 +25,36 @@
         <label>Specialiteit</label>
         <RadzenDropDown TValue="string" Data="@specialities" @bind-Value="speciality" Style="width:100%" />
     </div>
+
+    @if (role == "Manager")
+    {
+        @* Manager: optioneel extra ploegen/specialiteiten, zoals een manager die meerdere ploegen beheert *@
+        <div class="ms">
+            <div class="ms-label">Beheert ook (optioneel)</div>
+            <div class="ms-chips">
+                @foreach (var s in extra)
+                {
+                    <span class="ms-chip">
+                        @ManagerScopesDialog.ChipText(s.Team, s.Speciality)
+                        <button type="button" class="ms-chip-x" title="Verwijderen" aria-label="Verwijderen" @onclick="() => extra.Remove(s)">
+                            <i class="rzi">close</i>
+                        </button>
+                    </span>
+                }
+                @if (!extra.Any())
+                {
+                    <span class="tl-hint">Enkel de ploeg en specialiteit hierboven.</span>
+                }
+            </div>
+            <div class="ms-add">
+                <RadzenDropDown TValue="string" Data="@teams" @bind-Value="newTeam" Placeholder="Ploeg" Style="width:120px" />
+                <RadzenDropDown TValue="string" Data="@SpecialityChoices" @bind-Value="newSpeciality" Placeholder="Specialiteit" Style="width:170px" />
+                <RadzenButton Icon="add" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Outlined" title="Toevoegen" aria-label="Toevoegen"
+                              Disabled="@(string.IsNullOrEmpty(newTeam) || string.IsNullOrEmpty(newSpeciality))" Click="Add" />
+            </div>
+        </div>
+    }
+
     @if (!string.IsNullOrEmpty(error))
     {
         <div class="rz-color-danger">@error</div>
@@ -44,6 +76,12 @@
     private string? error;
     private bool busy;
 
+    // Extra ploegen/specialiteiten voor een demo als Manager
+    private List<ScopeItemDTO> extra = new();
+    private string? newTeam;
+    private string? newSpeciality;
+    private List<string> SpecialityChoices => new List<string> { ManagerScopesDialog.AllLabel }.Concat(specialities).ToList();
+
     protected override async Task OnInitializedAsync()
     {
         roles = await Http.GetFromJsonAsync<List<string>>("api/meta/roles") ?? new();
@@ -53,10 +91,24 @@
         speciality = specialities.FirstOrDefault();
     }
 
+    private void Add()
+    {
+        var spec = newSpeciality == ManagerScopesDialog.AllLabel ? null : newSpeciality;
+        if (spec != null && newTeam == team && spec == speciality)
+            return; // de eigen ploeg en specialiteit telt al mee
+        if (extra.Any(e => e.Team == newTeam && (string.IsNullOrEmpty(e.Speciality) || e.Speciality == spec)))
+            return;
+        if (spec == null)
+            extra.RemoveAll(e => e.Team == newTeam);
+        extra.Add(new ScopeItemDTO { Team = newTeam!, Speciality = spec });
+        extra = extra.OrderBy(e => teams.IndexOf(e.Team)).ThenBy(e => e.Speciality == null ? -1 : specialities.IndexOf(e.Speciality)).ToList();
+        newSpeciality = null;
+    }
+
     private async Task Start()
     {
         busy = true;
-        error = await Demo.StartAsync(role!, team!, speciality!);
+        error = await Demo.StartAsync(role!, team!, speciality!, role == "Manager" ? extra : null);
         busy = false;
     }
 }

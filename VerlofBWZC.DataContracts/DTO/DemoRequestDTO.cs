@@ -1,3 +1,6 @@
+using System.Collections.Generic;
+using VerlofBWZC.DataContracts.DTO.Access;
+
 namespace VerlofBWZC.DataContracts.DTO
 {
     // Demo modus: admin bekijkt de app als deze rol, ploeg en specialiteit
@@ -6,5 +9,8 @@ namespace VerlofBWZC.DataContracts.DTO
         public string Role { get; set; } = "User";
         public string Team { get; set; } = string.Empty;
         public string Speciality { get; set; } = string.Empty;
+
+        // Enkel bij Manager: extra ploegen/specialiteiten die hij beheert (Speciality null = alle)
+        public List<ScopeItemDTO> Scopes { get; set; } = new();
     }
 }

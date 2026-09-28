@@ -24,7 +24,8 @@ namespace VerlofBWZC.Services
             _nav = nav;
         }
 
-        public record DemoInfo(string Role, string Team, string Speciality);
+        // Extra: bij Manager de extra ploegen, bv. "Ploeg2 · IGS", "Ploeg3 · alle specialiteiten"
+        public record DemoInfo(string Role, string Team, string Speciality, List<string> Extra);
 
         public async Task<DemoInfo?> GetActiveAsync()
         {
@@ -35,7 +36,12 @@ namespace VerlofBWZC.Services
             return new DemoInfo(
                 JwtUtils.GetUserRolFromToken(token) ?? "",
                 JwtUtils.GetClaim(token, "team") ?? "",
-                JwtUtils.GetClaim(token, "speciality") ?? "");
+                JwtUtils.GetClaim(token, "speciality") ?? "",
+                (JwtUtils.GetClaim(token, "demo_scopes") ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(p => p.Split(':'))
+                    .Where(b => b.Length == 2)
+                    .Select(b => b[1] == "*" ? $"{b[0]} · alle specialiteiten" : $"{b[0]} · {b[1]}")
+                    .ToList());
         }
 
         // Enkel een echte (niet-demo) admin kan de demo modus starten
@@ -45,10 +51,10 @@ namespace VerlofBWZC.Services
             return !JwtUtils.IsDemo(token) && JwtUtils.GetUserRolFromToken(token) == "Admin";
         }
 
-        public async Task<string?> StartAsync(string role, string team, string speciality)
+        public async Task<string?> StartAsync(string role, string team, string speciality, List<VerlofBWZC.DataContracts.DTO.Access.ScopeItemDTO>? scopes = null)
         {
             var adminToken = await _js.InvokeAsync<string?>("localStorage.getItem", AuthTokenKey);
-            var response = await _http.PostAsJsonAsync("api/person/demo", new DemoRequestDTO { Role = role, Team = team, Speciality = speciality });
+            var response = await _http.PostAsJsonAsync("api/person/demo", new DemoRequestDTO { Role = role, Team = team, Speciality = speciality, Scopes = scopes ?? new() });
             if (!response.IsSuccessStatusCode)
                 return "Demo modus starten mislukt.";
 

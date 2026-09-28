@@ -389,7 +389,25 @@ namespace VerlofBWZC.Api.Controllers
             if (!Enum.TryParse<Speciality>(request.Speciality, true, out var spec))
                 return BadRequest("Ongeldige specialiteit.");
 
-            var token = JwtTokenHelper.GenerateDemoToken(admin, role.ToString(), team.ToString(), spec.ToString(), _configuration);
+            // Manager: optioneel extra ploegen/specialiteiten om te bekijken hoe een manager van meerdere ploegen het ziet
+            var scopeParts = new List<string>();
+            if (role == Role.Manager)
+            {
+                foreach (var s in request.Scopes ?? new())
+                {
+                    if (!Enum.TryParse<TeamName>(s.Team, true, out var st))
+                        return BadRequest($"Ongeldige ploeg: {s.Team}");
+                    if (string.IsNullOrWhiteSpace(s.Speciality))
+                        scopeParts.Add($"{st}:*");
+                    else if (Enum.TryParse<Speciality>(s.Speciality, true, out var ss))
+                        scopeParts.Add($"{st}:{ss}");
+                    else
+                        return BadRequest($"Ongeldige specialiteit: {s.Speciality}");
+                }
+            }
+
+            var token = JwtTokenHelper.GenerateDemoToken(admin, role.ToString(), team.ToString(), spec.ToString(), _configuration,
+                scopeParts.Count > 0 ? string.Join(";", scopeParts.Distinct()) : null);
             return Ok(new { token });
         }
 
