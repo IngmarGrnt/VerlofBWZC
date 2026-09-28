@@ -17,8 +17,8 @@ namespace VerlofBWZC.Api.Helpers
             var start = new DateTime(year, 1, 1);
             var end = new DateTime(year, 12, 31);
 
-            // Ploeg0 heeft geen vast werkregime: elke dag een dag- en een nachtshift
-            if (team.Name == DataAccess.Enums.TeamName.Ploeg0)
+            // Ploeg zonder vast werkregime (Werkregels.NoRegimeTeam): elke dag een dag- en een nachtshift
+            if (VerlofBWZC.DataContracts.Werkregels.HasNoRegime(team.Name.ToString()))
             {
                 for (var day = start; day <= end; day = day.AddDays(1))
                 {

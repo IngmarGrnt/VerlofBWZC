@@ -3,6 +3,7 @@
 @using System.Net.Http.Headers
 @using Radzen
 @using Radzen.Blazor
+@using VerlofBWZC.DataContracts
 @using VerlofBWZC.DataContracts.DTO
 @using VerlofBWZC.DataContracts.DTO.Access
 @using VerlofBWZC.DataContracts.DTO.Calendar
@@ -272,8 +273,8 @@ else
         public string Key => $"{Day:yyyyMMdd}{Shift}";
     }
 
-    // Ploeg0 heeft geen werkregime: loting per shift in plaats van per paar
-    private bool IsNoRegime => SelectedTeam == "Ploeg0";
+    // Ploeg zonder werkregime (Werkregels): loting per shift in plaats van per paar
+    private bool IsNoRegime => Werkregels.LotteryPerShift(SelectedTeam);
 
     // Maximum per shift: ingestelde regel (Instellingen > Max per shift) of standaard een kwart van de personen
     private ShiftQuotaDTO? quotaRule;

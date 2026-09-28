@@ -95,7 +95,7 @@ else
             @if (ShowAllTeams)
             {
                 <div class="wc-stat-value">per ploeg</div>
-                <div class="wc-stat-note">@string.Join(" · ", ShownTeams.Where(t => TeamQuota(t) > 0 && t != NoRegimeTeam).Select(t => TeamQuota(t, "D") == TeamQuota(t, "N") ? $"{ShortTeam(t)}: {TeamQuota(t)}" : $"{ShortTeam(t)}: D {TeamQuota(t, "D")} / N {TeamQuota(t, "N")}"))</div>
+                <div class="wc-stat-note">@string.Join(" · ", ShownTeams.Where(t => TeamQuota(t) > 0 && Werkregels.CountsForOtherTeamsOccupancy(t)).Select(t => TeamQuota(t, "D") == TeamQuota(t, "N") ? $"{ShortTeam(t)}: {TeamQuota(t)}" : $"{ShortTeam(t)}: D {TeamQuota(t, "D")} / N {TeamQuota(t, "N")}"))</div>
             }
             else
             {
@@ -443,7 +443,7 @@ else
 
     // Maximum voor een rij: bij alle ploegen de som van de ploegen die die shift werken
     private int QuotaFor(WorkDay wd) => ShowAllTeams
-        ? Math.Max(1, TeamsOn(wd).Where(t => t != NoRegimeTeam).Sum(t => TeamQuota(t, wd.Shift)))
+        ? Math.Max(1, TeamsOn(wd).Where(Werkregels.CountsForOtherTeamsOccupancy).Sum(t => TeamQuota(t, wd.Shift)))
         : TeamQuota(SelectedTeam ?? "", wd.Shift);
 
     private bool QuotaDiffersPerShift => TeamQuota(SelectedTeam ?? "", "D") != TeamQuota(SelectedTeam ?? "", "N");
@@ -551,12 +551,12 @@ else
     }
 
     // Ploegen; bij Dispatching ook "Alle ploegen" als de gebruiker Dispatching van minstens 2 ploegen mag zien
-    private const string Dispatching = "Dispatching";
+    private const string Dispatching = Werkregels.AllTeamsSpeciality;
 
     private void BuildTeamOptions()
     {
         TeamOptions = Scope.Teams.ToList();
-        if (SelectedSpeciality == Dispatching && Scope.TeamsFor(Dispatching).Count >= 2)
+        if (Werkregels.AllowsAllTeamsView(SelectedSpeciality) && Scope.TeamsFor(SelectedSpeciality).Count >= Werkregels.MinTeamsForAllTeamsView)
             TeamOptions.Add(AllTeams);
     }
 
@@ -720,7 +720,8 @@ else
         selectedDays.Count(d => d.Date.Date == date && d.Shift == shift && CountsForOccupancy(d.PersonId));
 
     // Bij "Alle ploegen" telt Ploeg0 niet mee voor de bezetting van een andere ploeg (enkel in de eigen weergave van Ploeg0)
-    private bool CountsForOccupancy(int personId) => !ShowAllTeams || !IsNoRegime(personId);
+    private bool CountsForOccupancy(int personId) =>
+        !ShowAllTeams || Werkregels.CountsForOtherTeamsOccupancy(TeamMembers.FirstOrDefault(m => m.Id == personId)?.Team);
 
     // Extra kolom "Totaal" (Ploeg0 inbegrepen): enkel bij alle ploegen, als er Ploeg0-personen getoond worden
     private bool ShowTotalColumn => ShowAllTeams && TeamMembers.Any(m => m.Team == NoRegimeTeam);
@@ -728,19 +729,20 @@ else
     private int TotalOnShift(WorkDay wd) =>
         selectedDays.Count(d => d.Date.Date == wd.Date.Date && d.Shift == wd.Shift && TeamMembers.Any(m => m.Id == d.PersonId));
 
-    // Ploeg0: geen vast werkregime (elke dag D en N); losse shiften en paren gelden er niet
-    private const string NoRegimeTeam = "Ploeg0";
+    // Ploeg zonder vast werkregime (Werkregels.NoRegimeTeam, nu Ploeg0): elke dag D en N; losse shiften en paren gelden er niet
+    private const string NoRegimeTeam = Werkregels.NoRegimeTeam;
 
+    // Gelden de regels "per 2 shiften" (losse shiften, paren) niet voor deze persoon?
     private bool IsNoRegime(int personId) =>
-        TeamMembers.FirstOrDefault(m => m.Id == personId)?.Team == NoRegimeTeam;
+        !Werkregels.PairRulesApply(TeamMembers.FirstOrDefault(m => m.Id == personId)?.Team);
 
-    // Loting per shift in plaats van per paar: de getoonde ploeg is Ploeg0, of iedereen op die shift zit in Ploeg0
+    // Loting per shift in plaats van per paar: de getoonde ploeg heeft geen werkregime, of iedereen op die shift niet
     private bool LotteryPerShift(WorkDay wd)
     {
         if (!ShowAllTeams)
-            return SelectedTeam == NoRegimeTeam;
+            return Werkregels.LotteryPerShift(SelectedTeam);
         var teams = TeamsOn(wd);
-        return teams.Count > 0 && teams.All(t => t == NoRegimeTeam);
+        return teams.Count > 0 && teams.All(Werkregels.LotteryPerShift);
     }
 
     private bool PairOverQuota(WorkDay wd)

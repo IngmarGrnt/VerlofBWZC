@@ -14,6 +14,6 @@ namespace VerlofBWZC.DataContracts.DTO.Leave
         public int MaxFor(string? shift) => shift == "N" ? NightMax : DayMax;
 
         // Standaard zonder regel: een kwart van de personen, minstens 1
-        public static int DefaultFor(int members) => System.Math.Max(1, members / 4);
+        public static int DefaultFor(int members) => Werkregels.DefaultShiftQuota(members);
     }
 }

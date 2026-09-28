@@ -1,0 +1,52 @@
+# Regels van de verlofplanner
+
+Dit is een overzicht van alle regels die gelden per ploeg en specialiteit: wat de regel doet, waar je hem eventueel instelt in de app, en waar hij in de code staat.
+
+Er zijn twee soorten regels:
+
+- **Vaste werkregels.** Deze staan in de code en zijn **geen instelling in de app**. Enkel de beheerder of ontwikkelaar kan ze wijzigen, in `VerlofBWZC.DataContracts/Werkregels.cs`. Daarna is een nieuwe deploy nodig.
+- **Instelbare regels.** Deze stel je in via een menu in de app, afhankelijk van je rechten. Als er niets is ingesteld, geldt de standaardwaarde.
+
+---
+
+## 1. Vaste werkregels (enkel in de code, `Werkregels.cs`)
+
+| Regel | Wat het doet | Code |
+|---|---|---|
+| **Ploeg0 heeft geen werkregime** | De andere ploegen werken een cyclus van 4 dagen: dag, nacht, 2 dagen vrij. Ploeg0 kan elke dag en elke nacht werken. | `Werkregels.NoRegimeTeam`, `HasNoRegime`; gebruikt in `VerlofBWZC.Api/Helpers/CalenderHelper.cs` |
+| **Per 2 shiften (paar)** | Verlof wordt normaal per paar genomen: een dagshift en de nachtshift erna. Een losse shift toont een waarschuwing. **Geldt niet voor Ploeg0.** | `Werkregels.PairRulesApply`; gebruikt in `WorkCalendar.razor` en `TeamCalendar.razor` |
+| **Loting per paar of per shift** | Een loting gebeurt standaard per paar (D+N). Voor Ploeg0 gebeurt ze per shift. | `Werkregels.LotteryPerShift`; gebruikt in `TeamCalendar.razor` en `RandomNamePicker.razor` |
+| **Bezetting telt Ploeg0 niet mee** | Ploeg0 telt niet mee in "Bezet" en in het maximum van een andere ploeg die dezelfde shift werkt. In de kolom **Totaal** telt Ploeg0 wel mee. | `Werkregels.CountsForOtherTeamsOccupancy`; gebruikt in `TeamCalendar.razor` |
+| **"Alle ploegen" enkel voor Dispatching** | In de teamkalender kan de keuze "Alle ploegen" alle ploegen naast elkaar tonen. Dit kan enkel voor de specialiteit Dispatching, en enkel als je minstens 2 ploegen van Dispatching mag zien. | `Werkregels.AllTeamsSpeciality`, `MinTeamsForAllTeamsView`, `AllowsAllTeamsView` |
+| **Standaard max per shift** | Als er geen regel is bij *Max per shift*, is het maximum een kwart van de personen, met minstens 1. | `Werkregels.DefaultShiftQuota` (via `ShiftQuotaDTO.DefaultFor`) |
+
+Een nieuwe uitzondering toevoegen, zoals een tweede ploeg zonder werkregime, kan in `Werkregels.cs`. Alle schermen en de server volgen dan automatisch.
+
+## 2. Andere vaste standaarden (in de code)
+
+| Regel | Waarde | Code |
+|---|---|---|
+| Verlofshiften per persoon per jaar | 44, per persoon aanpasbaar bij *Personen* | `VerlofBWZC.DataContracts/PersonDefaults.cs` |
+| Kwartaalmaxima als er niets is ingesteld | Q1 14, Q2 16, Q3 14 | `VerlofBWZC.DataContracts/DTO/Leave/QuarterLimitDTO.cs` |
+| Wachtwoord | Minstens 8 tekens, geen veelgebruikt wachtwoord, niet je naam of e-mail | `VerlofBWZC.DataContracts/PasswordPolicy.cs` |
+| Registratie | Enkel adressen op `@bwzc.be`. Nieuwe accounts komen in Ploeg1 met rol User en 44 shiften, en moeten eerst goedgekeurd worden. | `VerlofBWZC.DataContracts/DTO/RegisterDTO.cs`, `PersonController.Register` |
+| Rooster | Dagshift op dag X, nachtshift op X+1, cyclus van 4 dagen vanaf de startdatum van de ploeg | `VerlofBWZC.Api/Helpers/CalenderHelper.cs` |
+
+## 3. Instelbare regels (in de app)
+
+| Regel | Menu | Wie |
+|---|---|---|
+| Verlofcategorieën: kleur, code, en of de shiften "aansluitend" moeten zijn | Verlofregels → **Verlofcategorieën** | Admin of manager |
+| Kwartaalmaxima per ploeg en specialiteit | Verlofregels → **Kwartaalmaxima** | Admin, of een manager voor zijn eigen ploegen en specialiteiten |
+| Max per shift per ploeg, specialiteit en eventueel jaar (dag en nacht samen of apart) | Verlofregels → **Max per shift** | Admin, of een manager voor zijn eigen ploegen en specialiteiten |
+| Wie mag de teamkalender bewerken of loten | Beheer → **Manager Paneel** | Admin of manager |
+| Extra ploegen en specialiteiten van een manager | Beheer → **Personen** (oranje knop naast "Manager") | Admin |
+| Registraties goedkeuren of weigeren | Beheer → **Personen** | Admin of manager |
+
+## 4. Rechten (rollen)
+
+- **User** ziet de eigen ploeg en specialiteit.
+- **Manager** ziet en beheert de eigen ploeg en specialiteit, plus de extra ploegen en specialiteiten die bij *Personen* zijn toegewezen. Of hij in de teamkalender mag opslaan of loten, hangt af van het Manager Paneel.
+- **Admin** mag alles, en heeft als enige de demomodus.
+
+In de code: `VerlofBWZC.Api/Services/UserContext.cs` (scopes) en `CalendarAccessService.cs` (Manager Paneel).
