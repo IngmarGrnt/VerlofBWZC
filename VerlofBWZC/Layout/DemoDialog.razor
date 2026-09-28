@@ -3,7 +3,9 @@
 @using VerlofBWZC.DataContracts.DTO.Access
 @using VerlofBWZC.Services
 @using VerlofBWZC.Pages
+@using VerlofBWZC.DataContracts
 @inject HttpClient Http
+@inject IJSRuntime JS
 @inject DemoModeService Demo
 @inject DialogService DialogService
 
@@ -13,6 +15,25 @@
 </p>
 
 <RadzenStack Gap="0.75rem">
+    @* Sjablonen: vaste voorbeelden + zelf bewaarde (enkel in deze browser) *@
+    <div>
+        <label>Sjabloon</label>
+        <div class="demo-tpl">
+            @foreach (var t in BuiltInTemplates.Concat(saved))
+            {
+                <span class="ms-chip demo-tpl-chip @(IsCurrent(t) ? "demo-tpl-active" : "")" title="@Describe(t)" @onclick="() => Apply(t)">
+                    @t.Name
+                    @if (saved.Contains(t))
+                    {
+                        <button type="button" class="ms-chip-x" title="Sjabloon verwijderen" aria-label="Sjabloon verwijderen"
+                                @onclick="() => RemoveTemplate(t)" @onclick:stopPropagation="true">
+                            <i class="rzi">close</i>
+                        </button>
+                    }
+                </span>
+            }
+        </div>
+    </div>
     <div>
         <label>Rol</label>
         <RadzenDropDown TValue="string" Data="@roles" @bind-Value="role" Style="width:100%" />
@@ -55,6 +76,21 @@
         </div>
     }
 
+    <div class="demo-tpl-save">
+        <RadzenTextBox @bind-Value="templateName" Placeholder="Naam voor dit sjabloon" Style="flex:1" />
+        <RadzenButton Text="Bewaar als sjabloon" Icon="bookmark_add" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Outlined" Size="ButtonSize.Small"
+                      Disabled="@(string.IsNullOrWhiteSpace(templateName) || string.IsNullOrEmpty(role) || string.IsNullOrEmpty(team) || string.IsNullOrEmpty(speciality))"
+                      Click="SaveTemplate" />
+    </div>
+
+    <style>
+        .demo-tpl { display:flex; flex-wrap:wrap; gap:.35rem; margin-top:.25rem; }
+        .demo-tpl-chip { cursor:pointer; }
+        .demo-tpl-chip:hover { filter:brightness(.95); }
+        .demo-tpl-active { outline:2px solid var(--rz-primary); }
+        .demo-tpl-save { display:flex; gap:.5rem; align-items:center; }
+    </style>
+
     @if (!string.IsNullOrEmpty(error))
     {
         <div class="rz-color-danger">@error</div>
@@ -92,6 +128,7 @@
         specialities = await Http.GetFromJsonAsync<List<string>>("api/meta/specialities") ?? new();
         team = teams.FirstOrDefault(t => t == "Ploeg1") ?? teams.FirstOrDefault();
         speciality = specialities.FirstOrDefault();
+        await LoadTemplates();
 
         // Lopende demo aanpassen: huidige keuzes invullen
         if (Initial != null)
@@ -115,6 +152,112 @@
         extra.Add(new ScopeItemDTO { Team = newTeam!, Speciality = spec });
         extra = extra.OrderBy(e => teams.IndexOf(e.Team)).ThenBy(e => e.Speciality == null ? -1 : specialities.IndexOf(e.Speciality)).ToList();
         newSpeciality = null;
+    }
+
+    // --- Sjablonen ------------------------------------------------------------------------------
+    public class DemoTemplate
+    {
+        public string Name { get; set; } = "";
+        public string Role { get; set; } = "";
+        public string Team { get; set; } = "";
+        public string Speciality { get; set; } = "";
+        public List<ScopeItemDTO> Scopes { get; set; } = new();
+    }
+
+    private const string TemplatesKey = "demoTemplates";
+    private List<DemoTemplate> saved = new();
+    private List<DemoTemplate> builtIn = new();
+    private string? templateName;
+
+    private IEnumerable<DemoTemplate> BuiltInTemplates => builtIn;
+
+    // Vaste sjablonen, enkel met ploegen/specialiteiten die bestaan
+    private List<DemoTemplate> CreateBuiltInTemplates()
+    {
+        var list = new List<DemoTemplate>();
+        var disp = Werkregels.AllTeamsSpeciality;
+        var first = teams.FirstOrDefault(t => !Werkregels.HasNoRegime(t)) ?? teams.FirstOrDefault();
+        if (first == null) return list;
+
+        if (specialities.Contains(disp))
+        {
+            list.Add(new DemoTemplate
+            {
+                Name = "Manager Dispatching – alle ploegen",
+                Role = "Manager", Team = first, Speciality = disp,
+                Scopes = teams.Where(t => t != first).Select(t => new ScopeItemDTO { Team = t, Speciality = disp }).ToList()
+            });
+            list.Add(new DemoTemplate { Name = $"Medewerker Dispatching {first}", Role = "User", Team = first, Speciality = disp });
+            if (teams.Contains(Werkregels.NoRegimeTeam))
+                list.Add(new DemoTemplate { Name = $"Medewerker Dispatching {Werkregels.NoRegimeTeam}", Role = "User", Team = Werkregels.NoRegimeTeam, Speciality = disp });
+        }
+        var other = specialities.FirstOrDefault(s => s != disp);
+        if (other != null)
+        {
+            list.Add(new DemoTemplate { Name = $"Manager {other} {first}", Role = "Manager", Team = first, Speciality = other });
+            list.Add(new DemoTemplate { Name = $"Medewerker {other} {first}", Role = "User", Team = first, Speciality = other });
+        }
+        return list;
+    }
+
+    private void Apply(DemoTemplate t)
+    {
+        role = t.Role;
+        team = t.Team;
+        speciality = t.Speciality;
+        extra = t.Scopes.Select(s => new ScopeItemDTO { Team = s.Team, Speciality = s.Speciality }).ToList();
+        error = null;
+    }
+
+    private bool IsCurrent(DemoTemplate t) =>
+        t.Role == role && t.Team == team && t.Speciality == speciality
+        && (role != "Manager" || ScopeKey(t.Scopes) == ScopeKey(extra));
+
+    private static string ScopeKey(IEnumerable<ScopeItemDTO> scopes) =>
+        string.Join(";", scopes.Select(s => $"{s.Team}:{s.Speciality}").OrderBy(x => x));
+
+    private static string Describe(DemoTemplate t)
+    {
+        var text = $"{t.Role} · {t.Team} · {t.Speciality}";
+        if (t.Role == "Manager" && t.Scopes.Any())
+            text += " · beheert ook: " + string.Join(", ", t.Scopes.Select(s => ManagerScopesDialog.ChipText(s.Team, s.Speciality)));
+        return text;
+    }
+
+    private async Task LoadTemplates()
+    {
+        builtIn = CreateBuiltInTemplates();
+        try
+        {
+            var json = await JS.InvokeAsync<string?>("localStorage.getItem", TemplatesKey);
+            saved = string.IsNullOrEmpty(json) ? new() : System.Text.Json.JsonSerializer.Deserialize<List<DemoTemplate>>(json) ?? new();
+        }
+        catch { saved = new(); }
+    }
+
+    private async Task StoreTemplates()
+    {
+        try { await JS.InvokeVoidAsync("localStorage.setItem", TemplatesKey, System.Text.Json.JsonSerializer.Serialize(saved)); }
+        catch { /* niet bewaard: sjablonen blijven dan enkel tot het venster sluit */ }
+    }
+
+    private async Task SaveTemplate()
+    {
+        var name = templateName!.Trim();
+        saved.RemoveAll(t => t.Name == name);
+        saved.Add(new DemoTemplate
+        {
+            Name = name, Role = role!, Team = team!, Speciality = speciality!,
+            Scopes = role == "Manager" ? extra.ToList() : new()
+        });
+        templateName = null;
+        await StoreTemplates();
+    }
+
+    private async Task RemoveTemplate(DemoTemplate t)
+    {
+        saved.Remove(t);
+        await StoreTemplates();
     }
 
     private async Task Start()
