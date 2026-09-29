@@ -1,0 +1,83 @@
+@using Radzen
+@using Radzen.Blazor
+@using VerlofBWZC.Services
+@implements IDisposable
+@inject AppInstallService Install
+@inject DialogService DialogService
+
+@* Gsm: voorstel om de Verlofplanner als app te installeren. Niet als ze al als app open is of na "Later" (2 weken). *@
+
+@if (show)
+{
+    <div class="install-banner" role="region" aria-label="App installeren">
+        <img src="icon-192.png" alt="" width="36" height="36" class="install-icon" />
+        <div class="install-text">
+            <strong>Verlofplanner als app</strong>
+            @if (Install.Current.CanPrompt)
+            {
+                <span>Zet de Verlofplanner op je beginscherm.</span>
+            }
+            else
+            {
+                <span>Tik op <strong>Delen</strong> <i class="bi bi-box-arrow-up" aria-hidden="true"></i> en kies <strong>Zet op beginscherm</strong>.</span>
+            }
+        </div>
+        <div class="install-actions">
+            @if (Install.Current.CanPrompt)
+            {
+                <RadzenButton Text="Installeren" Icon="install_mobile" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Small" Click="InstallAsync" />
+            }
+            else
+            {
+                <RadzenButton Text="Hoe?" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Outlined" Size="ButtonSize.Small" Click="ShowHelpAsync" />
+            }
+            <RadzenButton Text="Later" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" Click="LaterAsync" />
+        </div>
+    </div>
+}
+
+@code {
+    private bool show;
+    private bool snoozed;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+        Install.Changed += OnChanged;
+        await Install.InitAsync();
+        snoozed = await Install.IsSnoozedAsync();
+        Update();
+    }
+
+    private void Update()
+    {
+        var s = Install.Current;
+        var newShow = s.Mobile && s.CanInstall && !snoozed;
+        if (newShow != show)
+        {
+            show = newShow;
+            StateHasChanged();
+        }
+    }
+
+    private void OnChanged() => InvokeAsync(() => { Update(); StateHasChanged(); });
+
+    private async Task InstallAsync()
+    {
+        var outcome = await Install.PromptAsync();
+        if (outcome == "dismissed")
+            await LaterAsync();
+    }
+
+    private async Task LaterAsync()
+    {
+        await Install.SnoozeAsync();
+        snoozed = true;
+        Update();
+    }
+
+    private Task ShowHelpAsync() => InstallHelpDialog.ShowAsync(DialogService, Install.Current);
+
+    public void Dispose() => Install.Changed -= OnChanged;
+}

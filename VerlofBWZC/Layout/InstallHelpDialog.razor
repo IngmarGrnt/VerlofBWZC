@@ -1,0 +1,53 @@
+@using Radzen
+@using Radzen.Blazor
+@inject DialogService DialogService
+
+@* Uitleg: de Verlofplanner als app op het beginscherm zetten (als de browser zelf geen knop aanbiedt) *@
+
+<div class="ih">
+    <div class="ih-app">
+        <img src="icon-192.png" alt="" width="48" height="48" />
+        <div>
+            <div class="ih-app-name">Verlofplanner</div>
+            <div class="ih-app-sub">Opent als app, zonder adresbalk</div>
+        </div>
+    </div>
+
+    <section class="@(Ios ? "ih-step ih-step-mine" : "ih-step")">
+        <h3><i class="bi bi-apple" aria-hidden="true"></i> iPhone of iPad (Safari)</h3>
+        <ol>
+            <li>Tik onderaan op <strong>Delen</strong> <i class="bi bi-box-arrow-up" aria-hidden="true"></i>.</li>
+            <li>Kies <strong>Zet op beginscherm</strong> <i class="bi bi-plus-square" aria-hidden="true"></i>.</li>
+            <li>Tik op <strong>Voeg toe</strong>.</li>
+        </ol>
+    </section>
+
+    <section class="@(!Ios && Mobile ? "ih-step ih-step-mine" : "ih-step")">
+        <h3><i class="bi bi-android2" aria-hidden="true"></i> Android (Chrome)</h3>
+        <ol>
+            <li>Tik rechtsboven op het menu <strong>⋮</strong>.</li>
+            <li>Kies <strong>App installeren</strong> of <strong>Toevoegen aan startscherm</strong>.</li>
+        </ol>
+    </section>
+
+    <section class="@(!Mobile ? "ih-step ih-step-mine" : "ih-step")">
+        <h3><i class="bi bi-laptop" aria-hidden="true"></i> Pc (Chrome of Edge)</h3>
+        <ol>
+            <li>Klik in de adresbalk op het icoon <strong>Installeren</strong> <i class="bi bi-download" aria-hidden="true"></i>, of kies in het menu <strong>App installeren</strong>.</li>
+        </ol>
+    </section>
+
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End">
+        <RadzenButton Text="Sluiten" ButtonStyle="ButtonStyle.Light" Click="@(() => DialogService.Close())" />
+    </RadzenStack>
+</div>
+
+@code {
+    [Parameter] public bool Ios { get; set; }
+    [Parameter] public bool Mobile { get; set; }
+
+    public static Task ShowAsync(DialogService dialogs, VerlofBWZC.Services.AppInstallService.State state) =>
+        dialogs.OpenAsync<InstallHelpDialog>("App installeren",
+            new Dictionary<string, object> { { nameof(Ios), state.Ios }, { nameof(Mobile), state.Mobile } },
+            new DialogOptions { Width = "460px", CloseDialogOnEsc = true, CloseDialogOnOverlayClick = true });
+}
