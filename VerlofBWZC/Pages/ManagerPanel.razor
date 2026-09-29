@@ -3,6 +3,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using Radzen
 @using Radzen.Blazor
+@using VerlofBWZC.DataContracts
 @using VerlofBWZC.DataContracts.DTO.Access
 @using System.Net.Http.Json
 @inject HttpClient Http
@@ -161,6 +162,18 @@
                                     @bind-Value="editingModel.CanSaveTeamCalendar"
                                     Style="width:200px" />
                 </div>
+                @if (Werkregels.AllowsAllTeamsView(editingModel.Speciality))
+                {
+                    <div class="rz-form-field">
+                        <label title="Personen van deze ploeg mogen de teamkalender van alle ploegen bekijken (enkel lezen)">Alle ploegen bekijken</label>
+                        <RadzenDropDown TValue="bool"
+                                        Data="@(new[] { new { Text = "Ja", Value = true }, new { Text = "Nee", Value = false } })"
+                                        TextProperty="Text"
+                                        ValueProperty="Value"
+                                        @bind-Value="editingModel.CanSeeAllTeams"
+                                        Style="width:200px" />
+                    </div>
+                }
             </div>
 
             <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
@@ -222,6 +235,17 @@
                                 : (MarkupString)"<span class='rz-badge rz-badge-secondary'>Nee</span>")
                         </div>
                     </div>
+                    @if (Werkregels.AllowsAllTeamsView(rule.Speciality))
+                    {
+                        <div class="rz-form-field">
+                            <label title="Personen van deze ploeg mogen de teamkalender van alle ploegen bekijken (enkel lezen)">Alle ploegen bekijken</label>
+                            <div>
+                                @(rule.CanSeeAllTeams
+                                    ? (MarkupString)"<span class='rz-badge rz-badge-success'>Ja</span>"
+                                    : (MarkupString)"<span class='rz-badge rz-badge-secondary'>Nee</span>")
+                            </div>
+                        </div>
+                    }
                 </div>
 
                 <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
@@ -286,6 +310,18 @@
                                         @bind-Value="editingModel!.CanSaveTeamCalendar"
                                         Style="width:200px" />
                     </div>
+                    @if (Werkregels.AllowsAllTeamsView(editingModel!.Speciality))
+                    {
+                        <div class="rz-form-field">
+                            <label title="Personen van deze ploeg mogen de teamkalender van alle ploegen bekijken (enkel lezen)">Alle ploegen bekijken</label>
+                            <RadzenDropDown TValue="bool"
+                                            Data="@(new[] { new { Text = "Ja", Value = true }, new { Text = "Nee", Value = false } })"
+                                            TextProperty="Text"
+                                            ValueProperty="Value"
+                                            @bind-Value="editingModel!.CanSeeAllTeams"
+                                            Style="width:200px" />
+                        </div>
+                    }
                 </div>
 
                 <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
@@ -398,7 +434,8 @@
             Year = yearFilter,
             CanSeeTeamCalendar = false,
             CanSaveWorkCalendar = false,
-            CanSaveTeamCalendar = false
+            CanSaveTeamCalendar = false,
+            CanSeeAllTeams = true
         };
     }
 
@@ -416,7 +453,8 @@
             Year = item.Year,
             CanSeeTeamCalendar = item.CanSeeTeamCalendar,
             CanSaveWorkCalendar = item.CanSaveWorkCalendar,
-            CanSaveTeamCalendar = item.CanSaveTeamCalendar
+            CanSaveTeamCalendar = item.CanSaveTeamCalendar,
+            CanSeeAllTeams = item.CanSeeAllTeams
         };
     }
 
@@ -462,6 +500,7 @@
                     editingTarget.CanSeeTeamCalendar = editingModel.CanSeeTeamCalendar;
                     editingTarget.CanSaveWorkCalendar = editingModel.CanSaveWorkCalendar;
                     editingTarget.CanSaveTeamCalendar = editingModel.CanSaveTeamCalendar;
+                    editingTarget.CanSeeAllTeams = editingModel.CanSeeAllTeams;
 
                     Notifications.Notify(new NotificationMessage { Severity = NotificationSeverity.Success, Summary = "Bijgewerkt", Detail = "Regel bijgewerkt" });
                     CancelEdit();

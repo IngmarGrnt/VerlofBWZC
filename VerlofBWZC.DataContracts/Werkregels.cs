@@ -74,6 +74,9 @@ namespace VerlofBWZC.DataContracts
         // Minstens zoveel ploegen van die specialiteit moet de gebruiker mogen zien
         public const int MinTeamsForAllTeamsView = 2;
 
+        // Wie deze specialiteit heeft (ook een gewone gebruiker) mag de teamkalender van alle ploegen van die
+        // specialiteit bekijken, enkel lezen, als het Manager Paneel dat voor zijn ploeg toelaat
+        // (Alle ploegen bekijken, standaard aan). Beheren blijft beperkt tot de eigen/toegewezen ploegen.
         public static bool AllowsAllTeamsView(string? speciality) => speciality == AllTeamsSpeciality;
 
         // --- Extra shift (bijspringen in een andere ploeg) ----------------------------------------
