@@ -1,8 +1,6 @@
-﻿@page "/person-crud"
+@page "/person-crud"
 @using Radzen
 @using Radzen.Blazor
-@using System.Text.Json
-@using System.Linq.Expressions
 @using System.Net.Http.Json
 @using VerlofBWZC.DataContracts
 @using VerlofBWZC.DataContracts.DTO
@@ -13,19 +11,21 @@
 @inject NotificationService NotificationService
 @inject DialogService DialogService
 @inject CurrentPersonService CurrentPerson
+@inject IJSRuntime JS
 
 @using Microsoft.AspNetCore.Authorization
 @attribute [Authorize(Roles = "Admin,Manager")]
 
-<h1>Personenbeheer</h1>
-
-@if (isAdmin)
+<div class="pc-header">
+    <h1>Personen</h1>
+    @if (isAdmin)
+    {
+        <RadzenButton Icon="person_add" Text="Nieuwe persoon" ButtonStyle="ButtonStyle.Primary" Click="@AddPerson" />
+    }
+</div>
+@if (!isAdmin)
 {
-    <RadzenButton Icon="add_circle" Text="Nieuwe persoon" Style="margin-bottom: 10px" Click="@AddPerson" />
-}
-else
-{
-    <p class="rz-text-secondary">Personen van je eigen ploeg en specialiteit. Je kan naam, initialen, e-mail, rol (geen Admin) en verlofaantal aanpassen, en het wachtwoord resetten.</p>
+    <p class="rz-text-secondary">Personen van de ploegen en specialiteiten die je beheert. Je kan naam, initialen, e-mail, rol (geen Admin) en verlofaantal aanpassen, en het wachtwoord resetten.</p>
 }
 
 @if (pending.Any())
@@ -60,240 +60,110 @@ else
     </div>
 }
 
-<div class="responsive-datagrid-container">
-    <RadzenDataGrid TItem="PersonBaseDTO" Data="@persons" @ref="grid"
-                    AllowFiltering="true"
-                    FilterMode="FilterMode.Simple"
-                    FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
-                    AllowSorting="true"
-                    AllowMultiColumnSorting="true"
-                    PageSize="10"
-                    EditMode="DataGridEditMode.Single"
-                    AllowColumnResize="true"
-                    class="responsive-datagrid">
-        <Columns>
-            <RadzenDataGridColumn TItem="PersonBaseDTO" Property="FirstName" Title="Voornaam"
-                                  FilterOperator="FilterOperator.Contains">
-                <EditTemplate Context="person">
-                    <RadzenTextBox @bind-Value="person.FirstName" Style="width:100%" Name="FirstName" />
-                </EditTemplate>
-            </RadzenDataGridColumn>
-
-            <RadzenDataGridColumn TItem="PersonBaseDTO" Property="LastName" Title="Achternaam"
-                                  FilterOperator="FilterOperator.Contains">
-                <Template Context="person">
-                    @person.LastName
-                    @if (person.MustChangePassword)
-                    {
-                        <span class="pc-temp-pw" title="Heeft een tijdelijk wachtwoord en moet bij de volgende login een eigen wachtwoord kiezen">tijdelijk wachtwoord</span>
-                    }
-                </Template>
-                <EditTemplate Context="person">
-                    <RadzenTextBox @bind-Value="person.LastName" Style="width:100%" Name="LastName" />
-                </EditTemplate>
-            </RadzenDataGridColumn>
-
-            <RadzenDataGridColumn TItem="PersonBaseDTO" Property="Initials" Title="Initialen" Width="110px"
-                                  FilterOperator="FilterOperator.Contains">
-                <Template Context="person">
-                    @{ var dup = SameInitials(person); }
-                    @if (dup.Any())
-                    {
-                        @* Bestaande dubbele initialen in dezelfde ploeg en specialiteit: aanpassen *@
-                        <span class="pc-initials-dup" title="@($"Ook gebruikt door {string.Join(", ", dup.Select(p => $"{p.FirstName} {p.LastName}"))} in dezelfde ploeg en specialiteit")">
-                            @PersonInitials.For(person) <i class="rzi">warning</i>
-                        </span>
-                    }
-                    else
-                    {
-                        @PersonInitials.For(person)
-                    }
-                </Template>
-                <EditTemplate Context="person">
-                    @* Leeg laten = standaardregel op de achternaam *@
-                    <RadzenTextBox @bind-Value="person.Initials" MaxLength="@PersonInitials.MaxLength" Style="width:100%" Name="Initials"
-                                   Placeholder="@PersonInitials.FromLastName(person.LastName)"
-                                   title="Leeg laten = standaard volgens de achternaam" />
-                </EditTemplate>
-            </RadzenDataGridColumn>
-
-            <RadzenDataGridColumn TItem="PersonBaseDTO" Property="Email" Title="Email"
-                                  FilterOperator="FilterOperator.Contains">
-                <EditTemplate Context="person">
-                    <RadzenTextBox @bind-Value="person.Email" Style="width:100%" Name="Email" />
-                </EditTemplate>
-            </RadzenDataGridColumn>
-
-            <RadzenDataGridColumn TItem="PersonBaseDTO" Property="Team" Title="Team"
-                                  FilterValue="@filterTeam" FilterOperator="FilterOperator.Equals">
-                <FilterTemplate>
-                    <RadzenDropDown Data="@TeamOptions"
-                                    @bind-Value="@filterTeam"
-                                    AllowClear="true"
-                                    AllowFiltering="true"
-                                    Placeholder="Alle teams"
-                                    Style="width:100%"
-                                    Change="@(args => grid.Reload())" />
-                </FilterTemplate>
-                <Template Context="person">@person.Team</Template>
-                <EditTemplate Context="person">
-                    @if (isAdmin)
-                    {
-                    <RadzenDropDown Data="@TeamOptions"
-                                    @bind-Value="person.Team"
-                                    AllowFiltering="true"
-                                    FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
-                                    Style="width:100%" />
-                    }
-                    else
-                    {
-                        @person.Team
-                    }
-                </EditTemplate>
-            </RadzenDataGridColumn>
-
-            <RadzenDataGridColumn TItem="PersonBaseDTO" Property="Speciality" Title="Specialiteit"
-                                  FilterValue="@filterSpeciality" FilterOperator="FilterOperator.Equals">
-                <FilterTemplate>
-                    <RadzenDropDown Data="@SpecialityOptions"
-                                    @bind-Value="@filterSpeciality"
-                                    AllowClear="true"
-                                    AllowFiltering="true"
-                                    Placeholder="Alle specialiteiten"
-                                    Style="width:100%"
-                                    Change="@(args => grid.Reload())" />
-                </FilterTemplate>
-                <Template Context="person">@person.Speciality</Template>
-                <EditTemplate Context="person">
-                    @if (isAdmin)
-                    {
-                    <RadzenDropDown Data="@SpecialityOptions"
-                                    @bind-Value="person.Speciality"
-                                    AllowFiltering="true"
-                                    FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
-                                    Style="width:100%" />
-                    }
-                    else
-                    {
-                        @person.Speciality
-                    }
-                </EditTemplate>
-            </RadzenDataGridColumn>
-
-            <RadzenDataGridColumn TItem="PersonBaseDTO" Property="Grade" Title="Graad"
-                                  FilterValue="@filterGrade" FilterOperator="FilterOperator.Equals">
-                <FilterTemplate>
-                    <RadzenDropDown Data="@GradeOptions"
-                                    @bind-Value="@filterGrade"
-                                    AllowClear="true"
-                                    AllowFiltering="true"
-                                    Placeholder="Alle graden"
-                                    Style="width:100%"
-                                    Change="@(args => grid.Reload())" />
-                </FilterTemplate>
-                <Template Context="person">@person.Grade</Template>
-                <EditTemplate Context="person">
-                    @if (isAdmin)
-                    {
-                    <RadzenDropDown Data="@GradeOptions"
-                                    @bind-Value="person.Grade"
-                                    AllowFiltering="true"
-                                    FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
-                                    Style="width:100%" />
-                    }
-                    else
-                    {
-                        @person.Grade
-                    }
-                </EditTemplate>
-            </RadzenDataGridColumn>
-
-            <RadzenDataGridColumn TItem="PersonBaseDTO" Property="Role" Title="Rol"
-                                  FilterValue="@filterRole" FilterOperator="FilterOperator.Equals">
-                <FilterTemplate>
-                    <RadzenDropDown Data="@RoleOptions"
-                                    @bind-Value="@filterRole"
-                                    AllowClear="true"
-                                    AllowFiltering="true"
-                                    Placeholder="Alle rollen"
-                                    Style="width:100%"
-                                    Change="@(args => grid.Reload())" />
-                </FilterTemplate>
-                <Template Context="person">
-                    <span class="pc-role-cell">
-                        @person.Role
-                        @if (isAdmin && person.Role == "Manager")
-                        {
-                            @* Manager: beheerde ploegen aanpassen; de tooltip toont wat hij beheert *@
-                            var extra = ScopesOf(person.Id).Count;
-                            <RadzenButton Icon="groups" ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.ExtraSmall"
-                                          Text="@(extra > 0 ? $"+{extra}" : null)"
-                                          title="@($"Beheerde ploegen: {ScopesTooltip(person)}")"
-                                          Click="@(() => OpenScopesAsync(person))" />
-                        }
-                    </span>
-                </Template>
-                <EditTemplate Context="person">
-                    <RadzenDropDown Data="@EditableRoleOptions"
-                                    @bind-Value="person.Role"
-                                    AllowFiltering="true"
-                                    FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
-                                    Style="width:100%" />
-                </EditTemplate>
-            </RadzenDataGridColumn>
-
-            <RadzenDataGridColumn TItem="PersonBaseDTO" Property="LeaveAllowance" Title="Verlof/jaar (shiften)" Width="150px">
-                <Template Context="person">@(person.LeaveAllowance?.ToString() ?? "-")</Template>
-                <EditTemplate Context="person">
-                    <RadzenNumeric TValue="int?" @bind-Value="person.LeaveAllowance" Min="0" Max="366" Placeholder="geen" Style="width:100%" />
-                </EditTemplate>
-            </RadzenDataGridColumn>
-
-            <RadzenDataGridColumn TItem="PersonBaseDTO" Context="person">
-                <Template Context="person">
-                    @* Manager: geen Admin-accounts aanpassen, niemand verwijderen *@
-                    @if (isAdmin || person.Role != "Admin")
-                    {
-                        <RadzenButton Icon="edit" Click="@(() => EditRow(person))" Style="margin-right: 5px" />
-                    }
-                    @if (isAdmin)
-                    {
-                        <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Click="@(() => DeletePerson(person))" Style="margin-right: 5px" />
-                    }
-                    @if (isAdmin || person.Role != "Admin")
-                    {
-                        <RadzenButton Icon="lock_reset" ButtonStyle="ButtonStyle.Info" title="Wachtwoord resetten (tijdelijk wachtwoord)" Click="@(() => ResetPasswordAsync(person))" />
-                    }
-                </Template>
-                <EditTemplate Context="person">
-                    <RadzenButton Icon="save" ButtonStyle="ButtonStyle.Primary" Click="@(() => SaveRow(person))" Style="margin-right: 5px" />
-                    <RadzenButton Icon="cancel" ButtonStyle="ButtonStyle.Light" Click="@(() => CancelEdit(person))" />
-                </EditTemplate>
-            </RadzenDataGridColumn>
-        </Columns>
-    </RadzenDataGrid>
+<!-- Zoeken en filteren -->
+<div class="pc-filters">
+    <div class="pc-search">
+        <i class="rzi">search</i>
+        <input type="search" class="pc-search-input" placeholder="Zoek op naam, e-mail of initialen" aria-label="Zoeken"
+               value="@search" @oninput="e => search = e.Value?.ToString() ?? string.Empty" />
+    </div>
+    <RadzenDropDown TValue="string" Data="@TeamOptions" @bind-Value="filterTeam" AllowClear="true" Placeholder="Alle ploegen" class="pc-filter" />
+    <RadzenDropDown TValue="string" Data="@SpecialityOptions" @bind-Value="filterSpeciality" AllowClear="true" Placeholder="Alle specialiteiten" class="pc-filter" />
+    <RadzenDropDown TValue="string" Data="@RoleOptions" @bind-Value="filterRole" AllowClear="true" Placeholder="Alle rollen" class="pc-filter" />
+    <span class="pc-count">@Filtered.Count van @persons.Count</span>
 </div>
 
+@if (loading)
+{
+    <p class="rz-text-secondary">Personen laden…</p>
+}
+else if (!Filtered.Any())
+{
+    <p class="rz-text-secondary">Geen personen gevonden.</p>
+}
+else
+{
+    <!-- Pc: tabel; klik op een rij om te openen -->
+    <div class="pc-table-wrap">
+        <table class="pc-table">
+            <thead>
+                <tr>
+                    @foreach (var col in Columns)
+                    {
+                        <th>
+                            <button type="button" class="pc-sort" @onclick="() => SortBy(col.Key)">
+                                @col.Title
+                                @if (sortKey == col.Key)
+                                {
+                                    <i class="rzi">@(sortDesc ? "arrow_downward" : "arrow_upward")</i>
+                                }
+                            </button>
+                        </th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var p in Filtered)
+                {
+                    <tr class="pc-row" tabindex="0" @onclick="() => OpenAsync(p)" @onkeydown="e => OnRowKey(e, p)" title="Klik om te openen">
+                        <td>
+                            <span class="pc-name">@p.LastName @p.FirstName</span>
+                            @if (p.MustChangePassword)
+                            {
+                                <span class="pc-temp-pw" title="Heeft een tijdelijk wachtwoord en moet bij de volgende login een eigen wachtwoord kiezen">tijdelijk wachtwoord</span>
+                            }
+                            <span class="pc-email">@p.Email</span>
+                        </td>
+                        <td>@InitialsCell(p)</td>
+                        <td>@p.Team</td>
+                        <td>@p.Speciality</td>
+                        <td>@p.Grade</td>
+                        <td>@RoleCell(p)</td>
+                        <td class="pc-num">@(p.LeaveAllowance?.ToString() ?? "-")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Gsm: kaartjes; tik om te openen -->
+    <div class="pc-cards">
+        @foreach (var p in Filtered)
+        {
+            <button type="button" class="pc-card" @onclick="() => OpenAsync(p)">
+                <span class="pc-card-top">
+                    <span class="pc-name">@p.LastName @p.FirstName</span>
+                    @InitialsCell(p)
+                </span>
+                <span class="pc-card-meta">@p.Team · @p.Speciality · @p.Grade</span>
+                <span class="pc-card-meta">
+                    @RoleCell(p) · verlof @(p.LeaveAllowance?.ToString() ?? "-")
+                    @if (p.MustChangePassword)
+                    {
+                        <span class="pc-temp-pw">tijdelijk wachtwoord</span>
+                    }
+                </span>
+            </button>
+        }
+    </div>
+}
 
 @code {
     private List<PersonBaseDTO> persons = new();
-    private Dictionary<int, string> originalInitials = new();
-    private PersonBaseDTO newPerson = new();
-    private RadzenDataGrid<PersonBaseDTO> grid;
+    private bool loading = true;
 
     private List<string> TeamOptions = new();
     private List<string> SpecialityOptions = new();
     private List<string> GradeOptions = new();
     private List<string> RoleOptions = new();
 
+    private string search = string.Empty;
     private string? filterTeam;
     private string? filterSpeciality;
-    private string? filterGrade;
     private string? filterRole;
 
-    // Admin: alles; Manager: eigen ploeg + specialiteit, rol nooit Admin (de API controleert dit ook)
+    // Admin: alles; Manager: zijn ploegen, rol nooit Admin (de API controleert dit ook)
     private bool isAdmin;
-    private IEnumerable<string> EditableRoleOptions => isAdmin ? RoleOptions : RoleOptions.Where(r => r != "Admin");
 
     protected override async Task OnInitializedAsync()
     {
@@ -312,8 +182,7 @@ else
 
     private async Task LoadPersons()
     {
-        persons = await PersonApi.GetAllPersonsAsync();
-        originalInitials = persons.ToDictionary(p => p.Id, p => PersonInitials.For(p));
+        persons = await PersonApi.GetAllPersonsAsync() ?? new();
         pending = await PersonApi.GetPendingAsync();
         if (isAdmin)
         {
@@ -326,8 +195,87 @@ else
                 managerScopes = new();
             }
         }
+        loading = false;
         StateHasChanged();
     }
+
+    // --- Zoeken, filteren en sorteren ---
+    private record Column(string Key, string Title);
+    private static readonly Column[] Columns =
+    {
+        new("name", "Naam"), new("initials", "Initialen"), new("team", "Ploeg"), new("speciality", "Specialiteit"),
+        new("grade", "Graad"), new("role", "Rol"), new("leave", "Verlof/jaar")
+    };
+    private string sortKey = "name";
+    private bool sortDesc;
+
+    private void SortBy(string key)
+    {
+        sortDesc = sortKey == key && !sortDesc;
+        sortKey = key;
+    }
+
+    private List<PersonBaseDTO> Filtered
+    {
+        get
+        {
+            var q = persons.AsEnumerable();
+            var s = search.Trim();
+            if (s.Length > 0)
+                q = q.Where(p => Contains($"{p.FirstName} {p.LastName}", s) || Contains($"{p.LastName} {p.FirstName}", s)
+                    || Contains(p.Email, s) || Contains(PersonInitials.For(p), s));
+            if (!string.IsNullOrEmpty(filterTeam)) q = q.Where(p => p.Team == filterTeam);
+            if (!string.IsNullOrEmpty(filterSpeciality)) q = q.Where(p => p.Speciality == filterSpeciality);
+            if (!string.IsNullOrEmpty(filterRole)) q = q.Where(p => p.Role == filterRole);
+
+            Func<PersonBaseDTO, object?> key = sortKey switch
+            {
+                "initials" => p => PersonInitials.For(p),
+                "team" => p => TeamOptions.IndexOf(p.Team ?? ""),
+                "speciality" => p => p.Speciality,
+                "grade" => p => GradeOptions.IndexOf(p.Grade ?? ""),
+                "role" => p => p.Role,
+                "leave" => p => p.LeaveAllowance ?? -1,
+                _ => p => $"{p.LastName} {p.FirstName}"
+            };
+            var sorted = sortDesc ? q.OrderByDescending(key) : q.OrderBy(key);
+            return sorted.ThenBy(p => p.LastName).ThenBy(p => p.FirstName).ToList();
+        }
+    }
+
+    private static bool Contains(string? text, string part) =>
+        text?.Contains(part, StringComparison.OrdinalIgnoreCase) == true;
+
+    // --- Cellen ---
+    private RenderFragment InitialsCell(PersonBaseDTO p) => __builder =>
+    {
+        var dup = SameInitials(p);
+        if (dup.Any())
+        {
+            <span class="pc-initials-dup" title="@($"Ook gebruikt door {string.Join(", ", dup.Select(d => $"{d.FirstName} {d.LastName}"))} in dezelfde ploeg en specialiteit")">
+                @PersonInitials.For(p) <i class="rzi">warning</i>
+            </span>
+        }
+        else
+        {
+            <span class="pc-initials">@PersonInitials.For(p)</span>
+        }
+    };
+
+    private RenderFragment RoleCell(PersonBaseDTO p) => __builder =>
+    {
+        <span class="@($"pc-role pc-role-{p.Role?.ToLowerInvariant()}")">@p.Role</span>
+        if (isAdmin && p.Role == "Manager" && ScopesOf(p.Id).Count > 0)
+        {
+            <span class="pc-scopes" title="@($"Beheert: {ScopesTooltip(p)}")">+@ScopesOf(p.Id).Count</span>
+        }
+    };
+
+    // Andere personen in dezelfde ploeg en specialiteit met dezelfde initialen
+    private List<PersonBaseDTO> SameInitials(PersonBaseDTO person) => persons
+        .Where(p => p != person && p.Id != person.Id && p.Team == person.Team && p.Speciality == person.Speciality)
+        .Where(p => string.Equals(PersonInitials.For(p), PersonInitials.For(person), StringComparison.OrdinalIgnoreCase))
+        .ToList();
 
     // --- Registraties die wachten op goedkeuring ---
     private List<PersonBaseDTO> pending = new();
@@ -379,155 +327,54 @@ else
         string.Join(", ", new[] { $"{ManagerScopesDialog.ChipText(person.Team, person.Speciality)} (eigen)" }
             .Concat(ScopesOf(person.Id).Select(s => ManagerScopesDialog.ChipText(s.Team, s.Speciality))));
 
-    private async Task OpenScopesAsync(PersonBaseDTO person)
+    // --- Formulier (zijpaneel; op gsm volledig scherm) ---
+    private Task AddPerson() => OpenAsync(new PersonBaseDTO
     {
-        var saved = await DialogService.OpenAsync<ManagerScopesDialog>(
-            $"Beheert · {person.FirstName} {person.LastName}",
-            new Dictionary<string, object>
+        Team = TeamOptions.FirstOrDefault() ?? "",
+        Speciality = SpecialityOptions.FirstOrDefault() ?? "",
+        LeaveAllowance = PersonDefaults.LeaveAllowance,
+        Grade = GradeOptions.FirstOrDefault() ?? "",
+        Role = RoleOptions.FirstOrDefault(r => r == "User") ?? RoleOptions.FirstOrDefault() ?? ""
+    });
+
+    private async Task OnRowKey(KeyboardEventArgs e, PersonBaseDTO p)
+    {
+        if (e.Key is "Enter" or " ")
+            await OpenAsync(p);
+    }
+
+    private async Task OpenAsync(PersonBaseDTO person)
+    {
+        bool mobile;
+        try { mobile = await JS.InvokeAsync<bool>("bwzcIsMobile"); }
+        catch { mobile = false; }
+
+        var result = await DialogService.OpenSideAsync<PersonForm>(
+            person.Id == 0 ? "Nieuwe persoon" : $"{person.FirstName} {person.LastName}",
+            new Dictionary<string, object?>
             {
-                { nameof(ManagerScopesDialog.PersonId), person.Id },
-                { nameof(ManagerScopesDialog.PersonName), $"{person.FirstName} {person.LastName}" },
-                { nameof(ManagerScopesDialog.OwnTeam), person.Team },
-                { nameof(ManagerScopesDialog.OwnSpeciality), person.Speciality },
-                { nameof(ManagerScopesDialog.Teams), TeamOptions },
-                { nameof(ManagerScopesDialog.Specialities), SpecialityOptions },
-                { nameof(ManagerScopesDialog.Current), ScopesOf(person.Id) }
+                { nameof(PersonForm.Original), person },
+                { nameof(PersonForm.IsAdmin), isAdmin },
+                { nameof(PersonForm.AllPersons), persons },
+                { nameof(PersonForm.Teams), TeamOptions },
+                { nameof(PersonForm.Specialities), SpecialityOptions },
+                { nameof(PersonForm.Grades), GradeOptions },
+                { nameof(PersonForm.Roles), RoleOptions },
+                { nameof(PersonForm.Scopes), ScopesOf(person.Id) }
             },
-            new DialogOptions { Width = "580px", CloseDialogOnEsc = true });
-        if (saved is true)
-            await LoadPersons();
-    }
-
-    private async Task AddPerson()
-    {
-        newPerson = new PersonBaseDTO
-        {
-            Team = TeamOptions.FirstOrDefault() ?? "",
-            Speciality = SpecialityOptions.FirstOrDefault() ?? "",
-            LeaveAllowance = PersonDefaults.LeaveAllowance,
-            Grade = GradeOptions.FirstOrDefault() ?? "",
-            Role = RoleOptions.FirstOrDefault() ?? ""
-        };
-        await grid.InsertRow(newPerson);
-    }
-
-    private async Task EditRow(PersonBaseDTO person)
-    {
-        await grid.EditRow(person);
-    }
-
-    // Andere personen in dezelfde ploeg en specialiteit met dezelfde initialen
-    private List<PersonBaseDTO> SameInitials(PersonBaseDTO person) => persons
-        .Where(p => p != person && p.Id != person.Id && p.Team == person.Team && p.Speciality == person.Speciality)
-        .Where(p => string.Equals(PersonInitials.For(p), PersonInitials.For(person), StringComparison.OrdinalIgnoreCase))
-        .ToList();
-
-    private async Task SaveRow(PersonBaseDTO person)
-    {
-        // Initialen opschonen (leeg = standaardregel); binnen dezelfde ploeg en specialiteit moeten ze uniek zijn
-        person.Initials = PersonInitials.Normalize(person.Initials, person.LastName);
-        var sameInitials = SameInitials(person);
-        // Enkel tegenhouden als de initialen (of de persoon) nieuw zijn; bestaande dubbels blokkeren andere aanpassingen niet
-        var changed = person == newPerson || !originalInitials.TryGetValue(person.Id, out var orig) || orig != person.Initials;
-        if (changed && sameInitials.Any())
-        {
-            NotificationService.Notify(new NotificationMessage
+            new SideDialogOptions
             {
-                Severity = NotificationSeverity.Error,
-                Summary = "Dubbele initialen",
-                Detail = $"De initialen {person.Initials} worden in dezelfde ploeg en specialiteit al gebruikt door {string.Join(", ", sameInitials.Select(p => $"{p.FirstName} {p.LastName}"))}. Kies andere initialen.",
-                Duration = 7000
+                Position = DialogPosition.Right,
+                Width = mobile ? "100%" : "520px",
+                CloseDialogOnOverlayClick = true,
+                ShowMask = true
             });
-            return; // rij blijft in bewerking
-        }
 
-        if (person == newPerson)
+        if (result is PersonForm.Result r && r.Changed)
         {
-            var createDto = new PersonCreateDTO
-            {
-                FirstName = person.FirstName,
-                LastName = person.LastName,
-                Email = person.Email,
-                Team = person.Team,
-                Speciality = person.Speciality,
-                Grade = person.Grade,
-                Role = person.Role,
-                LeaveAllowance = person.LeaveAllowance,
-                Initials = person.Initials,
-            };
-            var created = await PersonApi.CreatePersonAsync(createDto);
-            if (!created.Ok || created.Value == null)
-            {
-                NotificationService.Notify(NotificationSeverity.Error, "Niet toegevoegd", created.Error);
-                return; // rij blijft in bewerking
-            }
-            NotificationService.Notify(NotificationSeverity.Success, "Toegevoegd", "Persoon toegevoegd.");
-            await grid.UpdateRow(person);
             await LoadPersons();
-            await TemporaryPasswordDialog.ShowAsync(DialogService, $"{person.FirstName} {person.LastName}", created.Value.TemporaryPassword);
-            return;
+            if (!string.IsNullOrEmpty(r.TemporaryPassword))
+                await TemporaryPasswordDialog.ShowAsync(DialogService, r.PasswordFor ?? "", r.TemporaryPassword);
         }
-        else
-        {
-            var updateDto = new PersonCreateDTO
-            {
-                FirstName = person.FirstName,
-                LastName = person.LastName,
-                Email = person.Email,
-                Team = person.Team,
-                Speciality = person.Speciality,
-                Grade = person.Grade,
-                Role = person.Role,
-                LeaveAllowance = person.LeaveAllowance,
-                Initials = person.Initials,
-            };
-            var ok = await PersonApi.UpdatePersonAsync(person.Id, updateDto);
-            if (ok)
-                NotificationService.Notify(NotificationSeverity.Success, "Aangepast", "Persoon aangepast.");
-            else
-                NotificationService.Notify(NotificationSeverity.Error, "Niet aangepast", "Aanpassen mislukt (geen toegang of e-mailadres al in gebruik).");
-        }
-        await grid.UpdateRow(person);
-        await LoadPersons();
-    }
-
-    private void CancelEdit(PersonBaseDTO person)
-    {
-        grid.CancelEditRow(person);
-        if (person == newPerson)
-        {
-            newPerson = null;
-        }
-    }
-
-    private async Task DeletePerson(PersonBaseDTO person)
-    {
-        bool? confirmed = await DialogService.Confirm("Weet je zeker dat je deze persoon wilt verwijderen?", "Bevestigen");
-        if (confirmed == true)
-        {
-            await PersonApi.DeletePersonAsync(person.Id);
-            NotificationService.Notify(NotificationSeverity.Success, "Verwijderd", "Persoon succesvol verwijderd");
-            await LoadPersons();
-        }
-    }
-
-    // Nieuw tijdelijk wachtwoord (eenmalig getoond); de persoon kiest bij de volgende login een eigen wachtwoord
-    private async Task ResetPasswordAsync(PersonBaseDTO person)
-    {
-        var confirmed = await DialogService.Confirm(
-            $"Het wachtwoord van {person.FirstName} {person.LastName} vervangen door een tijdelijk wachtwoord? Het huidige wachtwoord werkt dan niet meer.",
-            "Wachtwoord resetten",
-            new ConfirmOptions { OkButtonText = "Resetten", CancelButtonText = "Annuleren" });
-        if (confirmed != true)
-            return;
-
-        var result = await PersonApi.ResetPasswordAsync(person.Id);
-        if (!result.Ok || result.Value == null)
-        {
-            NotificationService.Notify(NotificationSeverity.Error, "Niet gereset", result.Error);
-            return;
-        }
-        await LoadPersons();
-        await TemporaryPasswordDialog.ShowAsync(DialogService, $"{person.FirstName} {person.LastName}", result.Value.TemporaryPassword);
     }
 }

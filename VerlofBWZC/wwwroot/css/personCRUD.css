@@ -281,3 +281,339 @@
     display: flex;
     gap: .4rem;
 }
+
+/* === Personen: overzicht (tabel op pc, kaartjes op gsm) en formulier === */
+.pc-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    flex-wrap: wrap;
+    margin-bottom: .5rem;
+}
+
+.pc-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem;
+    margin: .75rem 0;
+}
+
+.pc-search {
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    flex: 1 1 260px;
+    min-width: 200px;
+    height: 38px;
+    padding: 0 .6rem;
+    border: 1px solid var(--bwzc-line);
+    border-radius: var(--bwzc-radius);
+    background: var(--bwzc-white);
+}
+
+    .pc-search .rzi {
+        color: var(--bwzc-muted);
+        font-size: 20px;
+    }
+
+.pc-search-input {
+    flex: 1;
+    border: 0;
+    outline: none;
+    font: inherit;
+    background: transparent;
+    min-width: 0;
+}
+
+.pc-filter {
+    width: 190px;
+}
+
+.pc-count {
+    font-size: .82rem;
+    color: var(--bwzc-muted);
+    margin-left: auto;
+}
+
+.pc-table-wrap {
+    border: 1px solid var(--bwzc-line);
+    border-radius: var(--bwzc-radius);
+    overflow: auto;
+    background: var(--bwzc-white);
+}
+
+.pc-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .9rem;
+}
+
+    .pc-table th {
+        position: sticky;
+        top: 0;
+        background: var(--bwzc-ice);
+        text-align: left;
+        border-bottom: 1px solid var(--bwzc-line);
+        padding: 0;
+        white-space: nowrap;
+    }
+
+.pc-sort {
+    display: inline-flex;
+    align-items: center;
+    gap: .2rem;
+    width: 100%;
+    padding: .55rem .75rem;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    font-weight: 600;
+    color: var(--bwzc-navy);
+    cursor: pointer;
+    text-align: left;
+}
+
+    .pc-sort .rzi {
+        font-size: 16px;
+    }
+
+.pc-table td {
+    padding: .5rem .75rem;
+    border-bottom: 1px solid var(--bwzc-line);
+    vertical-align: middle;
+}
+
+.pc-row {
+    cursor: pointer;
+}
+
+    .pc-row:hover,
+    .pc-row:focus-visible {
+        background: #F4F7FC;
+        outline: none;
+    }
+
+.pc-name {
+    font-weight: 600;
+    color: var(--bwzc-navy);
+}
+
+.pc-email {
+    display: block;
+    font-size: .78rem;
+    color: var(--bwzc-muted);
+}
+
+.pc-num {
+    text-align: right;
+}
+
+.pc-initials {
+    font-weight: 600;
+    letter-spacing: .03em;
+}
+
+.pc-role {
+    display: inline-block;
+    padding: .1rem .5rem;
+    border-radius: 999px;
+    font-size: .75rem;
+    font-weight: 600;
+    background: #EEF1F7;
+    color: var(--bwzc-navy);
+}
+
+.pc-role-admin {
+    background: var(--bwzc-navy);
+    color: #fff;
+}
+
+.pc-role-manager {
+    background: #FFF1DB;
+    color: #8A5A00;
+}
+
+.pc-scopes {
+    display: inline-block;
+    margin-left: .25rem;
+    padding: .05rem .35rem;
+    border-radius: 6px;
+    background: #F2994A;
+    color: #fff;
+    font-size: .7rem;
+    font-weight: 700;
+}
+
+.pc-cards {
+    display: none;
+    flex-direction: column;
+    gap: .45rem;
+}
+
+.pc-card {
+    display: flex;
+    flex-direction: column;
+    gap: .15rem;
+    width: 100%;
+    padding: .6rem .75rem;
+    border: 1px solid var(--bwzc-line);
+    border-radius: var(--bwzc-radius);
+    background: var(--bwzc-white);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+    .pc-card:active {
+        background: #F4F7FC;
+    }
+
+.pc-card-top {
+    display: flex;
+    justify-content: space-between;
+    gap: .5rem;
+}
+
+.pc-card-meta {
+    font-size: .8rem;
+    color: var(--bwzc-muted);
+}
+
+@media (max-width: 768px) {
+    .pc-table-wrap {
+        display: none;
+    }
+
+    .pc-cards {
+        display: flex;
+    }
+
+    .pc-filter {
+        flex: 1 1 140px;
+        width: auto;
+    }
+
+    .pc-count {
+        width: 100%;
+        margin-left: 0;
+    }
+}
+
+/* Formulier (zijpaneel) */
+.pf-section {
+    padding: .75rem 0;
+    border-bottom: 1px solid var(--bwzc-line);
+}
+
+    .pf-section:first-of-type {
+        padding-top: 0;
+    }
+
+.pf-title {
+    margin: 0 0 .5rem;
+    font-size: .95rem;
+    font-weight: 700;
+    color: var(--bwzc-navy);
+}
+
+.pf-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .6rem;
+}
+
+.pf-field {
+    margin-bottom: .55rem;
+}
+
+    .pf-field label {
+        display: block;
+        font-size: .8rem;
+        font-weight: 600;
+        color: var(--bwzc-muted);
+        margin-bottom: .2rem;
+    }
+
+.pf-field-narrow {
+    max-width: 220px;
+}
+
+.pf-hint {
+    font-size: .76rem;
+    color: var(--bwzc-muted);
+    margin-top: .2rem;
+}
+
+.pf-warn {
+    display: flex;
+    gap: .3rem;
+    align-items: flex-start;
+    font-size: .8rem;
+    color: #8A5A00;
+    background: #FFF4DB;
+    border-radius: 6px;
+    padding: .35rem .5rem;
+    margin-top: .35rem;
+}
+
+    .pf-warn .rzi {
+        font-size: 16px;
+    }
+
+.pf-note {
+    display: flex;
+    gap: .35rem;
+    align-items: center;
+    font-size: .85rem;
+    color: var(--bwzc-navy);
+    background: var(--bwzc-ice);
+    border-radius: 6px;
+    padding: .5rem .6rem;
+    margin-bottom: .75rem;
+}
+
+.pf-fixed {
+    padding: .45rem .6rem;
+    border-radius: var(--bwzc-radius);
+    background: var(--bwzc-ice);
+    color: var(--bwzc-navy);
+    font-weight: 500;
+}
+
+.pf-actions {
+    display: flex;
+    gap: .5rem;
+    margin-top: 1rem;
+}
+
+.pf-danger {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    margin-top: 1.25rem;
+    padding-top: .75rem;
+    border-top: 1px dashed var(--bwzc-line);
+}
+
+@media (max-width: 500px) {
+    .pf-row {
+        grid-template-columns: 1fr;
+        gap: 0;
+    }
+
+    .pf-field-narrow {
+        max-width: none;
+    }
+}
+
+/* Zijpaneel van Radzen: bovenaan het scherm vastzetten (zonder top valt het onder de pagina) */
+.rz-dialog-side-position-right,
+.rz-dialog-side-position-left {
+    top: 0;
+}
+
+.rz-dialog-side-content {
+    padding-bottom: 2rem;
+}
