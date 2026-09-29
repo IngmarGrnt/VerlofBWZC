@@ -64,6 +64,7 @@ else
     <RadzenDataGrid TItem="PersonBaseDTO" Data="@persons" @ref="grid"
                     AllowFiltering="true"
                     FilterMode="FilterMode.Simple"
+                    FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
                     AllowSorting="true"
                     AllowMultiColumnSorting="true"
                     PageSize="10"
