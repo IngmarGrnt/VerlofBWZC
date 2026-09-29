@@ -1,0 +1,344 @@
+@using Radzen
+@using Radzen.Blazor
+@using System.Net.Http.Json
+@using VerlofBWZC.DataContracts
+@using VerlofBWZC.DataContracts.DTO
+@using VerlofBWZC.DataContracts.DTO.Access
+@using VerlofBWZC.Services
+@inject HttpClient Http
+@inject PersonApiService PersonApi
+@inject NotificationService NotificationService
+@inject DialogService DialogService
+
+@* Formulier om een persoon toe te voegen of aan te passen (zijpaneel in Personen).
+   Sluit met een PersonForm.Result: Changed = lijst herladen; TemporaryPassword = eenmalig tonen. *@
+
+<div class="pf">
+    @if (ReadOnly)
+    {
+        <div class="pf-note"><i class="rzi">lock</i> Een Admin-account kan je als manager niet aanpassen.</div>
+    }
+
+    <section class="pf-section">
+        <h3 class="pf-title">Persoon</h3>
+        <div class="pf-row">
+            <div class="pf-field">
+                <label for="pf-first">Voornaam</label>
+                <RadzenTextBox id="pf-first" @bind-Value="model.FirstName" Disabled="@ReadOnly" Style="width:100%" />
+            </div>
+            <div class="pf-field">
+                <label for="pf-last">Achternaam</label>
+                <RadzenTextBox id="pf-last" @bind-Value="model.LastName" Disabled="@ReadOnly" Style="width:100%" />
+            </div>
+        </div>
+        <div class="pf-field">
+            <label for="pf-email">E-mail</label>
+            <RadzenTextBox id="pf-email" @bind-Value="model.Email" Disabled="@ReadOnly" Style="width:100%" />
+        </div>
+        <div class="pf-field pf-field-narrow">
+            <label for="pf-initials">Initialen</label>
+            <RadzenTextBox id="pf-initials" @bind-Value="model.Initials" MaxLength="@PersonInitials.MaxLength" Disabled="@ReadOnly"
+                           Placeholder="@PersonInitials.FromLastName(model.LastName)" Style="width:100%" />
+            <div class="pf-hint">Leeg laten = standaard volgens de achternaam (@PersonInitials.FromLastName(model.LastName)).</div>
+            @if (DuplicateInitials.Any())
+            {
+                <div class="pf-warn"><i class="rzi">warning</i> @PersonInitials.For(model) wordt in @model.Team · @model.Speciality al gebruikt door @string.Join(", ", DuplicateInitials.Select(p => $"{p.FirstName} {p.LastName}")).</div>
+            }
+        </div>
+        @if (!IsNew && Original.MustChangePassword)
+        {
+            <div class="pf-hint"><span class="pc-temp-pw">tijdelijk wachtwoord</span> moet bij de volgende login een eigen wachtwoord kiezen.</div>
+        }
+    </section>
+
+    <section class="pf-section">
+        <h3 class="pf-title">Plaats</h3>
+        @if (IsAdmin)
+        {
+            <div class="pf-row">
+                <div class="pf-field">
+                    <label>Ploeg</label>
+                    <RadzenDropDown TValue="string" Data="@Teams" @bind-Value="model.Team" Disabled="@ReadOnly" Style="width:100%" />
+                </div>
+                <div class="pf-field">
+                    <label>Specialiteit</label>
+                    <RadzenDropDown TValue="string" Data="@Specialities" @bind-Value="model.Speciality" Disabled="@ReadOnly" Style="width:100%" />
+                </div>
+            </div>
+            <div class="pf-field">
+                <label>Graad</label>
+                <RadzenDropDown TValue="string" Data="@Grades" @bind-Value="model.Grade" Disabled="@ReadOnly" AllowFiltering="true"
+                                FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" Style="width:100%" />
+            </div>
+        }
+        else
+        {
+            @* Manager: ploeg, specialiteit en graad kan enkel de Admin aanpassen *@
+            <div class="pf-fixed">@model.Team · @model.Speciality · @model.Grade</div>
+        }
+    </section>
+
+    <section class="pf-section">
+        <h3 class="pf-title">Rechten</h3>
+        <div class="pf-field">
+            <label>Rol</label>
+            <RadzenDropDown TValue="string" Data="@RoleChoices" @bind-Value="model.Role" Disabled="@ReadOnly" Style="width:100%" />
+        </div>
+        @if (IsAdmin && model.Role == "Manager")
+        {
+            <div class="pf-field">
+                <label>Beheert</label>
+                <div class="ms-chips">
+                    <span class="ms-chip ms-chip-own">@ManagerScopesDialog.ChipText(model.Team, model.Speciality) (eigen)</span>
+                    @foreach (var s in scopes)
+                    {
+                        <span class="ms-chip">@ManagerScopesDialog.ChipText(s.Team, s.Speciality)</span>
+                    }
+                </div>
+                @if (IsNew)
+                {
+                    <div class="pf-hint">Extra ploegen kan je toevoegen na het opslaan.</div>
+                }
+                else
+                {
+                    <RadzenButton Text="Beheerde ploegen aanpassen" Icon="groups" ButtonStyle="ButtonStyle.Warning" Variant="Variant.Outlined" Size="ButtonSize.Small"
+                                  Click="OpenScopesAsync" Style="margin-top:.35rem" />
+                }
+            </div>
+        }
+    </section>
+
+    <section class="pf-section">
+        <h3 class="pf-title">Verlof</h3>
+        <div class="pf-field pf-field-narrow">
+            <label>Verlofshiften per jaar</label>
+            <RadzenNumeric TValue="int?" @bind-Value="model.LeaveAllowance" Min="0" Max="366" Placeholder="geen" Disabled="@ReadOnly" Style="width:100%" />
+        </div>
+    </section>
+
+    @if (!string.IsNullOrEmpty(error))
+    {
+        <div class="login-error" role="alert"><i class="rzi">error</i> @error</div>
+    }
+
+    <div class="pf-actions">
+        @if (!ReadOnly)
+        {
+            <RadzenButton Text="@(IsNew ? "Toevoegen" : "Opslaan")" Icon="save" ButtonStyle="ButtonStyle.Primary" IsBusy="@busy" BusyText="Bezig…" Click="SaveAsync" />
+        }
+        <RadzenButton Text="@(ReadOnly ? "Sluiten" : "Annuleren")" ButtonStyle="ButtonStyle.Light" Disabled="@busy" Click="@(() => Close(scopesChanged))" />
+    </div>
+
+    @if (!IsNew && (CanResetPassword || IsAdmin))
+    {
+        <div class="pf-danger">
+            @if (CanResetPassword)
+            {
+                <RadzenButton Text="Wachtwoord resetten" Icon="lock_reset" ButtonStyle="ButtonStyle.Info" Variant="Variant.Outlined" Size="ButtonSize.Small"
+                              Disabled="@busy" Click="ResetPasswordAsync" />
+            }
+            @if (IsAdmin)
+            {
+                <RadzenButton Text="Verwijderen" Icon="delete" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Outlined" Size="ButtonSize.Small"
+                              Disabled="@busy" Click="DeleteAsync" />
+            }
+        </div>
+    }
+</div>
+
+@code {
+    public record Result(bool Changed, string? PasswordFor = null, string? TemporaryPassword = null);
+
+    // Original = de persoon uit de lijst (niet aangepast tot het opslaan); null/Id 0 = nieuwe persoon
+    [Parameter] public PersonBaseDTO Original { get; set; } = new();
+    [Parameter] public bool IsAdmin { get; set; }
+    [Parameter] public List<PersonBaseDTO> AllPersons { get; set; } = new();
+    [Parameter] public List<string> Teams { get; set; } = new();
+    [Parameter] public List<string> Specialities { get; set; } = new();
+    [Parameter] public List<string> Grades { get; set; } = new();
+    [Parameter] public List<string> Roles { get; set; } = new();
+    [Parameter] public List<ScopeItemDTO> Scopes { get; set; } = new();
+
+    private PersonBaseDTO model = new();
+    private List<ScopeItemDTO> scopes = new();
+    private bool scopesChanged;
+    private bool busy;
+    private string? error;
+
+    private bool IsNew => Original.Id == 0;
+    // Manager: geen Admin-accounts aanpassen (de API controleert dit ook)
+    private bool ReadOnly => !IsAdmin && Original.Role == "Admin";
+    private bool CanResetPassword => IsAdmin || Original.Role != "Admin";
+    private IEnumerable<string> RoleChoices => IsAdmin ? Roles : Roles.Where(r => r != "Admin");
+
+    protected override void OnInitialized()
+    {
+        model = new PersonBaseDTO
+        {
+            Id = Original.Id,
+            FirstName = Original.FirstName,
+            LastName = Original.LastName,
+            Email = Original.Email,
+            Team = Original.Team,
+            Speciality = Original.Speciality,
+            Grade = Original.Grade,
+            Role = Original.Role,
+            LeaveAllowance = Original.LeaveAllowance,
+            Initials = Original.Initials,
+            MustChangePassword = Original.MustChangePassword
+        };
+        scopes = Scopes.ToList();
+    }
+
+    // Andere personen in dezelfde ploeg en specialiteit met dezelfde initialen
+    private List<PersonBaseDTO> DuplicateInitials => AllPersons
+        .Where(p => p.Id != model.Id && p.Team == model.Team && p.Speciality == model.Speciality)
+        .Where(p => string.Equals(PersonInitials.For(p), PersonInitials.For(model), StringComparison.OrdinalIgnoreCase))
+        .ToList();
+
+    private void Close(bool changed, string? passwordFor = null, string? password = null) =>
+        DialogService.CloseSide(new Result(changed, passwordFor, password));
+
+    private string? Validate()
+    {
+        if (string.IsNullOrWhiteSpace(model.FirstName) || string.IsNullOrWhiteSpace(model.LastName))
+            return "Vul voornaam en achternaam in.";
+        if (string.IsNullOrWhiteSpace(model.Email) || !model.Email.Contains('@'))
+            return "Vul een geldig e-mailadres in.";
+        if (string.IsNullOrWhiteSpace(model.Team) || string.IsNullOrWhiteSpace(model.Speciality) || string.IsNullOrWhiteSpace(model.Role))
+            return "Kies ploeg, specialiteit en rol.";
+        return null;
+    }
+
+    private async Task SaveAsync()
+    {
+        error = Validate();
+        if (error != null)
+            return;
+
+        // Initialen opschonen (leeg = standaardregel); enkel tegenhouden als ze nieuw of gewijzigd zijn
+        model.Initials = PersonInitials.Normalize(model.Initials, model.LastName);
+        var initialsChanged = IsNew || !string.Equals(PersonInitials.For(Original), PersonInitials.For(model), StringComparison.OrdinalIgnoreCase)
+            || Original.Team != model.Team || Original.Speciality != model.Speciality;
+        if (initialsChanged && DuplicateInitials.Any())
+        {
+            error = $"De initialen {PersonInitials.For(model)} worden in {model.Team} · {model.Speciality} al gebruikt door {string.Join(", ", DuplicateInitials.Select(p => $"{p.FirstName} {p.LastName}"))}. Kies andere initialen.";
+            return;
+        }
+
+        var dto = new PersonCreateDTO
+        {
+            FirstName = model.FirstName,
+            LastName = model.LastName,
+            Email = model.Email,
+            Team = model.Team,
+            Speciality = model.Speciality,
+            Grade = model.Grade,
+            Role = model.Role,
+            LeaveAllowance = model.LeaveAllowance,
+            Initials = model.Initials,
+        };
+
+        busy = true;
+        try
+        {
+            if (IsNew)
+            {
+                var created = await PersonApi.CreatePersonAsync(dto);
+                if (!created.Ok || created.Value == null)
+                {
+                    error = created.Error ?? "Toevoegen is mislukt.";
+                    return;
+                }
+                NotificationService.Notify(NotificationSeverity.Success, "Toegevoegd", $"{model.FirstName} {model.LastName} is toegevoegd.");
+                Close(true, $"{model.FirstName} {model.LastName}", created.Value.TemporaryPassword);
+            }
+            else
+            {
+                if (!await PersonApi.UpdatePersonAsync(model.Id, dto))
+                {
+                    error = "Aanpassen is mislukt (geen toegang of e-mailadres al in gebruik).";
+                    return;
+                }
+                NotificationService.Notify(NotificationSeverity.Success, "Opgeslagen", $"{model.FirstName} {model.LastName} is aangepast.");
+                Close(true);
+            }
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        var confirmed = await DialogService.Confirm(
+            $"{Original.FirstName} {Original.LastName} verwijderen? Dit kan je niet ongedaan maken.",
+            "Persoon verwijderen",
+            new ConfirmOptions { OkButtonText = "Verwijderen", CancelButtonText = "Annuleren" });
+        if (confirmed != true)
+            return;
+
+        busy = true;
+        var ok = await PersonApi.DeletePersonAsync(Original.Id);
+        busy = false;
+        if (!ok)
+        {
+            error = "Verwijderen is mislukt.";
+            return;
+        }
+        NotificationService.Notify(NotificationSeverity.Success, "Verwijderd", $"{Original.FirstName} {Original.LastName} is verwijderd.");
+        Close(true);
+    }
+
+    // Nieuw tijdelijk wachtwoord (eenmalig getoond); de persoon kiest bij de volgende login een eigen wachtwoord
+    private async Task ResetPasswordAsync()
+    {
+        var confirmed = await DialogService.Confirm(
+            $"Het wachtwoord van {Original.FirstName} {Original.LastName} vervangen door een tijdelijk wachtwoord? Het huidige wachtwoord werkt dan niet meer.",
+            "Wachtwoord resetten",
+            new ConfirmOptions { OkButtonText = "Resetten", CancelButtonText = "Annuleren" });
+        if (confirmed != true)
+            return;
+
+        busy = true;
+        var result = await PersonApi.ResetPasswordAsync(Original.Id);
+        busy = false;
+        if (!result.Ok || result.Value == null)
+        {
+            error = result.Error ?? "Resetten is mislukt.";
+            return;
+        }
+        Close(true, $"{Original.FirstName} {Original.LastName}", result.Value.TemporaryPassword);
+    }
+
+    private async Task OpenScopesAsync()
+    {
+        var saved = await DialogService.OpenAsync<ManagerScopesDialog>(
+            $"Beheert · {Original.FirstName} {Original.LastName}",
+            new Dictionary<string, object>
+            {
+                { nameof(ManagerScopesDialog.PersonId), Original.Id },
+                { nameof(ManagerScopesDialog.PersonName), $"{Original.FirstName} {Original.LastName}" },
+                { nameof(ManagerScopesDialog.OwnTeam), model.Team },
+                { nameof(ManagerScopesDialog.OwnSpeciality), model.Speciality },
+                { nameof(ManagerScopesDialog.Teams), Teams },
+                { nameof(ManagerScopesDialog.Specialities), Specialities },
+                { nameof(ManagerScopesDialog.Current), scopes }
+            },
+            new DialogOptions { Width = "580px", CloseDialogOnEsc = true });
+        if (saved is not true)
+            return;
+
+        scopesChanged = true;
+        try
+        {
+            var all = await Http.GetFromJsonAsync<List<ManagerScopesDTO>>("api/manager-scopes") ?? new();
+            scopes = all.FirstOrDefault(m => m.PersonId == Original.Id)?.Scopes ?? new();
+        }
+        catch
+        {
+            // lijst wordt herladen bij het sluiten
+        }
+    }
+}
