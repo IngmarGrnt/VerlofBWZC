@@ -855,13 +855,6 @@
     border-left: 2px solid var(--bwzc-navy);
 }
 
-.tc-cell-off {
-    background: repeating-linear-gradient(135deg, #F4F6FA, #F4F6FA 4px, #ECEFF5 4px, #ECEFF5 8px);
-}
-
-.tc-row:hover .tc-cell-off {
-    background: repeating-linear-gradient(135deg, #EAF0F8, #EAF0F8 4px, #E1E8F2 4px, #E1E8F2 8px);
-}
 
 /* Dispatching, alle ploegen: kolom Totaal (Ploeg0 inbegrepen) naast Bezet */
 .tc-col-total {
@@ -982,11 +975,6 @@ button.tc-extra-badge {
         font-size: .8rem;
     }
 
-/* Rust (Ploeg0): gearceerd zoals de vrije shiften van de andere ploegen */
-.tc-cell-rest,
-.tc-legend-rest {
-    background: repeating-linear-gradient(135deg, #F4F6FA, #F4F6FA 4px, #DDE3EE 4px, #DDE3EE 8px);
-}
 
 .tc-legend-rest {
     display: inline-block;
@@ -1047,4 +1035,14 @@ button.tc-extra-badge {
 .wc-pill.tc-pill-other-active {
     background: #4A5568;
     color: #fff;
+}
+
+/* Vrije shift: in het rooster (de ploeg werkt niet) en rust van Ploeg0, dezelfde arcering.
+   Sterke blauwgrijze arcering, duidelijk anders dan een nachtrij; gaat voor op de achtergrond van de nachtrij. */
+.tc-grid td.tc-cell-off,
+.tc-grid .tc-row:hover td.tc-cell-off,
+.tc-grid td.tc-cell-rest,
+.tc-grid .tc-row:hover td.tc-cell-rest,
+.tc-legend-rest {
+    background: repeating-linear-gradient(135deg, #C9D2E3, #C9D2E3 3px, #EEF1F7 3px, #EEF1F7 7px);
 }

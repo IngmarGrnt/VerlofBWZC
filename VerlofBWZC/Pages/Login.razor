@@ -13,15 +13,23 @@
         <h3 class="text-center mb-2">Inloggen</h3>
         <EditForm Model="loginModel" OnValidSubmit="HandleLogin">
             <div class="mb-3">
-                <RadzenTextBox @bind-Value="loginModel.Email" Name="Email" Placeholder="E-mail" Style="width:100%" />
+                <RadzenTextBox @bind-Value="loginModel.Email" Name="Email" Placeholder="E-mail" Style="width:100%" Disabled="@busy" />
             </div>
             <div class="mb-3">
-                <RadzenPassword @bind-Value="loginModel.Password" Name="Password" Placeholder="Wachtwoord" Style="width:100%" />
+                <RadzenPassword @bind-Value="loginModel.Password" Name="Password" Placeholder="Wachtwoord" Style="width:100%" Disabled="@busy" />
             </div>
-            <RadzenButton ButtonType="ButtonType.Submit" Text="Login" Style="width:100%" Disabled="@busy" />
+            <RadzenButton ButtonType="ButtonType.Submit" Text="Inloggen" Icon="login" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Large"
+                          IsBusy="@busy" BusyText="Bezig met inloggen…" Style="width:100%" />
+            @if (busy)
+            {
+                @* Feedback tijdens het wachten; na een paar seconden uitleg (server op Azure kan nog opstarten) *@
+                <div class="login-wait" role="status" aria-live="polite">
+                    @(slow ? "Dit duurt even langer: de server wordt mogelijk opgestart. Even geduld…" : "Je gegevens worden gecontroleerd…")
+                </div>
+            }
             @if (!string.IsNullOrEmpty(errorMessage))
             {
-                <div class="text-danger mt-3 text-center">@errorMessage</div>
+                <div class="login-error" role="alert"><i class="rzi">error</i> @errorMessage</div>
             }
         </EditForm>
         <div class="text-center mt-3">
@@ -34,25 +42,49 @@
     private LoginDTO loginModel = new();
     private string? errorMessage;
     private bool busy;
+    private bool slow;
 
     private async Task HandleLogin()
     {
+        if (busy) return;
         errorMessage = null;
-        // Oude (demo-)sessie wissen: een nieuwe login begint altijd zonder demo modus
-        await JS.InvokeVoidAsync("localStorage.removeItem", VerlofBWZC.Services.DemoModeService.AdminTokenKey);
-        await JS.InvokeVoidAsync("localStorage.removeItem", "authToken");
         busy = true;
-        var result = await PersonApi.LoginAsync(loginModel);
-        busy = false;
-        if (result.Ok && !string.IsNullOrWhiteSpace(result.Value?.Token))
+        slow = false;
+        StateHasChanged(); // meteen tonen dat er iets gebeurt
+
+        // Na 3 seconden extra uitleg tonen
+        using var cts = new CancellationTokenSource();
+        _ = Task.Delay(3000, cts.Token).ContinueWith(t =>
         {
-            await AuthProvider.MarkUserAsAuthenticated(result.Value.Token);
-            // Tijdelijk of zwak wachtwoord: eerst een nieuw kiezen
-            Navigation.NavigateTo(result.Value.MustChangePassword ? "/wachtwoord-wijzigen" : "/");
-        }
-        else
+            if (t.IsCanceled) return;
+            slow = true;
+            InvokeAsync(StateHasChanged);
+        }, TaskScheduler.Default);
+
+        try
         {
+            // Oude (demo-)sessie wissen: een nieuwe login begint altijd zonder demo modus
+            await JS.InvokeVoidAsync("localStorage.removeItem", VerlofBWZC.Services.DemoModeService.AdminTokenKey);
+            await JS.InvokeVoidAsync("localStorage.removeItem", "authToken");
+            var result = await PersonApi.LoginAsync(loginModel);
+            if (result.Ok && !string.IsNullOrWhiteSpace(result.Value?.Token))
+            {
+                await AuthProvider.MarkUserAsAuthenticated(result.Value.Token);
+                // Tijdelijk of zwak wachtwoord: eerst een nieuw kiezen (knop blijft "bezig" tot de pagina wisselt)
+                Navigation.NavigateTo(result.Value.MustChangePassword ? "/wachtwoord-wijzigen" : "/");
+                return;
+            }
             errorMessage = result.Error ?? "Ongeldige inloggegevens.";
         }
+        catch
+        {
+            errorMessage = "De server is niet bereikbaar. Probeer het straks opnieuw.";
+        }
+        finally
+        {
+            cts.Cancel();
+        }
+        busy = false;
+        slow = false;
     }
 }

@@ -76,11 +76,6 @@ else
             {
                 <RadzenButton Text="Export" Icon="download" ButtonStyle="ButtonStyle.Light" Click="@ExportToCsv" title="Exporteren naar CSV" />
             }
-            @if (CanManageExtraShifts)
-            {
-                <RadzenButton Text="Extra shift" Icon="person_add" ButtonStyle="ButtonStyle.Light" Click="@(() => OpenExtraShifts(null))"
-                              title="Iemand werkt een dag- of nachtshift in een andere ploeg" />
-            }
             @if (CanSaveTeamCalendar)
             {
                 <RadzenButton Text="Opslaan" Icon="save" ButtonStyle="ButtonStyle.Primary" Click="@SaveTeamDaysOff" />
@@ -213,21 +208,8 @@ else
         <div class="wc-legend">
             <span><span class="wc-swatch" style="background:var(--rz-info)"></span>Verlof</span>
             <span><span class="wc-dot-inline wc-dot-holiday"></span>Feestdag</span>
+            <span><span class="wc-dot-inline wc-dot-school"></span>Schoolvakantie</span>
             <span><span class="tc-legend-loose"></span>Losse shift</span>
-            <span><span class="tc-legend-night"></span>Nachtshift</span>
-            @if (ShowsExtraShifts)
-            {
-                <span title="Werkt een shift in een andere ploeg; het maximum van die ploeg gaat met 1 omhoog"><span class="tc-legend-extra"></span>Extra shift</span>
-            }
-            @if (ShowsRest)
-            {
-                <span title="@($"{Werkregels.NoRegimeTeam} werkt die shift niet (geen verlof)")"><span class="tc-legend-rest"></span>Rust</span>
-            }
-            @if (ShowsOtherAbsences)
-            {
-                <span title="Andere afwezigheid: afwezig, geen verlof"><span class="tc-code tc-code-absent tc-code-legend">ZK</span>Afwezig</span>
-                <span title="Uren verlof: telt als aanwezig"><span class="tc-code tc-code-hour tc-code-legend">3U/</span>Uren</span>
-            }
         </div>
     </div>
     @if (CanSaveTeamCalendar)
@@ -298,14 +280,19 @@ else
                     {
                         var count = GetTotalSelectedDays(wd);
                         var holiday = PublicHolidayName(wd.Date);
+                        var school = holiday == null ? SchoolHolidayName(wd.Date) : null;
                         var isNight = wd.Shift == "N";
                         <tr class="@(isNight ? "tc-row tc-row-night" : "tc-row")" id="@RowId(wd)">
-                            <td class="tc-col-date" title="@(holiday != null ? $"Feestdag: {holiday}" : null)">
+                            <td class="tc-col-date" title="@(holiday != null ? $"Feestdag: {holiday}" : school != null ? $"Schoolvakantie: {school}" : null)">
                                 <span class="tc-date">@wd.Date.ToString("ddd dd", Nl)</span>
                                 <span class="tc-shift">@wd.Shift</span>
                                 @if (holiday != null)
                                 {
                                     <span class="wc-dot-inline wc-dot-holiday"></span>
+                                }
+                                else if (school != null)
+                                {
+                                    <span class="wc-dot-inline wc-dot-school"></span>
                                 }
                             </td>
                             <td class="tc-col-count">
@@ -454,6 +441,13 @@ else
     private bool isDirty;
 
     private List<PublicHolidayDTO> PublicHolidays = new();
+    private List<SchoolHolidayDTO> SchoolHolidays = new();
+
+    private string? SchoolHolidayName(DateTime date)
+    {
+        var h = SchoolHolidays.FirstOrDefault(h => h.StartDate.Date <= date.Date && h.EndDate.Date >= date.Date);
+        return h == null ? null : (h.Name?.FirstOrDefault(n => n.Language == "NL")?.Text ?? h.Name?.FirstOrDefault()?.Text ?? "Schoolvakantie");
+    }
 
     // Authorization (simple role-based gating)
     private string? CurrentUserRole;
@@ -1461,6 +1455,16 @@ private void OnDayClicked(int personId, WorkDay day)
 
         if (ActiveCategoryName != null && LeaveCategories.All(c => c.Name != ActiveCategoryName))
             ActiveCategoryName = null;
+
+        // Schoolvakanties (stipje in de datumkolom)
+        try
+        {
+            SchoolHolidays = await Http.GetFromJsonAsync<List<SchoolHolidayDTO>>($"api/holidays/school/{SelectedYear}") ?? new();
+        }
+        catch
+        {
+            SchoolHolidays = new();
+        }
 
         // Feestdagen (stipje in de datumkolom)
         try
