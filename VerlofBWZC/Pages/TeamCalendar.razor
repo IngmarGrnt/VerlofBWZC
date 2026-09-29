@@ -398,10 +398,6 @@ else
                                             {
                                                 <span class="@(other.Absent ? "tc-code tc-code-absent" : "tc-code tc-code-hour")">@other.Code</span>
                                             }
-                                            else if (isRest)
-                                            {
-                                                <span class="tc-code tc-code-rest">R</span>
-                                            }
                                             else
                                             {
                                                 <span class="@blockClass" style="@blockStyle"></span>
@@ -411,10 +407,6 @@ else
                                     else if (other != null)
                                     {
                                         <span class="@(other.Absent ? "tc-code tc-code-absent" : "tc-code tc-code-hour")" title="@title">@other.Code</span>
-                                    }
-                                    else if (isRest)
-                                    {
-                                        <span class="tc-code tc-code-rest" title="@title">R</span>
                                     }
                                     else
                                     {
