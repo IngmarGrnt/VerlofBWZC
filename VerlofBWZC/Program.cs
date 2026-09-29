@@ -44,6 +44,7 @@ builder.Services.AddScoped<DemoModeService>();
 builder.Services.AddScoped<CurrentPersonService>();
 builder.Services.AddScoped<LotteryApiService>();
 builder.Services.AddScoped<ScopeService>();
+builder.Services.AddScoped<AppInstallService>();
 
 
 

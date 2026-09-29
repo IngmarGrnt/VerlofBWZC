@@ -11,6 +11,7 @@
 @inject HttpClient Http
 @inject VerlofBWZC.Services.DemoModeService Demo
 @inject DialogService DialogService
+@inject VerlofBWZC.Services.AppInstallService Install
 @implements IDisposable
 
 @if (isLoggedIn)
@@ -100,6 +101,16 @@
                     </button>
                 </div>
             }
+            @if (installReady && !Install.Current.Standalone)
+            {
+                @* Als app op het beginscherm zetten (niet getoond als ze al als app open is) *@
+                <div class="nav-item px-3">
+                    <button type="button" class="nav-link nav-demo" @onclick="InstallAppAsync">
+                        <i class="bi bi-phone" aria-hidden="true"></i>
+                        <span class="menu-text">App installeren</span>
+                    </button>
+                </div>
+            }
             <div class="nav-item px-3">
                 <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="20rem" Wrap="FlexWrap.Wrap">
                     <RadzenButton ButtonStyle="ButtonStyle.Danger"
@@ -127,6 +138,30 @@
     {
         Navigation.LocationChanged += OnLocationChanged;
         await CheckLoginStatus();
+    }
+
+    // --- App installeren ---
+    private bool installReady;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+        Install.Changed += OnInstallChanged;
+        await Install.InitAsync();
+        installReady = true;
+        StateHasChanged();
+    }
+
+    private void OnInstallChanged() => InvokeAsync(StateHasChanged);
+
+    private async Task InstallAppAsync()
+    {
+        // Android/Chrome/Edge: meteen de installatievraag; anders (iPhone, andere browsers) uitleg
+        if (Install.Current.CanPrompt)
+            await Install.PromptAsync();
+        else
+            await InstallHelpDialog.ShowAsync(DialogService, Install.Current);
     }
 
     private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
@@ -204,5 +239,6 @@
     public void Dispose()
     {
         Navigation.LocationChanged -= OnLocationChanged;
+        Install.Changed -= OnInstallChanged;
     }
 }

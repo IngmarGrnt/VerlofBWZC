@@ -243,3 +243,86 @@ a { color: var(--bwzc-blue); }
         display: none !important;
     }
 }
+
+/* App installeren: balk bovenaan (gsm) en uitlegvenster */
+.install-banner {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    flex-wrap: wrap;
+    margin: .5rem 0 1rem;
+    padding: .6rem .75rem;
+    border: 1px solid var(--bwzc-line);
+    border-radius: var(--bwzc-radius);
+    background: var(--bwzc-ice);
+}
+
+.install-icon {
+    border-radius: 8px;
+    flex: none;
+}
+
+.install-text {
+    flex: 1 1 180px;
+    display: flex;
+    flex-direction: column;
+    font-size: .85rem;
+    color: var(--bwzc-ink);
+}
+
+    .install-text > strong {
+        color: var(--bwzc-navy);
+        font-size: .9rem;
+    }
+
+.install-actions {
+    display: flex;
+    gap: .4rem;
+    margin-left: auto;
+}
+
+.ih-app {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    margin-bottom: .75rem;
+}
+
+    .ih-app img {
+        border-radius: 10px;
+    }
+
+.ih-app-name {
+    font-weight: 700;
+    color: var(--bwzc-navy);
+}
+
+.ih-app-sub {
+    font-size: .8rem;
+    color: var(--bwzc-muted);
+}
+
+.ih-step {
+    padding: .5rem .75rem;
+    border: 1px solid var(--bwzc-line);
+    border-radius: var(--bwzc-radius);
+    margin-bottom: .5rem;
+}
+
+    .ih-step h3 {
+        margin: 0 0 .25rem;
+        font-size: .9rem;
+        font-weight: 700;
+        color: var(--bwzc-navy);
+    }
+
+    .ih-step ol {
+        margin: 0;
+        padding-left: 1.2rem;
+        font-size: .85rem;
+    }
+
+.ih-step-mine {
+    border-color: var(--bwzc-navy);
+    background: var(--bwzc-ice);
+}

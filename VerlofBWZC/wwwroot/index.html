@@ -4,24 +4,30 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>VerlofBWZC</title>
+    <title>Verlofplanner BWZC</title>
     <base href="/" />
     <link rel="stylesheet" href="lib/bootstrap/dist/css/bootstrap.min.css" />
     <!-- ?v=...: verhogen bij CSS/JS-wijzigingen, zodat browsers na een update de nieuwe versie laden -->
-    <link rel="stylesheet" href="css/app.css?v=2026092911" />
-    <link rel="stylesheet" href="css/personCRUD.css?v=2026092911" />
-    <link rel="stylesheet" href="css/login.css?v=2026092911" />
-    <link rel="stylesheet" href="css/workCalendar.css?v=2026092911" />
-    <link rel="stylesheet" href="css/teamCalendar.css?v=2026092911" />
-    <link rel="stylesheet" href="css/randomNamePicker.css?v=2026092911" />
-    <link rel="stylesheet" href="css/managerPanel.css?v=2026092911" />
-    <link rel="stylesheet" href="css/quarterlyLeave.css?v=2026092911" />
+    <link rel="stylesheet" href="css/app.css?v=2026092912" />
+    <link rel="stylesheet" href="css/personCRUD.css?v=2026092912" />
+    <link rel="stylesheet" href="css/login.css?v=2026092912" />
+    <link rel="stylesheet" href="css/workCalendar.css?v=2026092912" />
+    <link rel="stylesheet" href="css/teamCalendar.css?v=2026092912" />
+    <link rel="stylesheet" href="css/randomNamePicker.css?v=2026092912" />
+    <link rel="stylesheet" href="css/managerPanel.css?v=2026092912" />
+    <link rel="stylesheet" href="css/quarterlyLeave.css?v=2026092912" />
 
-    <link rel="icon" type="image/png" href="favicon.png" />
+    <!-- App-icoon (bron: icons-src/*.svg) en installeren als app (PWA) -->
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="icon" type="image/png" sizes="48x48" href="favicon.png" />
     <link href="VerlofBWZC.styles.css" rel="stylesheet" />
     <link href="manifest.webmanifest" rel="manifest" />
-    <link rel="apple-touch-icon" sizes="512x512" href="icon-512.png" />
-    <link rel="apple-touch-icon" sizes="192x192" href="icon-192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
+    <meta name="theme-color" content="#2E3192" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Verlofplanner" />
+    <meta name="application-name" content="Verlofplanner" />
     <link href="_content/Radzen.Blazor/css/standard.css" rel="stylesheet" />
 
     <!-- Lettertypes huisstijl Brandweerzone Centrum -->
@@ -30,8 +36,8 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
 
     <!-- Place custom overrides last -->
-    <link rel="stylesheet" href="css/changePasswordDialog.css?v=2026092911" />
-    <link rel="stylesheet" href="css/theme.css?v=2026092911" />
+    <link rel="stylesheet" href="css/changePasswordDialog.css?v=2026092912" />
+    <link rel="stylesheet" href="css/theme.css?v=2026092912" />
 </head>
 
 <body>
@@ -52,6 +58,39 @@
     <script>
         // Gsm/tablet: menu als schuiflade (zie MainLayout en theme.css)
         window.bwzcIsMobile = () => window.matchMedia("(max-width: 768px)").matches;
+
+        // App installeren (PWA): de installatievraag van de browser bewaren tot de gebruiker op "Installeren" tikt
+        window.bwzcInstall = (() => {
+            let deferred = null;
+            let dotnet = null;
+            window.addEventListener('beforeinstallprompt', e => {
+                e.preventDefault();
+                deferred = e;
+                dotnet?.invokeMethodAsync('OnInstallChanged');
+            });
+            window.addEventListener('appinstalled', () => {
+                deferred = null;
+                dotnet?.invokeMethodAsync('OnInstallChanged');
+            });
+            const ua = navigator.userAgent || '';
+            return {
+                register: ref => { dotnet = ref; },
+                state: () => ({
+                    canPrompt: !!deferred,
+                    standalone: window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true,
+                    ios: /iphone|ipad|ipod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1),
+                    mobile: window.matchMedia('(max-width: 768px)').matches || /android|iphone|ipad|ipod/i.test(ua)
+                }),
+                prompt: async () => {
+                    if (!deferred) return 'unavailable';
+                    const e = deferred;
+                    deferred = null;
+                    e.prompt();
+                    const choice = await e.userChoice;
+                    return choice.outcome;
+                }
+            };
+        })();
         // Teamkalender: rij in beeld brengen
         window.bwzcScrollToId = (id) => document.getElementById(id)?.scrollIntoView({ block: "center", behavior: "smooth" });
     </script>
@@ -66,7 +105,7 @@
     <!-- robust: ensure jsPDF global exists -->
     <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js" defer></script>
     <!-- your helper -->
-    <script src="js/export.js?v=2026092911" defer></script>
+    <script src="js/export.js?v=2026092912" defer></script>
 
 </body>
 
