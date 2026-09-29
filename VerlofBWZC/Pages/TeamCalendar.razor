@@ -49,7 +49,7 @@ else
                     <i class="rzi">chevron_right</i>
                 </button>
             </div>
-            @if (Scope.HasChoice)
+            @if (Scope.HasViewChoice)
             {
                 <RadzenDropDown TValue="string" @bind-Value="SelectedTeam"
                                 Data="@TeamOptions"
@@ -582,7 +582,7 @@ else
         if (!ShowsExtraShifts) { ExtraShifts = new(); return; }
         var list = new List<ExtraShiftDTO>();
         // Getoonde ploegen en (voor wie bij een andere ploeg bijspringt) alle ploegen van deze specialiteit
-        foreach (var team in ShownTeams.Union(Scope.TeamsFor(SelectedSpeciality)).Distinct())
+        foreach (var team in ShownTeams.Union(Scope.TeamsFor(SelectedSpeciality, view: true)).Distinct())
         {
             try
             {
@@ -691,14 +691,14 @@ else
 
         // Admin: alle ploegen; Manager: de ploegen en specialiteiten die hij beheert
         await Scope.LoadAsync(refresh: true);
-        if (Scope.HasChoice)
+        if (Scope.HasViewChoice)
         {
             // Link vanaf de loterijpagina: die ploeg/specialiteit tonen (als dat mag)
             if (!string.IsNullOrEmpty(Spec)) SelectedSpeciality = Spec;
             BuildTeamOptions();
             if (!string.IsNullOrEmpty(Ploeg) && TeamOptions.Contains(Ploeg)) SelectedTeam = Ploeg;
             if (!TeamOptions.Contains(SelectedTeam ?? "")) SelectedTeam = TeamOptions.FirstOrDefault();
-            SelectedSpeciality = ShowAllTeams ? Dispatching : Scope.FixSpeciality(SelectedTeam, SelectedSpeciality, allowAll: true);
+            SelectedSpeciality = ShowAllTeams ? Dispatching : Scope.FixSpeciality(SelectedTeam, SelectedSpeciality, allowAll: true, view: true);
             BuildSpecialityOptions();
             BuildTeamOptions();
         }
@@ -727,9 +727,9 @@ else
             SpecialityOptions.Add(Dispatching);
             return;
         }
-        if (Scope.CanSeeAllSpecialities(SelectedTeam))
+        if (Scope.CanSeeAllSpecialities(SelectedTeam, view: true))
             SpecialityOptions.Add(AllSpecialities);
-        SpecialityOptions.AddRange(Scope.SpecialitiesFor(SelectedTeam));
+        SpecialityOptions.AddRange(Scope.SpecialitiesFor(SelectedTeam, view: true));
     }
 
     // Ploegen; bij Dispatching ook "Alle ploegen" als de gebruiker Dispatching van minstens 2 ploegen mag zien
@@ -737,14 +737,14 @@ else
 
     private void BuildTeamOptions()
     {
-        TeamOptions = Scope.Teams.ToList();
-        if (Werkregels.AllowsAllTeamsView(SelectedSpeciality) && Scope.TeamsFor(SelectedSpeciality).Count >= Werkregels.MinTeamsForAllTeamsView)
+        TeamOptions = Scope.ViewTeams.ToList();
+        if (Werkregels.AllowsAllTeamsView(SelectedSpeciality) && Scope.TeamsFor(SelectedSpeciality, view: true).Count >= Werkregels.MinTeamsForAllTeamsView)
             TeamOptions.Add(AllTeams);
     }
 
     private async Task OnTeamChanged(object value)
     {
-        SelectedSpeciality = ShowAllTeams ? Dispatching : Scope.FixSpeciality(SelectedTeam, SelectedSpeciality, allowAll: true);
+        SelectedSpeciality = ShowAllTeams ? Dispatching : Scope.FixSpeciality(SelectedTeam, SelectedSpeciality, allowAll: true, view: true);
         BuildSpecialityOptions();
         BuildTeamOptions();
         await LoadPermissions();
@@ -1381,7 +1381,7 @@ private void OnDayClicked(int personId, WorkDay day)
 
         // "Alle ploegen": dezelfde specialiteit van elke ploeg die de gebruiker mag zien, naast elkaar
         ShownTeams = ShowAllTeams
-            ? Scope.TeamsFor(speciality)
+            ? Scope.TeamsFor(speciality, view: true)
             : new List<string> { SelectedTeam ?? "" };
 
         var members = new List<PersonBaseDTO>();

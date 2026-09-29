@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using VerlofBWZC.Api.Helpers;
 using VerlofBWZC.DataAccess;
 using VerlofBWZC.DataAccess.Enums;
+using VerlofBWZC.DataContracts;
 
 namespace VerlofBWZC.Api.Services
 {
@@ -25,6 +26,7 @@ namespace VerlofBWZC.Api.Services
         private readonly VerlofBWZC_DbContext _db;
         private (TeamName? Team, Speciality? Speciality)? _cached;
         private List<Scope>? _scopes;
+        private List<Scope>? _viewScopes;
 
         public UserContext(IHttpContextAccessor http, VerlofBWZC_DbContext db)
         {
@@ -101,6 +103,34 @@ namespace VerlofBWZC.Api.Services
             return _scopes;
         }
 
+        // Enkel bekijken (teamkalender en de gegevens die hij leest): de scopes, plus bij een specialiteit met
+        // "Alle ploegen" (Dispatching) die specialiteit in elke ploeg, als het Manager Paneel dat voor de eigen
+        // ploeg toelaat (CanSeeAllTeams; geen regel = toegelaten). Nooit gebruikt om te beheren.
+        public async Task<IReadOnlyList<Scope>> GetViewScopesAsync()
+        {
+            if (_viewScopes != null)
+                return _viewScopes;
+
+            var scopes = (await GetScopesAsync()).ToList();
+            var own = await GetTeamAsync();
+            if (own.Team is TeamName team && own.Speciality is Speciality spec
+                && Werkregels.AllowsAllTeamsView(spec.ToString()) && await CanSeeAllTeamsAsync(team, spec))
+            {
+                scopes.AddRange(Enum.GetValues<TeamName>().Select(t => new Scope(t, spec)));
+            }
+            _viewScopes = scopes.Distinct().ToList();
+            return _viewScopes;
+        }
+
+        // Regels van het Manager Paneel voor de eigen ploeg: uit als een geldende regel (standaard of dit/een later jaar)
+        // "Alle ploegen bekijken" op Nee zet; anders (ook zonder regel) aan
+        private async Task<bool> CanSeeAllTeamsAsync(TeamName team, Speciality spec)
+        {
+            var year = DateTime.Now.Year;
+            return !await _db.CalendarAccessRules.AsNoTracking()
+                .AnyAsync(r => r.Team == team && r.Speciality == spec && (r.Year == null || r.Year >= year) && !r.CanSeeAllTeams);
+        }
+
         // Alle (ploeg, specialiteit)-combinaties binnen de scopes, voor filters in databankqueries
         public async Task<List<int>> GetScopeKeysAsync()
         {
@@ -118,14 +148,14 @@ namespace VerlofBWZC.Api.Services
         // Sleutel voor een (ploeg, specialiteit): in queries te gebruiken als keys.Contains(ploeg * 100 + specialiteit)
         public static int Key(TeamName team, Speciality speciality) => (int)team * 100 + (int)speciality;
 
-        // Lezen van teamgegevens: Admin alles; anderen binnen hun scopes.
+        // Lezen van teamgegevens: Admin alles; anderen binnen hun scopes om te bekijken (GetViewScopesAsync).
         // Zonder specialiteit (hele ploeg): enkel met "alle specialiteiten" van die ploeg.
         public async Task<bool> CanReadTeamAsync(TeamName team, Speciality? speciality)
         {
             if (IsAdmin)
                 return true;
 
-            var scopes = await GetScopesAsync();
+            var scopes = await GetViewScopesAsync();
             return speciality == null
                 ? scopes.Any(s => s.Team == team && s.Speciality == null)
                 : scopes.Any(s => s.Covers(team, speciality));

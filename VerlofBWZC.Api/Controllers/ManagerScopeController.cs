@@ -30,9 +30,11 @@ namespace VerlofBWZC.Api.Controllers
                 return Ok(new MyScopeDTO { IsAdmin = true });
 
             var scopes = await _me.GetScopesAsync();
+            var viewScopes = await _me.GetViewScopesAsync();
             return Ok(new MyScopeDTO
             {
-                Scopes = scopes.Select(s => new ScopeItemDTO { Team = s.Team.ToString(), Speciality = s.Speciality?.ToString() }).ToList()
+                Scopes = scopes.Select(s => new ScopeItemDTO { Team = s.Team.ToString(), Speciality = s.Speciality?.ToString() }).ToList(),
+                ViewScopes = viewScopes.Select(s => new ScopeItemDTO { Team = s.Team.ToString(), Speciality = s.Speciality?.ToString() }).ToList()
             });
         }
 

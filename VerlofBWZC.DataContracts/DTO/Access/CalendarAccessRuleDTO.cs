@@ -16,5 +16,7 @@ namespace VerlofBWZC.DataContracts.DTO.Access
         public bool CanSeeTeamCalendar { get; set; }
         public bool CanSaveWorkCalendar { get; set; }
         public bool CanSaveTeamCalendar { get; set; }
+        // Enkel Dispatching: personen van deze ploeg mogen de teamkalender van alle ploegen bekijken (standaard aan)
+        public bool CanSeeAllTeams { get; set; } = true;
     }
 }

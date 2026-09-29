@@ -14,6 +14,10 @@ namespace VerlofBWZC.DataContracts.DTO.Access
     {
         public bool IsAdmin { get; set; }
         public List<ScopeItemDTO> Scopes { get; set; } = new();
+
+        // Enkel bekijken (teamkalender): de scopes hierboven, plus bij Dispatching alle ploegen
+        // als het Manager Paneel dat toelaat (Alle ploegen bekijken)
+        public List<ScopeItemDTO> ViewScopes { get; set; } = new();
     }
 
     // Beheerde ploegen van een manager (Admin, Personen)

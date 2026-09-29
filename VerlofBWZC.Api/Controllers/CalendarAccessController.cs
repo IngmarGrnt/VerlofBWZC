@@ -141,7 +141,8 @@ public class CalendarAccessController : ControllerBase
             Year = dto.Year,
             CanSeeTeamCalendar = dto.CanSeeTeamCalendar,
             CanSaveWorkCalendar = dto.CanSaveWorkCalendar,
-            CanSaveTeamCalendar = dto.CanSaveTeamCalendar
+            CanSaveTeamCalendar = dto.CanSaveTeamCalendar,
+            CanSeeAllTeams = dto.CanSeeAllTeams
         };
 
         _context.Add(entity);
@@ -181,6 +182,7 @@ public class CalendarAccessController : ControllerBase
         entity.CanSeeTeamCalendar = dto.CanSeeTeamCalendar;
         entity.CanSaveWorkCalendar = dto.CanSaveWorkCalendar;
         entity.CanSaveTeamCalendar = dto.CanSaveTeamCalendar;
+        entity.CanSeeAllTeams = dto.CanSeeAllTeams;
 
         await _context.SaveChangesAsync();
         return NoContent();
@@ -207,7 +209,8 @@ public class CalendarAccessController : ControllerBase
         Year = e.Year,
         CanSeeTeamCalendar = e.CanSeeTeamCalendar,
         CanSaveWorkCalendar = e.CanSaveWorkCalendar,
-        CanSaveTeamCalendar = e.CanSaveTeamCalendar
+        CanSaveTeamCalendar = e.CanSaveTeamCalendar,
+        CanSeeAllTeams = e.CanSeeAllTeams
     };
 
     private static bool TryParseEnums(string team, string speciality, out TeamName teamEnum, out Speciality specEnum, out string? error)
