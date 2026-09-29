@@ -1,0 +1,178 @@
+/* =========================================================================
+   Kwartaalverlof (huisstijl; werkt op pc en gsm)
+   ========================================================================= */
+.ql-scope {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+}
+
+.ql-filter {
+    width: 190px;
+}
+
+/* Samenvatting: shiften met 1, 2, ... personen in verlof */
+.ql-summary {
+    background: var(--bwzc-ice);
+    border-radius: var(--bwzc-radius);
+    padding: .75rem 1rem;
+    margin-bottom: 1rem;
+}
+
+.ql-summary-title {
+    font-size: .85rem;
+    font-weight: 600;
+    color: var(--bwzc-navy);
+    margin-bottom: .5rem;
+}
+
+.ql-total {
+    font-weight: 400;
+    color: var(--bwzc-muted);
+}
+
+.ql-buckets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4rem;
+}
+
+.ql-bucket {
+    display: inline-flex;
+    align-items: stretch;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--bwzc-navy);
+    font-size: .85rem;
+}
+
+.ql-bucket-n {
+    background: var(--bwzc-navy);
+    color: #fff;
+    padding: .2rem .5rem;
+    font-weight: 600;
+}
+
+    .ql-bucket-n::after {
+        content: " p.";
+        font-weight: 400;
+        opacity: .8;
+    }
+
+.ql-bucket-count {
+    background: var(--bwzc-white);
+    color: var(--bwzc-ink);
+    padding: .2rem .55rem;
+    font-weight: 700;
+    min-width: 2rem;
+    text-align: center;
+}
+
+.ql-bucket-zero {
+    border-color: var(--bwzc-line);
+    opacity: .6;
+}
+
+    .ql-bucket-zero .ql-bucket-n {
+        background: var(--bwzc-line);
+        color: var(--bwzc-navy);
+    }
+
+/* Lijst per persoon */
+.ql-list {
+    border: 1px solid var(--bwzc-line);
+    border-radius: var(--bwzc-radius);
+    background: var(--bwzc-white);
+    overflow: hidden;
+}
+
+.ql-row {
+    display: grid;
+    grid-template-columns: minmax(160px, 1fr) repeat(4, minmax(52px, 80px));
+    align-items: center;
+    gap: .5rem;
+    padding: .5rem .75rem;
+    border-bottom: 1px solid var(--bwzc-line);
+}
+
+    .ql-row:last-child {
+        border-bottom: 0;
+    }
+
+.ql-head {
+    background: var(--bwzc-ice);
+    font-weight: 600;
+    font-size: .8rem;
+    color: var(--bwzc-navy);
+}
+
+    .ql-head .ql-q small {
+        display: block;
+        font-weight: 400;
+        font-size: .7rem;
+        color: var(--bwzc-muted);
+    }
+
+.ql-name {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    min-width: 0;
+}
+
+.ql-initials {
+    min-width: 2.6rem;
+    font-weight: 700;
+    letter-spacing: .03em;
+    color: var(--bwzc-navy);
+}
+
+.ql-fullname {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ql-q {
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+.ql-q-total {
+    font-weight: 700;
+}
+
+/* Gsm: naam bovenaan, de vier getallen eronder met een klein label */
+@media (max-width: 720px) {
+    .ql-filter {
+        flex: 1 1 140px;
+        width: auto;
+    }
+
+    .ql-head {
+        display: none;
+    }
+
+    .ql-row {
+        grid-template-columns: repeat(4, 1fr);
+        row-gap: .3rem;
+    }
+
+    .ql-name {
+        grid-column: 1 / -1;
+    }
+
+    .ql-q {
+        background: var(--bwzc-ice);
+        border-radius: 6px;
+        padding: .2rem 0;
+    }
+
+        .ql-q::before {
+            content: attr(data-label);
+            display: block;
+            font-size: .65rem;
+            color: var(--bwzc-muted);
+            font-weight: 400;
+        }
+}
