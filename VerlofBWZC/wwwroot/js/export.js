@@ -35,13 +35,24 @@ window.exportElementToPdf = async (
 
     const html2pdfFn = typeof window.html2pdf === 'function' ? window.html2pdf : null;
     const jsPDFCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF || null;
-    const html2canvasFn = window.html2canvas || null;
+    // html2canvas zit in de html2pdf-bundel maar is daar geen globale functie: dan via html2pdf een canvas maken
+    // (html2pdf bouwt de pagina op in de breedte van zijn eigen A4: dezelfde oriëntatie meegeven, zonder marge)
+    const html2canvasFn = window.html2canvas
+        || (html2pdfFn ? (elm, opts) => html2pdfFn()
+            .set({ margin: 0, html2canvas: opts, jsPDF: { unit: 'mm', format: 'a4', orientation: ori } })
+            .from(elm).toCanvas().get('canvas') : null);
 
     // Header container (for both modes)
     const container = document.createElement('div');
     container.style.fontFamily = 'Arial, sans-serif';
+    // Vaste breedte: zelfde indeling op elk scherm (A4 liggend)
+    if (fitOnePage) {
+        container.style.width = '1123px'; // A4 liggend (297 mm) bij 96 dpi
+        container.style.background = '#fff';
+    }
 
-    if (titleText) {
+    // Op één pagina zet jsPDF de titel zelf bovenaan; dan niet ook nog in de afbeelding
+    if (titleText && !fitOnePage) {
         const header = document.createElement('div');
         header.style.display = 'flex';
         header.style.justifyContent = 'space-between';
@@ -169,11 +180,16 @@ window.exportElementToPdf = async (
             renderWidthMm = renderHeightMm * aspect;
         }
 
-        // Header text rendered by jsPDF (already visually present; keep for fidelity)
+        // Titel en datum bovenaan (door jsPDF, niet in de afbeelding)
         if (titleText) {
             pdf.setFont('helvetica', 'bold');
             pdf.setFontSize(14);
             pdf.text(titleText, marginMm, marginMm + 5);
+            pdf.setFont('helvetica', 'normal');
+            pdf.setFontSize(8);
+            pdf.setTextColor(102);
+            pdf.text(new Date().toLocaleString(), pageWidthMm - marginMm, marginMm + 5, { align: 'right' });
+            pdf.setTextColor(0);
         }
 
         const x = marginMm + (availWidthMm - renderWidthMm) / 2;
