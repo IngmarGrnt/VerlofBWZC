@@ -72,6 +72,17 @@ else
             }
         </div>
         <div class="wc-actions">
+            @* Raster (aanduiden) of lijst per shift (enkel bekijken, standaard op gsm) *@
+            <div class="tc-view-toggle" role="group" aria-label="Weergave">
+                <button type="button" class="@(ListView ? "tc-view-btn" : "tc-view-btn tc-view-active")" aria-pressed="@(ListView ? "false" : "true")"
+                        title="Raster: personen naast elkaar (aanduiden)" @onclick="() => SetListView(false)">
+                    <i class="rzi">grid_on</i><span class="tc-view-text">Raster</span>
+                </button>
+                <button type="button" class="@(ListView ? "tc-view-btn tc-view-active" : "tc-view-btn")" aria-pressed="@(ListView ? "true" : "false")"
+                        title="Lijst per shift: wie is er afwezig (enkel bekijken)" @onclick="() => SetListView(true)">
+                    <i class="rzi">view_agenda</i><span class="tc-view-text">Lijst</span>
+                </button>
+            </div>
             @if (CanExport)
             {
                 <RadzenButton Text="Export" Icon="download" ButtonStyle="ButtonStyle.Light" Click="@ExportToCsv" title="Exporteren naar CSV" />
@@ -153,7 +164,7 @@ else
 
     <!-- Aanduiden als + legende -->
     <div class="wc-toolbar">
-        @if ((LeaveCategories.Any() || ShowsRest || ShowsOtherAbsences) && CanSaveTeamCalendar)
+        @if ((LeaveCategories.Any() || ShowsRest || ShowsOtherAbsences) && CanSaveTeamCalendar && !ListView)
         {
             var plainActive = ActiveCategoryName == null && !RestMode && !OtherMode;
             <div class="wc-categories" role="group" aria-label="Aanduiden als">
@@ -212,7 +223,11 @@ else
             <span><span class="tc-legend-loose"></span>Losse shift</span>
         </div>
     </div>
-    @if (CanSaveTeamCalendar)
+    @if (CanSaveTeamCalendar && ListView)
+    {
+        <div class="wc-hint">Lijst: enkel bekijken. Kies <strong>Raster</strong> om aan te duiden.</div>
+    }
+    else if (CanSaveTeamCalendar)
     {
         <div class="wc-hint">
             @(OtherMode
@@ -229,6 +244,65 @@ else
         </div>
     }
 
+    @if (ListView)
+    {
+        <!-- Lijst per shift (gsm): per shift wie er afwezig is, enkel bekijken -->
+        <div class="tc-list">
+            @foreach (var mg in VisibleMonths)
+            {
+                <div class="tc-list-month">@Capitalize(new DateTime(mg.Year, mg.Month, 1).ToString("MMMM yyyy", Nl))</div>
+                @foreach (var wd in mg.Days)
+                {
+                    var count = GetTotalSelectedDays(wd);
+                    var quota = QuotaFor(wd);
+                    var holiday = PublicHolidayName(wd.Date);
+                    var school = holiday == null ? SchoolHolidayName(wd.Date) : null;
+                    var items = ListItems(wd);
+                    <div class="@(wd.Shift == "N" ? "tc-lcard tc-lcard-night" : "tc-lcard")" id="@RowId(wd)">
+                        <div class="tc-lhead">
+                            <span class="tc-ldate">
+                                @Capitalize(wd.Date.ToString("ddd d MMM", Nl)) · @(wd.Shift == "D" ? "Dag" : "Nacht")
+                                @if (holiday != null)
+                                {
+                                    <span class="wc-dot-inline wc-dot-holiday" title="@($"Feestdag: {holiday}")"></span>
+                                }
+                                else if (school != null)
+                                {
+                                    <span class="wc-dot-inline wc-dot-school" title="@($"Schoolvakantie: {school}")"></span>
+                                }
+                            </span>
+                            <span class="tc-lcounts">
+                                <span class="tc-lcount-label">Verlof</span>
+                                <span class="@(count > quota ? "tc-count tc-count-over" : count == quota ? "tc-count tc-count-full" : "tc-count")">@count/@quota</span>
+                                @if (ShowTotalColumn)
+                                {
+                                    var present = PresentOnShift(wd);
+                                    var minimum = MinimumOnShift(wd);
+                                    <span class="tc-lcount-label">Totaal</span>
+                                    <span class="@(present < minimum ? "tc-count tc-count-over" : "tc-count")">@present/@minimum</span>
+                                }
+                            </span>
+                        </div>
+                        @if (items.Any())
+                        {
+                            <div class="tc-lchips">
+                                @foreach (var it in items)
+                                {
+                                    <span class="@it.Css" style="@it.Style" title="@it.Title">@it.Text</span>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="tc-lempty">Niemand afwezig</div>
+                        }
+                    </div>
+                }
+            }
+        </div>
+    }
+    else
+    {
     <!-- Raster: shiften als rijen, personen als kolommen -->
     <div class="tc-grid-wrap">
         <table class="tc-grid">
@@ -420,6 +494,7 @@ else
             </tbody>
         </table>
     </div>
+    }
 }
 
 @code {
@@ -706,6 +781,7 @@ else
         if (Jaar is int y && Years.Contains(y))
             SelectedYear = y;
 
+        await LoadViewMode();
         await LoadPermissions();
         await LoadTeamCalendar();
         SelectedMonth = Maand is >= 1 and <= 12 ? Maand : SelectedYear == DateTime.Now.Year ? DateTime.Now.Month : 1;
@@ -1501,6 +1577,77 @@ private void OnDayClicked(int personId, WorkDay day)
             .ToList();
 
         StateHasChanged();
+    }
+
+    // --- Weergave: raster of lijst per shift (enkel bekijken; standaard op gsm) ---
+    private bool ListView;
+    private const string ViewKey = "teamCalendarView";
+
+    private async Task LoadViewMode()
+    {
+        try
+        {
+            var saved = await JS.InvokeAsync<string?>("localStorage.getItem", ViewKey);
+            ListView = saved == "list" || (saved != "grid" && await JS.InvokeAsync<bool>("bwzcIsMobile"));
+        }
+        catch
+        {
+            ListView = false;
+        }
+    }
+
+    private async Task SetListView(bool list)
+    {
+        ListView = list;
+        try { await JS.InvokeVoidAsync("localStorage.setItem", ViewKey, list ? "list" : "grid"); }
+        catch { /* niet bewaard: enkel voor deze keer */ }
+    }
+
+    private record ListChip(int Order, string Css, string? Style, string Title, string Text);
+
+    // Wie op deze shift afwezig is (verlof, code, rust) of bijspringt (extra shift), voor de lijstweergave
+    private List<ListChip> ListItems(WorkDay wd)
+    {
+        var chips = new List<ListChip>();
+        var when = $"{wd.Date.ToString("ddd d MMM", Nl)} {wd.Shift}";
+        foreach (var m in TeamMembers)
+        {
+            var extra = ExtraOf(m.Id, wd);
+            if (!MemberWorks(m, wd) && extra == null)
+                continue;
+            var name = $"{m.FirstName} {m.LastName}";
+            var label = (ShowAllTeams ? ShortTeam(m.Team) + " " : "") + GetInitials(m);
+
+            var leave = selectedDays.FirstOrDefault(d => d.PersonId == m.Id && d.Date.Date == wd.Date.Date && d.Shift == wd.Shift);
+            if (leave != null)
+            {
+                var cat = leave.LeaveCategoryId is int id ? LeaveCategories.FirstOrDefault(c => c.Id == id) : null;
+                var loose = IsLoose(leave);
+                chips.Add(new ListChip(0, loose ? "tc-lchip tc-lchip-leave tc-lchip-loose" : "tc-lchip tc-lchip-leave",
+                    $"background:{cat?.Color ?? "var(--rz-info)"};",
+                    $"{name} · {when} · {cat?.Name ?? "Verlof"}" + (loose ? " · Losse shift" : ""), label));
+                continue;
+            }
+
+            var mark = MarkOf(m.Id, wd);
+            var other = Werkregels.FindOtherAbsence(mark?.Code);
+            if (other != null)
+                chips.Add(new ListChip(1, other.Absent ? "tc-lchip tc-lchip-absent" : "tc-lchip tc-lchip-hour", null,
+                    $"{name} · {when} · {other.Code} ({other.Name})", $"{label} {other.Code}"));
+            else if (mark != null)
+                chips.Add(new ListChip(2, "tc-lchip tc-lchip-rest", null, $"{name} · {when} · Rust", $"{label} rust"));
+
+            if (extra != null && !MemberWorks(m, wd))
+                chips.Add(new ListChip(3, "tc-lchip tc-lchip-extra", null,
+                    $"{name} · {when} · extra shift in {extra.Team}", $"{label} → {ShortTeam(extra.Team)}"));
+        }
+
+        // Eén ploeg: wie uit een andere ploeg bijspringt
+        foreach (var e in ExtrasOnRow(wd).Where(e => TeamMembers.All(m => m.Id != e.PersonId)))
+            chips.Add(new ListChip(3, "tc-lchip tc-lchip-extra", null,
+                $"{e.FirstName} {e.LastName} ({e.PersonTeam}) · {when} · extra shift", $"{e.Initials} +{ShortTeam(e.PersonTeam)}"));
+
+        return chips.OrderBy(c => c.Order).ThenBy(c => c.Text).ToList();
     }
 
     // Initialen: opgeslagen per persoon, anders de standaardregel op de achternaam
