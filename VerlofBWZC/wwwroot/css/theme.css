@@ -236,3 +236,10 @@ a { color: var(--bwzc-blue); }
     color: var(--bwzc-navy);
     background: none;
 }
+
+/* Menu: Loterij en Verlofregels niet op gsm (daar enkel bekijken) */
+@media (max-width: 768px) {
+    .nav-desktop-only {
+        display: none !important;
+    }
+}

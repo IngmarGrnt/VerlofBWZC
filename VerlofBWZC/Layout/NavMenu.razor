@@ -49,28 +49,28 @@
         
             @if (userRole == "Admin" || userRole == "Manager")
             {
-                <div class="nav-item px-3">
+                <div class="nav-item px-3 nav-desktop-only">
                     <NavLink class="nav-link" href="Random-picker">
                         <i class="bi bi-dice-5-fill" aria-hidden="true"></i>
                         <span class="menu-text">Loterij</span>
                     </NavLink>
                 </div>
 
-                @* Verlofregels en beheer: Admin voor alle ploegen, Manager voor de ploegen en specialiteiten die hij beheert *@
-                <div class="nav-section">Verlofregels</div>
-                <div class="nav-item px-3">
+                @* Verlofregels en beheer: Admin voor alle ploegen, Manager voor de ploegen en specialiteiten die hij beheert. Loterij en Verlofregels niet op gsm (nav-desktop-only) *@
+                <div class="nav-section nav-desktop-only">Verlofregels</div>
+                <div class="nav-item px-3 nav-desktop-only">
                     <NavLink class="nav-link" href="verlofregels">
                         <i class="bi bi-list-check" aria-hidden="true"></i>
                         <span class="menu-text">Verlofcategorieën</span>
                     </NavLink>
                 </div>
-                <div class="nav-item px-3">
+                <div class="nav-item px-3 nav-desktop-only">
                     <NavLink class="nav-link" href="kwartaalmaxima">
                         <i class="bi bi-bar-chart-steps" aria-hidden="true"></i>
                         <span class="menu-text">Kwartaalmaxima</span>
                     </NavLink>
                 </div>
-                <div class="nav-item px-3">
+                <div class="nav-item px-3 nav-desktop-only">
                     <NavLink class="nav-link" href="max-per-shift">
                         <i class="bi bi-people" aria-hidden="true"></i>
                         <span class="menu-text">Max per shift</span>

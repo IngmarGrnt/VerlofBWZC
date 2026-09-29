@@ -1046,3 +1046,141 @@ button.tc-extra-badge {
 .tc-legend-rest {
     background: repeating-linear-gradient(135deg, #C9D2E3, #C9D2E3 3px, #EEF1F7 3px, #EEF1F7 7px);
 }
+
+/* Weergave kiezen: raster of lijst */
+.tc-view-toggle {
+    display: inline-flex;
+    border: 1px solid var(--bwzc-line);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.tc-view-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    padding: .35rem .6rem;
+    border: 0;
+    background: var(--bwzc-white);
+    color: var(--bwzc-navy);
+    font: inherit;
+    font-size: .85rem;
+    cursor: pointer;
+}
+
+    .tc-view-btn .rzi {
+        font-size: 18px;
+    }
+
+.tc-view-active {
+    background: var(--bwzc-navy);
+    color: #fff;
+}
+
+/* Lijst per shift (gsm, enkel bekijken) */
+.tc-list {
+    display: flex;
+    flex-direction: column;
+    gap: .4rem;
+}
+
+.tc-list-month {
+    margin-top: .5rem;
+    font-weight: 700;
+    color: var(--bwzc-navy);
+}
+
+.tc-lcard {
+    border: 1px solid var(--bwzc-line);
+    border-radius: var(--bwzc-radius);
+    background: var(--bwzc-white);
+    padding: .45rem .6rem;
+}
+
+.tc-lcard-night {
+    background: #F4F7FC;
+}
+
+.tc-lhead {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: .5rem;
+    flex-wrap: wrap;
+}
+
+.tc-ldate {
+    font-weight: 600;
+    color: var(--bwzc-navy);
+    font-size: .9rem;
+}
+
+.tc-lcounts {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+}
+
+.tc-lcount-label {
+    font-size: .7rem;
+    color: var(--bwzc-muted);
+}
+
+.tc-lchips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .3rem;
+    margin-top: .35rem;
+}
+
+.tc-lchip {
+    display: inline-flex;
+    align-items: center;
+    padding: .15rem .45rem;
+    border-radius: 999px;
+    font-size: .75rem;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.tc-lchip-leave {
+    color: #fff;
+}
+
+.tc-lchip-loose {
+    outline: 2px dashed #E67700;
+    outline-offset: 1px;
+}
+
+.tc-lchip-absent {
+    background: #4A5568;
+    color: #fff;
+}
+
+.tc-lchip-hour {
+    background: #F2C94C;
+    color: #3D2E00;
+}
+
+.tc-lchip-rest {
+    background: repeating-linear-gradient(135deg, #C9D2E3, #C9D2E3 3px, #EEF1F7 3px, #EEF1F7 7px);
+    color: var(--bwzc-navy);
+    border: 1px solid #B8C2D3;
+}
+
+.tc-lchip-extra {
+    background: #7B4FB8;
+    color: #fff;
+}
+
+.tc-lempty {
+    margin-top: .2rem;
+    font-size: .78rem;
+    color: var(--bwzc-muted);
+}
+
+@media (max-width: 640px) {
+    .tc-view-text {
+        display: none;
+    }
+}
