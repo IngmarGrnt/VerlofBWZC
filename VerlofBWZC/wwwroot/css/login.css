@@ -108,3 +108,28 @@
         gap: 0;
     }
 }
+
+/* Inloggen: feedback tijdens het wachten en duidelijke foutmelding */
+.login-wait {
+    margin-top: .75rem;
+    text-align: center;
+    font-size: .88rem;
+    color: var(--bwzc-muted);
+}
+
+.login-error {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .35rem;
+    margin-top: .75rem;
+    padding: .5rem .75rem;
+    border-radius: 8px;
+    background: #FDECEC;
+    color: #A61B1B;
+    font-size: .9rem;
+}
+
+    .login-error .rzi {
+        font-size: 18px;
+    }
