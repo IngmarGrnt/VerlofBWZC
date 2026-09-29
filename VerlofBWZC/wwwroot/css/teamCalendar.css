@@ -982,11 +982,6 @@ button.tc-extra-badge {
         font-size: .8rem;
     }
 
-/* Rust (Ploeg0): gearceerd zoals de vrije shiften van de andere ploegen */
-.tc-cell-rest,
-.tc-legend-rest {
-    background: repeating-linear-gradient(135deg, #F4F6FA, #F4F6FA 4px, #DDE3EE 4px, #DDE3EE 8px);
-}
 
 .tc-legend-rest {
     display: inline-block;
@@ -1047,4 +1042,18 @@ button.tc-extra-badge {
 .wc-pill.tc-pill-other-active {
     background: #4A5568;
     color: #fff;
+}
+
+/* Rust (Ploeg0): duidelijk anders dan een nachtshift of een vrije shift van het rooster.
+   Sterke blauwgrijze arcering + label "R"; gaat voor op de achtergrond van de nachtrij. */
+.tc-grid td.tc-cell-rest,
+.tc-grid .tc-row:hover td.tc-cell-rest,
+.tc-legend-rest {
+    background: repeating-linear-gradient(135deg, #C9D2E3, #C9D2E3 3px, #EEF1F7 3px, #EEF1F7 7px);
+}
+
+.tc-code-rest {
+    background: #fff;
+    color: var(--bwzc-navy);
+    border: 1.5px solid var(--bwzc-navy);
 }

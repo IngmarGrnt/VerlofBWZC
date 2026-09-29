@@ -550,7 +550,7 @@
 /* Rust (Ploeg0): gearceerd, niet klikbaar */
 .wc-chip-rest,
 .wc-swatch-rest {
-    background: repeating-linear-gradient(135deg, #F4F6FA, #F4F6FA 4px, #DDE3EE 4px, #DDE3EE 8px);
+    background: repeating-linear-gradient(135deg, #C9D2E3, #C9D2E3 3px, #EEF1F7 3px, #EEF1F7 7px);
 }
 
 .wc-chip-rest {
