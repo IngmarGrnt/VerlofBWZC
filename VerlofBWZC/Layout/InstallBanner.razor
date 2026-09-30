@@ -17,9 +17,14 @@
             {
                 <span>Zet de Verlofplanner op je beginscherm.</span>
             }
-            else
+            else if (Install.Current.Ios)
             {
                 <span>Tik op <strong>Delen</strong> <i class="bi bi-box-arrow-up" aria-hidden="true"></i> en kies <strong>Zet op beginscherm</strong>.</span>
+            }
+            else
+            {
+                @* Android zonder installatievraag van de browser (nog niet aangeboden, eerder geweigerd of andere browser) *@
+                <span>Tik in het browsermenu <strong>⋮</strong> op <strong>App installeren</strong> of <strong>Toevoegen aan startscherm</strong>.</span>
             }
         </div>
         <div class="install-actions">
@@ -53,7 +58,8 @@
     private void Update()
     {
         var s = Install.Current;
-        var newShow = s.Mobile && s.CanInstall && !snoozed;
+        // Op gsm altijd tonen zolang de app niet geïnstalleerd is (met Installeren of met uitleg)
+        var newShow = s.Mobile && !s.Standalone && !snoozed;
         if (newShow != show)
         {
             show = newShow;
