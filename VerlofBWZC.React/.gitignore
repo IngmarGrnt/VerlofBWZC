@@ -1,0 +1,6 @@
+node_modules/
+dist/
+# Door scripts/sync-assets.mjs gekopieerd uit de Blazor-app en Radzen (niet bewerken, niet committen)
+public/
+# Gegenereerd uit VerlofBWZC/wwwroot/index.html
+index.html

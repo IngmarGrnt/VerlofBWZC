@@ -14,4 +14,12 @@ var api = builder.AddProject<Projects.VerlofBWZC_Api>("api", launchProfileName: 
 builder.AddProject<Projects.VerlofBWZC>("web", launchProfileName: "https")
     .WaitFor(api);
 
+// React-kopie van de Blazor-app (VerlofBWZC.React). Start pas als je in het dashboard op Start klikt.
+// Vite stuurt /api door naar de API (API_TARGET); npm install gebeurt automatisch.
+builder.AddViteApp("react", "../VerlofBWZC.React")
+    .WithNpm()
+    .WithEnvironment("API_TARGET", api.GetEndpoint("https"))
+    .WaitFor(api)
+    .WithExplicitStart();
+
 builder.Build().Run();
