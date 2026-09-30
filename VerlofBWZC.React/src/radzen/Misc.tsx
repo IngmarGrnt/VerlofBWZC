@@ -87,7 +87,7 @@ export function Numeric({
         type="text"
         name={name}
         disabled={disabled || undefined}
-        className={cls('rz-numeric-input', disabled && 'rz-state-disabled', fieldClass, !hasValue && 'rz-state-empty', 'rz-inputtext')}
+        className={cls('rz-numeric-input', disabled && 'rz-state-disabled', fieldClass, !hasValue && 'rz-state-empty', 'rz-inputtext', 'rz-text-align-left')}
         tabIndex={disabled ? -1 : 0}
         id={name}
         placeholder={placeholder}

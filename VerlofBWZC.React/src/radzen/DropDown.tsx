@@ -69,7 +69,8 @@ export function DropDown<TItem, TValue = TItem>({
     const needle = caseInsensitive ? filterText.toLowerCase() : filterText
     return all.filter(item => (caseInsensitive ? textOf(item).toLowerCase() : textOf(item)).includes(needle))
   }, [data, allowFiltering, filterText, caseInsensitive, textOf])
-  const selectedIndex = items.findIndex(item => Object.is(valueOf(item), value) || valueOf(item) === value)
+  // Zoals Radzen: zonder waarde (null) is er geen gekozen item, ook niet als een item de waarde null heeft (bv. "Alle")
+  const selectedIndex = value === null || value === undefined ? -1 : items.findIndex(item => Object.is(valueOf(item), value) || valueOf(item) === value)
   const allItems = data ?? []
   const selectedIndexAll = allItems.findIndex(item => Object.is(valueOf(item), value) || valueOf(item) === value)
   // Zoals SelectItemFromValue: zonder ValueProperty is de waarde zelf het gekozen item (ook als ze niet in de lijst
