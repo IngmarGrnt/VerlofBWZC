@@ -4,6 +4,8 @@
 @inject IJSRuntime JS
 @inject VerlofBWZC.Services.JwtAuthenticationStateProvider AuthProvider
 @inject VerlofBWZC.Services.TokenService Tokens
+@inject VerlofBWZC.Services.AppInstallService Install
+@inject DialogService DialogService
 @using Radzen
 @using Radzen.Blazor
 @using VerlofBWZC.DataContracts.DTO
@@ -40,6 +42,15 @@
         </EditForm>
         <div class="text-center mt-3">
             <a href="/registreren" class="reg-link">Nog geen account? Registreren</a>
+            @if (installReady && !Install.Current.Standalone)
+            {
+                @* Op elk toestel: de Verlofplanner als app installeren (installatievraag of uitleg) *@
+                <div class="mt-2">
+                    <button type="button" class="reg-link login-install" @onclick="InstallAppAsync">
+                        <i class="bi bi-phone" aria-hidden="true"></i> Installeer als app
+                    </button>
+                </div>
+            }
         </div>
     </div>
 </div>
@@ -49,6 +60,25 @@
     private string? errorMessage;
     private bool busy;
     private bool slow;
+
+    private bool installReady;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+        await Install.InitAsync();
+        installReady = true;
+        StateHasChanged();
+    }
+
+    private async Task InstallAppAsync()
+    {
+        if (Install.Current.CanPrompt)
+            await Install.PromptAsync();
+        else
+            await InstallHelpDialog.ShowAsync(DialogService, Install.Current);
+    }
 
     // "Ingelogd blijven" standaard aan op een gsm of in de geïnstalleerde app, uit op een pc
     protected override async Task OnInitializedAsync()

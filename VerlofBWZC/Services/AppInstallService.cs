@@ -15,8 +15,8 @@ namespace VerlofBWZC.Services
 
         public record State(bool CanPrompt, bool Standalone, bool Ios, bool Mobile)
         {
-            // Al geïnstalleerd (geopend als app) = niets tonen
-            public bool CanInstall => !Standalone && (CanPrompt || Ios);
+            // Al geïnstalleerd (geopend als app) = niets tonen; anders installatievraag (CanPrompt) of uitleg
+            public bool CanInstall => !Standalone;
         }
 
         public State Current { get; private set; } = new(false, false, false, false);
