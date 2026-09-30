@@ -10,6 +10,7 @@
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthStateProvider
+@inject TokenService Tokens
 
 @using Microsoft.AspNetCore.Authorization
 @attribute [Authorize]
@@ -82,12 +83,10 @@ else
     {
         try
         {
-            // Lees token (voor expiratie-check); AuthenticationState geeft aan of user nog authenticated is
-            var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
-            if (string.IsNullOrWhiteSpace(token) || IsExpired(token))
+            // Geldig token, zo nodig ongemerkt vernieuwd ("ingelogd blijven"); anders naar login
+            var token = await Tokens.GetValidAccessTokenAsync();
+            if (string.IsNullOrWhiteSpace(token))
             {
-                // Token weg of vervallen: opschonen en naar login sturen
-                await JS.InvokeVoidAsync("localStorage.removeItem", "authToken");
                 Navigation.NavigateTo("/login", true);
                 return;
             }
@@ -128,31 +127,6 @@ else
         {
             loading = false;
             StateHasChanged();
-        }
-    }
-
-    private static bool IsExpired(string jwt)
-    {
-        try
-        {
-            var parts = jwt.Split('.');
-            if (parts.Length != 3) return true;
-            var payload = parts[1];
-            switch (payload.Length % 4)
-            {
-                case 2: payload += "=="; break;
-                case 3: payload += "="; break;
-            }
-            var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(payload));
-            using var doc = System.Text.Json.JsonDocument.Parse(json);
-            if (!doc.RootElement.TryGetProperty("exp", out var expProp)) return true;
-            var exp = expProp.GetInt64();
-            var expiry = DateTimeOffset.FromUnixTimeSeconds(exp);
-            return DateTimeOffset.UtcNow >= expiry.AddSeconds(-30); // kleine marge
-        }
-        catch
-        {
-            return true;
         }
     }
 

@@ -16,6 +16,7 @@ public class VerlofBWZC_DbContext : DbContext
     public DbSet<ShiftQuota> ShiftQuotas { get; set; }
     public DbSet<ExtraShift> ExtraShifts { get; set; }
     public DbSet<RestShift> RestShifts { get; set; }
+    public DbSet<RefreshToken> RefreshTokens { get; set; }
 
     public DbSet<LotteryDraw> LotteryDraws => Set<LotteryDraw>();
     public DbSet<LotteryWinner> LotteryWinners => Set<LotteryWinner>();
@@ -33,6 +34,7 @@ public class VerlofBWZC_DbContext : DbContext
         modelBuilder.ShiftQuotaConfig();
         modelBuilder.ExtraShiftConfig();
         modelBuilder.RestShiftConfig();
+        modelBuilder.RefreshTokenConfig();
         //base.OnModelCreating(modelBuilder);
     }
 }   

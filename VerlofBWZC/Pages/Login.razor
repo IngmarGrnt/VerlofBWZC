@@ -3,6 +3,7 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 @inject VerlofBWZC.Services.JwtAuthenticationStateProvider AuthProvider
+@inject VerlofBWZC.Services.TokenService Tokens
 @using Radzen
 @using Radzen.Blazor
 @using VerlofBWZC.DataContracts.DTO
@@ -17,6 +18,11 @@
             </div>
             <div class="mb-3">
                 <RadzenPassword @bind-Value="loginModel.Password" Name="Password" Placeholder="Wachtwoord" Style="width:100%" Disabled="@busy" />
+            </div>
+            <div class="login-remember">
+                <RadzenCheckBox @bind-Value="loginModel.RememberMe" Name="RememberMe" Disabled="@busy" />
+                <RadzenLabel Text="Ingelogd blijven op dit toestel" Component="RememberMe" />
+                <div class="login-remember-hint">30 dagen, telkens verlengd als je de app gebruikt. Niet aanvinken op een gedeelde pc.</div>
             </div>
             <RadzenButton ButtonType="ButtonType.Submit" Text="Inloggen" Icon="login" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Large"
                           IsBusy="@busy" BusyText="Bezig met inloggen…" Style="width:100%" />
@@ -44,6 +50,20 @@
     private bool busy;
     private bool slow;
 
+    // "Ingelogd blijven" standaard aan op een gsm of in de geïnstalleerde app, uit op een pc
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var state = await JS.InvokeAsync<AppInstallService.State>("bwzcInstall.state");
+            loginModel.RememberMe = state.Mobile || state.Standalone;
+        }
+        catch
+        {
+            loginModel.RememberMe = false;
+        }
+    }
+
     private async Task HandleLogin()
     {
         if (busy) return;
@@ -63,13 +83,12 @@
 
         try
         {
-            // Oude (demo-)sessie wissen: een nieuwe login begint altijd zonder demo modus
-            await JS.InvokeVoidAsync("localStorage.removeItem", VerlofBWZC.Services.DemoModeService.AdminTokenKey);
-            await JS.InvokeVoidAsync("localStorage.removeItem", "authToken");
+            // Oude (demo-)sessie wissen en afmelden: een nieuwe login begint altijd zonder demo modus
+            await Tokens.LogoutAsync();
             var result = await PersonApi.LoginAsync(loginModel);
             if (result.Ok && !string.IsNullOrWhiteSpace(result.Value?.Token))
             {
-                await AuthProvider.MarkUserAsAuthenticated(result.Value.Token);
+                await AuthProvider.MarkUserAsAuthenticated(result.Value.Token, result.Value.RefreshToken, loginModel.RememberMe);
                 // Tijdelijk of zwak wachtwoord: eerst een nieuw kiezen (knop blijft "bezig" tot de pagina wisselt)
                 Navigation.NavigateTo(result.Value.MustChangePassword ? "/wachtwoord-wijzigen" : "/");
                 return;

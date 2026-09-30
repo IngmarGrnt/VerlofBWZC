@@ -35,6 +35,7 @@ Een nieuwe uitzondering toevoegen, zoals een tweede ploeg zonder werkregime, kan
 | Verlofshiften per persoon per jaar | 44, per persoon aanpasbaar bij *Personen* | `VerlofBWZC.DataContracts/PersonDefaults.cs` |
 | Kwartaalmaxima als er niets is ingesteld | Q1 14, Q2 16, Q3 14 | `VerlofBWZC.DataContracts/DTO/Leave/QuarterLimitDTO.cs` |
 | Wachtwoord | Minstens 8 tekens, geen veelgebruikt wachtwoord, niet je naam of e-mail | `VerlofBWZC.DataContracts/PasswordPolicy.cs` |
+| Ingelogd blijven | Het token geldt 1 uur en wordt ongemerkt vernieuwd. Met "Ingelogd blijven op dit toestel" blijf je 30 dagen ingelogd, telkens verlengd bij gebruik; zonder vinkje 12 uur na het inloggen. Uitloggen trekt het toestel in; wachtwoord wijzigen of resetten meldt alle toestellen af. | `VerlofBWZC.Api/Services/RefreshTokenService.cs`, `VerlofBWZC/Services/TokenService.cs` |
 | Registratie | Enkel adressen op `@bwzc.be`. Nieuwe accounts komen in Ploeg1 met rol User en 44 shiften, en moeten eerst goedgekeurd worden. | `VerlofBWZC.DataContracts/DTO/RegisterDTO.cs`, `PersonController.Register` |
 | Rooster | Dagshift op dag X, nachtshift op X+1, cyclus van 4 dagen vanaf de startdatum van de ploeg | `VerlofBWZC.Api/Helpers/CalenderHelper.cs` |
 
