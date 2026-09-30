@@ -197,6 +197,25 @@ namespace VerlofBWZC.DataAccess.Extensions
                 .HasIndex(r => new { r.PersonId, r.Date, r.Shift })
                 .IsUnique();
         }
+
+        public static void RefreshTokenConfig(this ModelBuilder mb)
+        {
+            // Persoon weg = zijn vernieuwingstokens ook weg
+            mb.Entity<RefreshToken>()
+                .HasOne<Person>()
+                .WithMany()
+                .HasForeignKey(r => r.PersonId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            mb.Entity<RefreshToken>()
+                .Property(r => r.TokenHash)
+                .IsRequired()
+                .HasMaxLength(64);
+
+            mb.Entity<RefreshToken>()
+                .HasIndex(r => r.TokenHash)
+                .IsUnique();
+        }
     }
 }
 

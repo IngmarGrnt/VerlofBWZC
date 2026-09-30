@@ -37,6 +37,7 @@ builder.Services.AddScoped<CalendarAccessService>();
 builder.Services.AddScoped<LeaveCategoryService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<UserContext>();
+builder.Services.AddScoped<RefreshTokenService>();
 
 
 // Use allowed origins from configuration
@@ -121,6 +122,10 @@ builder.Services.AddRateLimiter(options =>
     options.AddPolicy("login", context => RateLimitPartition.GetFixedWindowLimiter(
         context.Connection.RemoteIpAddress?.ToString() ?? "onbekend",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+    // Vernieuwen ("ingelogd blijven"): ruimer, want veel toestellen kunnen achter hetzelfde IP-adres zitten (kazerne)
+    options.AddPolicy("refresh", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "onbekend",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 120, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
     // Registreren: max. 5 aanvragen per 10 minuten per IP-adres
     options.AddPolicy("register", context => RateLimitPartition.GetFixedWindowLimiter(
         context.Connection.RemoteIpAddress?.ToString() ?? "onbekend",
@@ -168,10 +173,12 @@ app.Use(async (context, next) =>
 {
     var isDemo = context.User.FindFirst(UserContext.DemoClaim)?.Value == "true";
     var method = context.Request.Method;
-    // Inloggen en registreren blijven altijd mogelijk (ook als de browser nog een demo-token meestuurt)
+    // Inloggen, registreren, vernieuwen en uitloggen blijven altijd mogelijk (ook als de browser nog een demo-token meestuurt)
     var path = context.Request.Path;
     var isLogin = path.StartsWithSegments("/api/person/login", StringComparison.OrdinalIgnoreCase)
-        || path.StartsWithSegments("/api/person/register", StringComparison.OrdinalIgnoreCase);
+        || path.StartsWithSegments("/api/person/register", StringComparison.OrdinalIgnoreCase)
+        || path.StartsWithSegments("/api/person/refresh", StringComparison.OrdinalIgnoreCase)
+        || path.StartsWithSegments("/api/person/logout", StringComparison.OrdinalIgnoreCase);
     if (isDemo && !isLogin && !HttpMethods.IsGet(method) && !HttpMethods.IsHead(method) && !HttpMethods.IsOptions(method))
     {
         context.Response.StatusCode = StatusCodes.Status403Forbidden;
@@ -185,7 +192,8 @@ app.Use(async (context, next) =>
 app.Use(async (context, next) =>
 {
     var mustChange = context.User.FindFirst(JwtTokenHelper.PasswordChangeClaim)?.Value == "true";
-    if (mustChange && !context.Request.Path.StartsWithSegments("/api/person/change-password", StringComparison.OrdinalIgnoreCase))
+    if (mustChange && !context.Request.Path.StartsWithSegments("/api/person/change-password", StringComparison.OrdinalIgnoreCase)
+        && !context.Request.Path.StartsWithSegments("/api/person/logout", StringComparison.OrdinalIgnoreCase))
     {
         context.Response.StatusCode = StatusCodes.Status403Forbidden;
         await context.Response.WriteAsync("Kies eerst een nieuw wachtwoord.");

@@ -11,21 +11,27 @@ namespace VerlofBWZC.Services
     {
         private readonly IJSRuntime _js;
         private readonly NavigationManager _nav;
+        private readonly TokenService _tokens;
         private static readonly AuthenticationState Anonymous =
             new(new ClaimsPrincipal(new ClaimsIdentity()));
 
-        public JwtAuthenticationStateProvider(IJSRuntime js, NavigationManager nav)
+        public JwtAuthenticationStateProvider(IJSRuntime js, NavigationManager nav, TokenService tokens)
         {
             _js = js;
             _nav = nav;
+            _tokens = tokens;
         }
 
         public override async Task<AuthenticationState> GetAuthenticationStateAsync()
         {
-            var token = await _js.InvokeAsync<string>("localStorage.getItem", "authToken");
-            if (string.IsNullOrWhiteSpace(token) || IsExpired(token))
+            // Verlopen token: eerst ongemerkt vernieuwen ("ingelogd blijven"); lukt dat niet, dan niet aangemeld
+            var token = await _tokens.GetValidAccessTokenAsync();
+            if (string.IsNullOrWhiteSpace(token))
             {
-                await SafeRemoveToken();
+                var stored = await _tokens.GetAccessTokenAsync();
+                // Verlopen token wissen; een vernieuwingstoken (bv. als er even geen netwerk was) blijft bewaard
+                if (!string.IsNullOrWhiteSpace(stored))
+                    await _js.InvokeVoidAsync("localStorage.removeItem", TokenService.AuthTokenKey);
                 return Anonymous;
             }
 
@@ -33,57 +39,19 @@ namespace VerlofBWZC.Services
             return new AuthenticationState(new ClaimsPrincipal(identity));
         }
 
-        public async Task MarkUserAsAuthenticated(string token)
+        public async Task MarkUserAsAuthenticated(string token, string? refreshToken = null, bool? remember = null)
         {
-            await _js.InvokeVoidAsync("localStorage.setItem", "authToken", token);
+            await _tokens.StoreAsync(token, refreshToken, remember);
             var identity = new ClaimsIdentity(ParseClaims(token), authenticationType: "jwt");
             NotifyAuthenticationStateChanged(Task.FromResult(
                 new AuthenticationState(new ClaimsPrincipal(identity))));
         }
 
+        // Uitloggen: ook het vernieuwingstoken van dit toestel intrekken
         public async Task MarkUserAsLoggedOut()
         {
-            await SafeRemoveToken();
+            await _tokens.LogoutAsync();
             NotifyAuthenticationStateChanged(Task.FromResult(Anonymous));
-        }
-
-        private async Task SafeRemoveToken()
-        {
-            try
-            {
-                await _js.InvokeVoidAsync("localStorage.removeItem", "authToken");
-                await _js.InvokeVoidAsync("localStorage.removeItem", "adminToken"); // demo modus
-            }
-            catch { /* ignore */ }
-        }
-
-        private static bool IsExpired(string jwt)
-        {
-            try
-            {
-                var parts = jwt.Split('.');
-                if (parts.Length != 3) return true;
-
-                var payload = parts[1];
-                switch (payload.Length % 4)
-                {
-                    case 2: payload += "=="; break;
-                    case 3: payload += "="; break;
-                }
-
-                var json = Encoding.UTF8.GetString(Convert.FromBase64String(payload));
-                using var doc = JsonDocument.Parse(json);
-                if (!doc.RootElement.TryGetProperty("exp", out var expProp)) return true;
-
-                var exp = expProp.GetInt64(); // seconds since epoch
-                var expiry = DateTimeOffset.FromUnixTimeSeconds(exp);
-                // kleine clock skew marge
-                return DateTimeOffset.UtcNow >= expiry.AddSeconds(-30);
-            }
-            catch
-            {
-                return true;
-            }
         }
 
         private static IEnumerable<Claim> ParseClaims(string jwt)

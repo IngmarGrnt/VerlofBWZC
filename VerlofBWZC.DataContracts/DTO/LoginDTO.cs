@@ -7,5 +7,8 @@ namespace VerlofBWZC.DataContracts.DTO
 
         public string Email { get; set; }
         public string Password { get; set; }
+
+        // "Ingelogd blijven op dit toestel": 30 dagen (verlengd bij gebruik); anders 12 uur
+        public bool RememberMe { get; set; }
     }
 }

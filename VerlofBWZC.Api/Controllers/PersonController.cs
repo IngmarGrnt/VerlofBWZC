@@ -28,9 +28,10 @@ namespace VerlofBWZC.Api.Controllers
         private readonly IConfiguration _configuration;
         private readonly ILogger<PersonController> _logger;
         private readonly UserContext _me;
+        private readonly RefreshTokenService _refresh;
 
 
-        public PersonController(VerlofBWZC_DbContext context, IMapper mapper, IHttpContextFactory httpContextFactory, IConfiguration configuration, ILogger<PersonController> logger, UserContext me)
+        public PersonController(VerlofBWZC_DbContext context, IMapper mapper, IHttpContextFactory httpContextFactory, IConfiguration configuration, ILogger<PersonController> logger, UserContext me, RefreshTokenService refresh)
         {
             _context = context;
             _mapper = mapper;
@@ -38,6 +39,7 @@ namespace VerlofBWZC.Api.Controllers
             _configuration = configuration;
             _logger = logger;
             _me = me;
+            _refresh = refresh;
         }
 
         // GET: api/Person — Admin alle personen, Manager enkel zijn ploeg en specialiteit
@@ -198,7 +200,37 @@ namespace VerlofBWZC.Api.Controllers
             await _context.SaveChangesAsync();
 
             string token = JwtTokenHelper.GenerateJwtToken(person, _configuration);
-            return Ok(new LoginResultDTO { Token = token, MustChangePassword = person.MustChangePassword });
+            // Vernieuwingstoken pas met een volwaardig token (niet zolang eerst het wachtwoord gewijzigd moet worden)
+            var refreshToken = person.MustChangePassword ? null : await _refresh.IssueAsync(person.Id, loginDto.RememberMe);
+            return Ok(new LoginResultDTO { Token = token, MustChangePassword = person.MustChangePassword, RefreshToken = refreshToken });
+        }
+
+        // Ingelogd blijven: het vernieuwingstoken van dit toestel inruilen voor een nieuw token (en een nieuw vernieuwingstoken)
+        [HttpPost("refresh")]
+        [AllowAnonymous]
+        [EnableRateLimiting("refresh")]
+        public async Task<IActionResult> Refresh([FromBody] RefreshRequestDTO dto)
+        {
+            var result = await _refresh.RotateAsync(dto.RefreshToken);
+            if (result is not var (person, next))
+                return Unauthorized("Je sessie is verlopen. Log opnieuw in.");
+
+            return Ok(new LoginResultDTO
+            {
+                Token = JwtTokenHelper.GenerateJwtToken(person, _configuration),
+                MustChangePassword = false,
+                RefreshToken = next
+            });
+        }
+
+        // Uitloggen: het vernieuwingstoken van dit toestel intrekken
+        [HttpPost("logout")]
+        [AllowAnonymous]
+        [EnableRateLimiting("refresh")]
+        public async Task<IActionResult> Logout([FromBody] RefreshRequestDTO dto)
+        {
+            await _refresh.RevokeAsync(dto.RefreshToken);
+            return NoContent();
         }
 
         // Zelf registreren (loginpagina): enkel @bwzc.be, Ploeg1, rol User, 44 verlofshiften, zelfgekozen wachtwoord.
@@ -342,8 +374,14 @@ namespace VerlofBWZC.Api.Controllers
             person.LastUpdate = DateTime.Now;
             await _context.SaveChangesAsync();
 
-            // Nieuw, volwaardig token
-            return Ok(new LoginResultDTO { Token = JwtTokenHelper.GenerateJwtToken(person, _configuration), MustChangePassword = false });
+            // Nieuw wachtwoord: andere toestellen afmelden; dit toestel krijgt een nieuw token en vernieuwingstoken
+            await _refresh.RevokeAllAsync(person.Id);
+            return Ok(new LoginResultDTO
+            {
+                Token = JwtTokenHelper.GenerateJwtToken(person, _configuration),
+                MustChangePassword = false,
+                RefreshToken = await _refresh.IssueAsync(person.Id, dto.RememberMe)
+            });
         }
 
         // Admin (iedereen) of Manager (eigen ploeg en specialiteit, geen Admin): nieuw tijdelijk wachtwoord
@@ -368,6 +406,9 @@ namespace VerlofBWZC.Api.Controllers
             person.LockoutUntilUtc = null;
             person.LastUpdate = DateTime.Now;
             await _context.SaveChangesAsync();
+
+            // Alle toestellen van deze persoon afmelden: inloggen kan enkel nog met het tijdelijke wachtwoord
+            await _refresh.RevokeAllAsync(person.Id);
 
             return Ok(new TemporaryPasswordDTO { PersonId = person.Id, TemporaryPassword = temporary });
         }

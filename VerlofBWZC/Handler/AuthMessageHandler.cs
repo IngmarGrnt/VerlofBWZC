@@ -1,128 +1,96 @@
-//using Microsoft.JSInterop;
-
-//public class AuthMessageHandler : DelegatingHandler
-//{
-//    private readonly IJSRuntime _js;
-
-//    public AuthMessageHandler(IJSRuntime js)
-//    {
-//        _js = js;
-//    }
-
-//    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-//    {
-//        var token = await _js.InvokeAsync<string>("localStorage.getItem", "authToken");
-//        if (!string.IsNullOrEmpty(token))
-//        {
-//            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-//        }
-//        return await base.SendAsync(request, cancellationToken);
-//    }
-//}
-
 using System.Net;
 using System.Net.Http.Headers;
-using System.Text;
-using System.Text.Json;
-using Microsoft.JSInterop;
 using Microsoft.AspNetCore.Components;
 
 namespace VerlofBWZC.Services
 {
+    // Stuurt het token mee bij elke API-oproep. Verlopen token: eerst ongemerkt vernieuwen (TokenService).
+    // Toch 401 met een token: één keer vernieuwen en opnieuw proberen; lukt dat niet, dan naar de loginpagina.
     public sealed class AuthMessageHandler : DelegatingHandler
     {
-        private readonly IJSRuntime _js;
+        private readonly TokenService _tokens;
         private readonly NavigationManager _nav;
 
-        public AuthMessageHandler(IJSRuntime js, NavigationManager nav)
+        public AuthMessageHandler(TokenService tokens, NavigationManager nav)
         {
-            _js = js;
+            _tokens = tokens;
             _nav = nav;
         }
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            // 1) Token ophalen
-            var token = await _js.InvokeAsync<string>("localStorage.getItem", "authToken");
+            var token = await _tokens.GetAccessTokenAsync();
 
-            // 2) Als er een token is: check expiratie en zet Authorization header
-            if (!string.IsNullOrWhiteSpace(token))
+            if (!string.IsNullOrWhiteSpace(token) && TokenService.IsExpired(token))
             {
-                if (IsExpired(token))
+                var refreshed = await _tokens.RefreshAsync(token);
+                if (refreshed.Outcome == TokenService.RefreshOutcome.NoSession)
                 {
                     await SignOutAndRedirect();
-                    // Optioneel: voorkom nutteloze calls met verlopen token
-                    return new HttpResponseMessage(HttpStatusCode.Unauthorized)
-                    {
-                        RequestMessage = request,
-                        ReasonPhrase = "JWT expired"
-                    };
+                    return new HttpResponseMessage(HttpStatusCode.Unauthorized) { RequestMessage = request, ReasonPhrase = "Sessie verlopen" };
                 }
-
-                if (request.Headers.Authorization is null)
-                {
-                    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-                }
+                if (refreshed.DemoEnded)
+                    _nav.NavigateTo(_nav.Uri, forceLoad: true); // demo modus is gestopt: pagina opnieuw laden
+                if (refreshed.Token != null)
+                    SetBearer(request, refreshed.Token, token);
+                token = refreshed.Token ?? token;
+            }
+            else if (!string.IsNullOrWhiteSpace(token) && request.Headers.Authorization is null)
+            {
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
             }
 
-            // 3) Call uitvoeren
+            // Eén keer bewaren om na een vernieuwing opnieuw te kunnen versturen
+            var body = request.Content == null ? null : await request.Content.ReadAsByteArrayAsync(cancellationToken);
             var response = await base.SendAsync(request, cancellationToken);
 
-            // 4) Bij 401 met een token (sessie verlopen of ongeldig) -> uitloggen en redirecten naar /login.
-            //    Zonder token (bv. inloggen met een fout wachtwoord) niet: dan toont de pagina zelf de fout.
-            //    Een 403 betekent "ingelogd maar geen toegang"; dat handelt de pagina zelf af.
-            if (response.StatusCode is HttpStatusCode.Unauthorized && request.Headers.Authorization is not null)
+            // 401 met een token (sessie verlopen of ongeldig): vernieuwen en opnieuw proberen.
+            // Zonder token (bv. inloggen met een fout wachtwoord) niet: dan toont de pagina zelf de fout.
+            if (response.StatusCode is HttpStatusCode.Unauthorized && request.Headers.Authorization is { } sent)
             {
-                await SignOutAndRedirect();
+                var refreshed = await _tokens.RefreshAsync(sent.Parameter);
+                if (refreshed.Token != null && refreshed.Token != sent.Parameter)
+                {
+                    response.Dispose();
+                    var retry = Clone(request, body);
+                    retry.Headers.Authorization = new AuthenticationHeaderValue("Bearer", refreshed.Token);
+                    response = await base.SendAsync(retry, cancellationToken);
+                    if (response.StatusCode is not HttpStatusCode.Unauthorized)
+                        return response;
+                }
+                if (refreshed.Outcome != TokenService.RefreshOutcome.Offline)
+                    await SignOutAndRedirect();
             }
 
             return response;
         }
 
-        private static bool IsExpired(string jwt)
+        // Header enkel vervangen als er (nog) geen of het verlopen token in staat (niet als een pagina bewust een ander token meestuurt)
+        private static void SetBearer(HttpRequestMessage request, string token, string? oldToken)
         {
-            try
+            if (request.Headers.Authorization is null || request.Headers.Authorization.Parameter == oldToken)
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        }
+
+        private static HttpRequestMessage Clone(HttpRequestMessage request, byte[]? body)
+        {
+            var clone = new HttpRequestMessage(request.Method, request.RequestUri) { Version = request.Version };
+            foreach (var header in request.Headers)
+                clone.Headers.TryAddWithoutValidation(header.Key, header.Value);
+            if (body != null)
             {
-                var parts = jwt.Split('.');
-                if (parts.Length != 3) return true;
-
-                var payload = parts[1];
-                // Base64 padding fix
-                switch (payload.Length % 4)
-                {
-                    case 2: payload += "=="; break;
-                    case 3: payload += "="; break;
-                }
-
-                var json = Encoding.UTF8.GetString(Convert.FromBase64String(payload));
-                using var doc = JsonDocument.Parse(json);
-
-                if (!doc.RootElement.TryGetProperty("exp", out var expProp)) return true;
-
-                var exp = expProp.GetInt64(); // seconds since epoch
-                var expiry = DateTimeOffset.FromUnixTimeSeconds(exp);
-                // kleine clock skew marge
-                return DateTimeOffset.UtcNow >= expiry.AddSeconds(-30);
+                clone.Content = new ByteArrayContent(body);
+                foreach (var header in request.Content!.Headers)
+                    clone.Content.Headers.TryAddWithoutValidation(header.Key, header.Value);
             }
-            catch
-            {
-                // Onzekerheid = behandelen als verlopen
-                return true;
-            }
+            foreach (var option in request.Options)
+                ((IDictionary<string, object?>)clone.Options)[option.Key] = option.Value;
+            return clone;
         }
 
         private async Task SignOutAndRedirect()
         {
-            try
-            {
-                await _js.InvokeVoidAsync("localStorage.removeItem", "authToken");
-                await _js.InvokeVoidAsync("localStorage.removeItem", "adminToken"); // demo modus
-            }
-            catch
-            {
-                // ignore
-            }
-
+            await _tokens.ClearAsync();
             // Forceer een reload zodat UI-state (layouts/menus) schoon is
             _nav.NavigateTo("/login", forceLoad: true);
         }
