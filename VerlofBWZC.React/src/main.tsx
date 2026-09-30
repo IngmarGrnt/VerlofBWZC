@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter } from 'react-router-dom'
+import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import './services/install' // vroeg laden: de installatievraag van de browser (beforeinstallprompt) niet missen
 import { AuthProvider } from './auth/AuthState'
 import { App } from './app/App'
@@ -15,13 +15,19 @@ errorUi?.querySelector('.dismiss')?.addEventListener('click', () => {
   errorUi.style.display = 'none'
 })
 
-createRoot(document.getElementById('app')!).render(
-  <BrowserRouter>
-    <AuthProvider>
-      <App />
-    </AuthProvider>
-  </BrowserRouter>,
-)
+// Data router (nodig voor NavigationLock / useBlocker); de routes zelf staan in App (zoals App.razor)
+const router = createBrowserRouter([
+  {
+    path: '*',
+    element: (
+      <AuthProvider>
+        <App />
+      </AuthProvider>
+    ),
+  },
+])
+
+createRoot(document.getElementById('app')!).render(<RouterProvider router={router} />)
 
 // Zelfde service worker als de Blazor-website (enkel nodig om als app te installeren)
 navigator.serviceWorker?.register('service-worker.js')

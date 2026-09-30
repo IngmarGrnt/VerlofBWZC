@@ -18,7 +18,7 @@ export function Sidebar({ expanded, children }: { expanded: boolean; children: R
   return (
     <div
       style={{}}
-      className={cls('rz-sidebar', expanded ? 'rz-sidebar-expanded' : 'rz-sidebar-collapsed', 'rz-sidebar-responsive', 'rz-sidebar-left')}
+      className={cls('rz-sidebar', expanded ? 'rz-sidebar-expanded' : 'rz-sidebar-collapsed', 'rz-sidebar-responsive', 'rz-sidebar-start')}
     >
       {children}
     </div>

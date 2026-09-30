@@ -1,5 +1,5 @@
-import { useEffect, type MouseEvent, type ReactNode } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useEffect, useRef, type MouseEvent, type ReactNode } from 'react'
+import { useBlocker, useLocation, useNavigate } from 'react-router-dom'
 
 // Hulp voor Blazor-gedrag: NavigationManager.NavigateTo, <NavLink>, <PageTitle> en <FocusOnNavigate>.
 
@@ -39,7 +39,7 @@ export function NavLink({ href, match = 'Prefix', className, children }: { href:
     navigate(`/${href}`)
   }
   return (
-    <a href={href} className={[className, active && 'active'].filter(Boolean).join(' ')} onClick={onClick}>
+    <a href={href} aria-current={active ? 'page' : undefined} className={[className, active && 'active'].filter(Boolean).join(' ')} onClick={onClick}>
       {children}
     </a>
   )
@@ -72,5 +72,47 @@ export function FocusOnNavigate({ selector }: { selector: string }) {
     })
     return () => window.clearTimeout(timer)
   }, [location.pathname, selector])
+  return null
+}
+
+// <NavigationLock ConfirmExternalNavigation="..." OnBeforeInternalNavigation="...">:
+// - interne navigatie (menu, links, navigate): eerst onBeforeInternalNavigation; geeft die false, dan blijft de pagina staan
+// - externe navigatie of herladen (confirmExternalNavigation): de vraag van de browser ("Wijzigingen verlaten?")
+export function NavigationLock({
+  confirmExternalNavigation,
+  onBeforeInternalNavigation,
+  active,
+}: {
+  confirmExternalNavigation: boolean
+  onBeforeInternalNavigation: () => Promise<boolean>
+  // Enkel tegenhouden als er iets te vragen valt (bv. niet-opgeslagen wijzigingen)
+  active: boolean
+}) {
+  const handler = useRef(onBeforeInternalNavigation)
+  handler.current = onBeforeInternalNavigation
+  const blocker = useBlocker(({ currentLocation, nextLocation }) => active && currentLocation.pathname + currentLocation.search !== nextLocation.pathname + nextLocation.search)
+  const busy = useRef(false)
+
+  useEffect(() => {
+    if (blocker.state !== 'blocked' || busy.current) return
+    busy.current = true
+    void handler
+      .current()
+      .then(ok => (ok ? blocker.proceed() : blocker.reset()))
+      .finally(() => {
+        busy.current = false
+      })
+  }, [blocker])
+
+  useEffect(() => {
+    if (!confirmExternalNavigation) return
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [confirmExternalNavigation])
+
   return null
 }

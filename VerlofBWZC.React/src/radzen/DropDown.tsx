@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { cls, parseStyle, uniqueId, withClass } from './core'
 import { useFieldClass } from './EditForm'
 
-// RadzenDropDown (enkelvoudige keuze, zonder filter), zoals RadzenDropDown.razor en Radzen.openPopup:
+// RadzenDropDown (enkelvoudige keuze, met AllowClear en AllowFiltering), zoals RadzenDropDown.razor en Radzen.openPopup:
 // de lijst opent als popup onder het veld (in <body>, zoals Radzen), met dezelfde klassen en animatie.
 export interface DropDownProps<TItem, TValue> {
   data: readonly TItem[] | null | undefined
@@ -19,6 +19,12 @@ export interface DropDownProps<TItem, TValue> {
   disabled?: boolean
   tabIndex?: number
   popupStyle?: string
+  // Kruisje om de keuze te wissen (AllowClear)
+  allowClear?: boolean
+  // Zoekveld bovenaan de lijst (AllowFiltering, "bevat"); caseInsensitive = FilterCaseSensitivity.CaseInsensitive
+  allowFiltering?: boolean
+  caseInsensitive?: boolean
+  filterPlaceholder?: string
 }
 
 type PopupState = { open: boolean; closing: boolean; top: number; left: number; width: number }
@@ -37,6 +43,10 @@ export function DropDown<TItem, TValue = TItem>({
   disabled = false,
   tabIndex = 0,
   popupStyle = 'max-height:200px;overflow-x:hidden',
+  allowClear = false,
+  allowFiltering = false,
+  caseInsensitive = false,
+  filterPlaceholder = '',
 }: DropDownProps<TItem, TValue>) {
   const [id] = useState(uniqueId)
   const popupId = `popup${id}${useId().replace(/:/g, '')}`
@@ -47,14 +57,25 @@ export function DropDown<TItem, TValue = TItem>({
   const [focusedIndex, setFocusedIndex] = useState(-1)
   const { fieldClass, notifyChanged } = useFieldClass(name)
 
-  const items = useMemo(() => data ?? [], [data])
+  const search = useRef<HTMLInputElement>(null)
+  const [searchText, setSearchText] = useState('')
+  const [filterText, setFilterText] = useState('')
   const valueOf = useCallback((item: TItem) => (valueProperty ? valueProperty(item) : (item as unknown as TValue)), [valueProperty])
   const textOf = useCallback((item: TItem) => (textProperty ? textProperty(item) : String(item ?? '')), [textProperty])
+  // De lijst in de popup: bij AllowFiltering enkel de items die de zoektekst bevatten
+  const items = useMemo(() => {
+    const all = data ?? []
+    if (!allowFiltering || !filterText) return all
+    const needle = caseInsensitive ? filterText.toLowerCase() : filterText
+    return all.filter(item => (caseInsensitive ? textOf(item).toLowerCase() : textOf(item)).includes(needle))
+  }, [data, allowFiltering, filterText, caseInsensitive, textOf])
   const selectedIndex = items.findIndex(item => Object.is(valueOf(item), value) || valueOf(item) === value)
+  const allItems = data ?? []
+  const selectedIndexAll = allItems.findIndex(item => Object.is(valueOf(item), value) || valueOf(item) === value)
   // Zoals SelectItemFromValue: zonder ValueProperty is de waarde zelf het gekozen item (ook als ze niet in de lijst
   // staat, bv. "" = leeg label zonder placeholder); met ValueProperty het item uit de lijst. Nog geen lijst = niets.
   const selectedItem: TItem | undefined =
-    data == null || value === null || value === undefined ? undefined : valueProperty ? (selectedIndex >= 0 ? items[selectedIndex] : undefined) : (value as unknown as TItem)
+    data == null || value === null || value === undefined ? undefined : valueProperty ? (selectedIndexAll >= 0 ? allItems[selectedIndexAll] : undefined) : (value as unknown as TItem)
   const hasValue = value !== null && value !== undefined && value !== ''
 
   const open = useCallback(() => {
@@ -62,7 +83,16 @@ export function DropDown<TItem, TValue = TItem>({
     const rect = element.current.getBoundingClientRect()
     setState({ open: true, closing: false, top: rect.bottom, left: rect.left, width: rect.width })
     setFocusedIndex(selectedIndex)
-  }, [disabled, selectedIndex])
+    // Met zoekveld: de focus gaat naar het zoekveld (Radzen.focusElement)
+    if (allowFiltering) window.setTimeout(() => search.current?.focus())
+  }, [disabled, selectedIndex, allowFiltering])
+
+  // Zoals Radzen: filteren terwijl je typt, na een korte pauze (FilterDelay 500 ms)
+  useEffect(() => {
+    if (!allowFiltering) return
+    const timer = window.setTimeout(() => setFilterText(searchText), 500)
+    return () => window.clearTimeout(timer)
+  }, [searchText, allowFiltering])
 
   const close = useCallback(() => {
     setState(s => (s.open ? { ...s, closing: true } : s))
@@ -154,7 +184,33 @@ export function DropDown<TItem, TValue = TItem>({
     }
   }
 
-  const componentClass = cls('rz-dropdown', disabled && 'rz-state-disabled', fieldClass, !hasValue && 'rz-state-empty')
+  const clearAll = () => {
+    if (disabled) return
+    setSearchText('')
+    setFilterText('')
+    if (search.current) search.current.value = ''
+    notifyChanged()
+    onChange(null)
+  }
+
+  // Toetsen in het zoekveld: pijltjes en Enter werken op de lijst, andere toetsen typen gewoon
+  const onFilterKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    e.stopPropagation()
+    const key = e.code || e.key
+    if (['ArrowDown', 'ArrowUp'].includes(key)) {
+      e.preventDefault()
+      setFocusedIndex(i => Math.min(Math.max(key === 'ArrowDown' ? i + 1 : i - 1, 0), items.length - 1))
+    } else if (key === 'Enter' || key === 'NumpadEnter') {
+      e.preventDefault()
+      if (focusedIndex >= 0 && focusedIndex < items.length) select(items[focusedIndex])
+      close()
+      element.current?.focus()
+    } else if (key === 'Escape' || key === 'Tab') {
+      close()
+    }
+  }
+
+  const componentClass = cls('rz-dropdown', disabled && 'rz-state-disabled', fieldClass, !hasValue && 'rz-state-empty', allowClear && 'rz-clear')
 
   const label =
     selectedItem !== undefined ? (
@@ -178,7 +234,28 @@ export function DropDown<TItem, TValue = TItem>({
       onAnimationEnd={() => {
         if (state.closing) setState(s => ({ ...s, open: false, closing: false }))
       }}
+      // De popup staat in <body>, maar React laat klikken en toetsen doorborrelen naar het veld
+      onClick={e => e.stopPropagation()}
+      onKeyDown={e => e.stopPropagation()}
     >
+      {allowFiltering && (
+        <div className="rz-dropdown-filter-container">
+          <input
+            ref={search}
+            aria-label="Search"
+            tabIndex={disabled ? -1 : tabIndex}
+            placeholder={filterPlaceholder}
+            className="rz-dropdown-filter rz-inputtext"
+            autoComplete="off"
+            aria-autocomplete="none"
+            type="text"
+            defaultValue={searchText}
+            onInput={e => setSearchText(e.currentTarget.value)}
+            onKeyDown={onFilterKeyDown}
+          />
+          <span className="notranslate rz-dropdown-filter-icon rzi rzi-search" />
+        </div>
+      )}
       <div className="rz-dropdown-items-wrapper" style={parseStyle(popupStyle)}>
         {items.length > 0 && (
           <ul ref={listRef} className="rz-dropdown-items rz-dropdown-list" role="listbox">
@@ -239,6 +316,15 @@ export function DropDown<TItem, TValue = TItem>({
         <span className="notranslate rz-dropdown-trigger-icon rzi rzi-chevron-down" />
       </div>
       {panel && createPortal(panel, document.body)}
+      {allowClear && hasValue && (
+        <i
+          className="notranslate rz-dropdown-clear-icon rzi rzi-times"
+          onClick={e => {
+            e.stopPropagation()
+            clearAll()
+          }}
+        />
+      )}
     </div>
   )
 }

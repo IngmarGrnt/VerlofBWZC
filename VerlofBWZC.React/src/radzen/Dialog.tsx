@@ -1,5 +1,6 @@
 import { useEffect, useRef, useSyncExternalStore, type ReactNode } from 'react'
 import { Icon } from './Layout'
+import { Button } from './Button'
 
 // DialogService + RadzenDialog + DialogContainer (Radzen.Blazor 8), met het gedrag van Radzen.openDialog:
 // masker achter de laatste dialoog, na 500 ms focus op het eerste veld, Tab blijft in de dialoog,
@@ -33,7 +34,29 @@ interface OpenDialog {
   resolve: (result: unknown) => void
 }
 
+export interface SideDialogOptions {
+  width?: string
+  height?: string
+  style?: string
+  cssClass?: string
+  position?: 'Right' | 'Left' | 'Top' | 'Bottom'
+  showTitle?: boolean
+  showClose?: boolean
+  showMask?: boolean
+  closeDialogOnOverlayClick?: boolean
+  autoFocusFirstElement?: boolean
+}
+
+interface SideDialog {
+  title: string
+  content: ReactNode
+  options: SideDialogOptions
+  closing: boolean
+  resolve: (result: unknown) => void
+}
+
 let dialogs: OpenDialog[] = []
+let side: SideDialog | null = null
 let nextId = 1
 const listeners = new Set<() => void>()
 const emit = () => listeners.forEach(l => l())
@@ -43,10 +66,11 @@ const subscribe = (l: () => void) => {
 }
 
 export const dialogService = {
-  // Zoals DialogService.OpenAsync: de belofte geeft het resultaat van close(result)
+  // Zoals DialogService.OpenAsync: de belofte geeft het resultaat van close(result). Zonder breedte 600px.
   open<T = unknown>(title: string, content: ReactNode, options: DialogOptions = {}): Promise<T | undefined> {
     return new Promise(resolve => {
-      dialogs = [...dialogs, { id: nextId++, title, content, options, resolve: resolve as (r: unknown) => void }]
+      const o = { ...options, width: options.width || '600px' }
+      dialogs = [...dialogs, { id: nextId++, title, content, options: o, resolve: resolve as (r: unknown) => void }]
       emit()
     })
   },
@@ -57,6 +81,47 @@ export const dialogService = {
     if (dialogs.length === 0) document.body.classList.remove('no-scroll')
     emit()
     last.resolve(result)
+  },
+  // Zoals DialogService.Confirm: tekst, OK-knop en Annuleren (ButtonStyle Base). Geeft true, false of undefined (Escape).
+  confirm(message: string, title = 'Confirm', options: DialogOptions & { okButtonText?: string; cancelButtonText?: string } = {}): Promise<boolean | undefined> {
+    const ok = options.okButtonText || 'Ok'
+    const cancel = options.cancelButtonText || 'Cancel'
+    return dialogService.open<boolean>(
+      title,
+      <>
+        <p className="rz-dialog-confirm-message">{message}</p>
+        <div className="rz-dialog-confirm-buttons">
+          <Button text={ok} onClick={() => dialogService.close(true)} />
+          <Button text={cancel} buttonStyle="Base" onClick={() => dialogService.close(false)} />
+        </div>
+      </>,
+      {
+        ...options,
+        width: options.width || '',
+        cssClass: options.cssClass ? `rz-dialog-confirm ${options.cssClass}` : 'rz-dialog-confirm',
+        wrapperCssClass: options.wrapperCssClass ? `rz-dialog-wrapper ${options.wrapperCssClass}` : 'rz-dialog-wrapper',
+      },
+    )
+  },
+  // Zoals DialogService.OpenSideAsync / CloseSide: paneel aan de zijkant (standaard rechts)
+  openSide<T = unknown>(title: string, content: ReactNode, options: SideDialogOptions = {}): Promise<T | undefined> {
+    return new Promise(resolve => {
+      side?.resolve(undefined)
+      side = { title, content, options, closing: false, resolve: resolve as (r: unknown) => void }
+      emit()
+    })
+  },
+  closeSide(result?: unknown) {
+    if (!side || side.closing) return
+    const current = side
+    side = { ...side, closing: true }
+    emit()
+    // Zoals RadzenDialog: 300 ms sluitanimatie
+    window.setTimeout(() => {
+      if (side?.closing) side = null
+      emit()
+      current.resolve(result)
+    }, 300)
   },
 }
 
@@ -146,8 +211,58 @@ function DialogContainer({ dialog, showMask }: { dialog: OpenDialog; showMask: b
   )
 }
 
+function SideDialogView({ dialog, showMask }: { dialog: SideDialog; showMask: boolean }) {
+  const o = dialog.options
+  const ref = useRef<HTMLElement>(null)
+  useEffect(() => {
+    if (!o.autoFocusFirstElement) return
+    const timer = window.setTimeout(() => {
+      const content = ref.current?.querySelector('.rz-dialog-side-content')
+      if (content) focusableElements(content)[0]?.focus()
+    }, 500)
+    return () => window.clearTimeout(timer)
+  }, [o.autoFocusFirstElement])
+  const position = (o.position ?? 'Right').toLowerCase()
+  return (
+    <>
+      <aside
+        ref={ref}
+        className={['rz-dialog-side', `rz-dialog-side-position-${position}`, o.cssClass, dialog.closing ? 'rz-close' : 'rz-open'].filter(Boolean).join(' ')}
+        tabIndex={0}
+        style={{ ...(o.width ? { width: o.width } : {}), ...(o.height ? { height: o.height } : {}) }}
+        aria-labelledby="rz-dialog-side-label"
+      >
+        {(o.showTitle ?? true) && (
+          <div className="rz-dialog-side-titlebar">
+            <div className="rz-dialog-side-title" style={{ display: 'inline' }} id="rz-dialog-side-label">
+              {dialog.title}
+            </div>
+            {(o.showClose ?? true) && (
+              <a
+                aria-label="Close side dialog"
+                onClick={e => {
+                  e.preventDefault()
+                  dialogService.closeSide()
+                }}
+                className="rz-dialog-side-titlebar-close"
+                role="button"
+                tabIndex={0}
+              >
+                <span className="notranslate rzi rzi-times" />
+              </a>
+            )}
+          </div>
+        )}
+        <div className="rz-dialog-side-content">{dialog.content}</div>
+      </aside>
+      {showMask && (o.showMask ?? true) && (o.closeDialogOnOverlayClick ? <div onClick={() => dialogService.closeSide()} className="rz-dialog-mask" /> : <div className="rz-dialog-mask" />)}
+    </>
+  )
+}
+
 export function Dialog() {
   const list = useSyncExternalStore(subscribe, () => dialogs)
+  const sideDialog = useSyncExternalStore(subscribe, () => side)
 
   // Escape sluit de laatste dialoog (niet als er nog een keuzelijst open staat)
   useEffect(() => {
@@ -167,6 +282,7 @@ export function Dialog() {
       {list.map((d, i) => (
         <DialogContainer key={d.id} dialog={d} showMask={i === list.length - 1} />
       ))}
+      {sideDialog && <SideDialogView dialog={sideDialog} showMask={list.length === 0} />}
     </>
   )
 }

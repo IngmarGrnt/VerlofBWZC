@@ -87,3 +87,7 @@ export async function errorText(response: Response, fallback: string): Promise<s
   const text = (await response.text()).trim().replace(/^"+|"+$/g, '')
   return !text.trim() || text.startsWith('{') ? fallback : text
 }
+
+export const putJson = (path: string, body: unknown, options?: RequestOptions) => send(path, { ...options, method: 'PUT', body })
+
+export const deleteRequest = (path: string, options?: RequestOptions) => send(path, { ...options, method: 'DELETE' })

@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import * as tokens from './tokens'
-import { getUserId, getUserRole } from './jwt'
+import { getUserId, getUserRole, getUserRoles } from './jwt'
 
 // Zelfde als VerlofBWZC/Services/JwtAuthenticationStateProvider.cs + <CascadingAuthenticationState>:
 // bij het opstarten één keer bepalen of iemand is aangemeld (verlopen token eerst ongemerkt vernieuwen),
@@ -10,12 +10,13 @@ export interface AuthUser {
   token: string
   id: string | null
   role: string | null
+  roles: string[]
 }
 
 export type AuthStatus = { state: 'authorizing' } | { state: 'anonymous' } | { state: 'authenticated'; user: AuthUser }
 
 const anonymous: AuthStatus = { state: 'anonymous' }
-const fromToken = (token: string): AuthStatus => ({ state: 'authenticated', user: { token, id: getUserId(token), role: getUserRole(token) } })
+const fromToken = (token: string): AuthStatus => ({ state: 'authenticated', user: { token, id: getUserId(token), role: getUserRole(token), roles: getUserRoles(token) } })
 
 let current: AuthStatus = { state: 'authorizing' }
 const listeners = new Set<(s: AuthStatus) => void>()

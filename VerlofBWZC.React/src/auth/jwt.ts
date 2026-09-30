@@ -61,3 +61,16 @@ export function isExpired(token: string | null | undefined): boolean {
   if (typeof exp !== 'number') return true
   return Date.now() >= (exp - 60) * 1000
 }
+
+// Alle rollen (zoals ParseClaims in JwtAuthenticationStateProvider: role, roles en de MS-claim, tekst of lijst)
+export function getUserRoles(token: string | null | undefined): string[] {
+  const p = decodePayload(token)
+  if (!p) return []
+  const roles: string[] = []
+  for (const key of ['role', 'roles', MsRole]) {
+    const v = p[key]
+    if (Array.isArray(v)) roles.push(...v.filter((r): r is string => typeof r === 'string' && r.trim() !== ''))
+    else if (typeof v === 'string') roles.push(v)
+  }
+  return [...new Map(roles.map(r => [r.toLowerCase(), r])).values()]
+}
