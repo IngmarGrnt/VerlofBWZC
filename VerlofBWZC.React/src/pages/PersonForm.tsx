@@ -105,6 +105,10 @@ export function PersonForm({ original, isAdmin, allPersons, teams, specialities,
       role: m.role,
       leaveAllowance: m.leaveAllowance,
       initials: m.initials,
+      // Zoals de Blazor-serialisatie van PersonCreateDTO (de API vult hash en salt zelf in)
+      password: null,
+      passwordHash: '',
+      salt: '',
     }
 
     setBusy(true)

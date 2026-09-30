@@ -21,6 +21,10 @@ const emit = () => listeners.forEach(l => l())
 
 export const notificationService = {
   notify(severity: NotificationSeverity = 'Info', summary = '', detail = '', duration = 3000, click?: () => void, closeOnClick = false) {
+    // Zoals Radzen (if (!Messages.Contains(message))): een gelijke melding die nog zichtbaar is, niet nog eens tonen
+    const same = (m: NotificationMessage) =>
+      m.severity === severity && m.summary === summary && m.detail === detail && m.duration === duration && m.click === click && m.closeOnClick === closeOnClick
+    if (messages.some(same)) return
     messages = [...messages, { id: nextId++, severity, summary, detail, duration, click, closeOnClick }]
     emit()
   },

@@ -326,3 +326,11 @@ a { color: var(--bwzc-blue); }
     border-color: var(--bwzc-navy);
     background: var(--bwzc-ice);
 }
+
+/* Dialogen (bevestigen, beheerde ploegen, tijdelijk wachtwoord...) boven het zijpaneel tonen.
+   Radzen geeft beide dezelfde z-index (1001) en het zijpaneel staat later in de pagina, waardoor een
+   dialoog die vanuit het zijpaneel opent eronder viel (op gsm niet te bevestigen). De grijze achtergrond
+   van de dialoog zit in de wrapper en komt dus mee boven het zijpaneel. */
+.rz-dialog-wrapper {
+    z-index: calc(var(--rz-dialog-zindex) + 1);
+}

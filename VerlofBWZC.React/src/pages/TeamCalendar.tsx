@@ -288,6 +288,9 @@ class Model {
 
   selectedTeam: string | null = null
   selectedSpeciality: string | null = null
+  // Ploeg en specialiteit van de getoonde kalender (om terug te zetten als een wissel geannuleerd wordt)
+  shownTeam: string | null = null
+  shownSpeciality: string | null = null
   teamOptions: string[] = []
   specialityOptions: string[] = []
 
@@ -603,6 +606,7 @@ class Model {
   }
 
   async onTeamChanged() {
+    if (!(await this.canSwitch('Je hebt niet-opgeslagen wijzigingen. Wil je ze opslaan voor je van ploeg wisselt?'))) return
     this.selectedSpeciality = this.showAllTeams ? Dispatching : scopeService.fixSpeciality(this.selectedTeam, this.selectedSpeciality, true, true)
     this.buildSpecialityOptions()
     this.buildTeamOptions()
@@ -611,10 +615,22 @@ class Model {
   }
 
   async onTeamOrSpecialityChanged() {
+    if (!(await this.canSwitch('Je hebt niet-opgeslagen wijzigingen. Wil je ze opslaan voor je van specialiteit wisselt?'))) return
     this.buildTeamOptions()
     await this.loadPermissions()
-    // De dropdown is dan al gewijzigd: niet-opgeslagen wijzigingen van de vorige selectie vervallen
     await this.loadTeamCalendar()
+  }
+
+  // De keuzelijst is al gewijzigd. Bij niet-opgeslagen wijzigingen eerst terug naar de getoonde ploeg en
+  // specialiteit (opslaan gebeurt dan voor de juiste kalender), vragen, en pas daarna de nieuwe keuze toepassen.
+  async canSwitch(question: string): Promise<boolean> {
+    if (!this.isDirty) return true
+    const [newTeam, newSpeciality] = [this.selectedTeam, this.selectedSpeciality]
+    ;[this.selectedTeam, this.selectedSpeciality] = [this.shownTeam, this.shownSpeciality]
+    this.render()
+    if (!(await this.canLeave(question))) return false // geannuleerd: de vorige keuze blijft staan
+    ;[this.selectedTeam, this.selectedSpeciality] = [newTeam, newSpeciality]
+    return true
   }
 
   async changeYear(delta: number) {
@@ -1127,6 +1143,7 @@ class Model {
 
   async loadTeamCalendar() {
     const speciality = this.selectedSpeciality
+    ;[this.shownTeam, this.shownSpeciality] = [this.selectedTeam, this.selectedSpeciality]
 
     // "Alle ploegen": dezelfde specialiteit van elke ploeg die de gebruiker mag zien, naast elkaar
     this.shownTeams = this.showAllTeams ? scopeService.teamsFor(speciality, true) : [this.selectedTeam ?? '']

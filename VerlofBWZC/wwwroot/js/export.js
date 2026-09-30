@@ -79,6 +79,13 @@ window.exportElementToPdf = async (
     const cloned = el.cloneNode(true);
     container.appendChild(cloned);
 
+    // Geen overgangen/animaties in de kopie: html2canvas zou anders een tussenkleur vastleggen
+    // (bv. de rand van de shiftknoppen), waardoor de PDF niet elke keer hetzelfde is
+    container.classList.add('export-capture');
+    const captureStyle = document.createElement('style');
+    captureStyle.textContent = '.export-capture, .export-capture * { transition: none !important; animation: none !important; }';
+    container.appendChild(captureStyle);
+
     // Apply compression CSS only inside the export container
     if (compress) {
         container.classList.add('export-fit');
