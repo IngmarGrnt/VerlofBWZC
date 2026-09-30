@@ -750,6 +750,9 @@ else
     private bool IsAdmin => string.Equals(CurrentUserRole, "Admin", StringComparison.OrdinalIgnoreCase);
     private string? SelectedTeam;
     private string? SelectedSpeciality;
+    // Ploeg en specialiteit van de getoonde kalender (om terug te zetten als een wissel geannuleerd wordt)
+    private string? shownTeam;
+    private string? shownSpeciality;
     private List<string> TeamOptions = new();
     private List<string> SpecialityOptions = new();
     private bool ShowAllSpecialities => SelectedSpeciality == AllSpecialities;
@@ -820,6 +823,8 @@ else
 
     private async Task OnTeamChanged(object value)
     {
+        if (!await CanSwitchAsync("Je hebt niet-opgeslagen wijzigingen. Wil je ze opslaan voor je van ploeg wisselt?"))
+            return;
         SelectedSpeciality = ShowAllTeams ? Dispatching : Scope.FixSpeciality(SelectedTeam, SelectedSpeciality, allowAll: true, view: true);
         BuildSpecialityOptions();
         BuildTeamOptions();
@@ -829,10 +834,23 @@ else
 
     private async Task OnTeamOrSpecialityChanged(object value)
     {
+        if (!await CanSwitchAsync("Je hebt niet-opgeslagen wijzigingen. Wil je ze opslaan voor je van specialiteit wisselt?"))
+            return;
         BuildTeamOptions();
         await LoadPermissions();
-        // De dropdown is dan al gewijzigd: niet-opgeslagen wijzigingen van de vorige selectie vervallen
         await LoadTeamCalendar();
+    }
+
+    // De keuzelijst is al gewijzigd. Bij niet-opgeslagen wijzigingen eerst terug naar de getoonde ploeg en
+    // specialiteit (opslaan gebeurt dan voor de juiste kalender), vragen, en pas daarna de nieuwe keuze toepassen.
+    private async Task<bool> CanSwitchAsync(string question)
+    {
+        if (!isDirty) return true;
+        var (newTeam, newSpeciality) = (SelectedTeam, SelectedSpeciality);
+        (SelectedTeam, SelectedSpeciality) = (shownTeam, shownSpeciality);
+        if (!await CanLeaveAsync(question)) return false; // geannuleerd: de vorige keuze blijft staan
+        (SelectedTeam, SelectedSpeciality) = (newTeam, newSpeciality);
+        return true;
     }
 
     private async Task ChangeYear(int delta)
@@ -1454,6 +1472,7 @@ private void OnDayClicked(int personId, WorkDay day)
     private async Task LoadTeamCalendar()
     {
         var speciality = SelectedSpeciality;
+        (shownTeam, shownSpeciality) = (SelectedTeam, SelectedSpeciality);
 
         // "Alle ploegen": dezelfde specialiteit van elke ploeg die de gebruiker mag zien, naast elkaar
         ShownTeams = ShowAllTeams
