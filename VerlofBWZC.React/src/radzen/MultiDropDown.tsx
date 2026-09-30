@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { cls, parseStyle, uniqueId, withClass } from './core'
+import { cls, parseStyle, scrollableParents, uniqueId, withClass } from './core'
 import { useFieldClass } from './EditForm'
 
 // RadzenDropDown met Multiple="true" (en optioneel Chips="true"), zoals RadzenDropDown.razor/RadzenDropDownItem.razor:
@@ -71,7 +71,13 @@ export function MultiDropDown<T extends string | number>({
       if (!element.current?.contains(target) && !popup.current?.contains(target)) close()
     }
     document.addEventListener('mousedown', onMouseDown)
-    return () => document.removeEventListener('mousedown', onMouseDown)
+    // Zoals Radzen.openPopup: sluiten als een scrollbare ouder scrollt (closeAllPopups)
+    const scrollParents = scrollableParents(element.current)
+    scrollParents.forEach(p => p.addEventListener('scroll', close))
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown)
+      scrollParents.forEach(p => p.removeEventListener('scroll', close))
+    }
   }, [state.open, state.closing, close])
 
   const set = (next: T[]) => {

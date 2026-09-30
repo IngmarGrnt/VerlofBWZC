@@ -38,3 +38,14 @@ export function parseStyle(style?: string): React.CSSProperties | undefined {
   }
   return result as React.CSSProperties
 }
+
+// Zoals Radzen.openPopup: de ouders (tot <body>) die kunnen scrollen; scrollt er een, dan sluiten de popups
+export function scrollableParents(el: HTMLElement | null | undefined): HTMLElement[] {
+  const result: HTMLElement[] = []
+  let p = el ?? null
+  while (p && p !== document.body) {
+    if (p.scrollWidth > p.clientWidth || p.scrollHeight > p.clientHeight) result.push(p)
+    p = p.parentElement
+  }
+  return result
+}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { cls, parseStyle, uniqueId, withClass } from './core'
+import { cls, parseStyle, scrollableParents, uniqueId, withClass } from './core'
 import { useFieldClass } from './EditForm'
 
 // RadzenDropDown (enkelvoudige keuze, met AllowClear en AllowFiltering), zoals RadzenDropDown.razor en Radzen.openPopup:
@@ -113,12 +113,39 @@ export function DropDown<TItem, TValue = TItem>({
     popup.current.style.left = `${left + document.documentElement.scrollLeft}px`
   }, [state])
 
+  // Zoals Radzen.repositionPopup na het filteren: de lijst is korter/langer, dus opnieuw onder (of boven) het veld
+  const lastFilter = useRef(filterText)
+  useLayoutEffect(() => {
+    if (lastFilter.current === filterText) return
+    lastFilter.current = filterText
+    if (!state.open || state.closing || !popup.current || !element.current) return
+    const parentRect = element.current.getBoundingClientRect()
+    const rect = popup.current.getBoundingClientRect()
+    const scrollTop = document.documentElement.scrollTop
+    let top = parentRect.bottom + scrollTop
+    if (top + rect.height > window.innerHeight + scrollTop && parentRect.top > rect.height) top = parentRect.top - rect.height + scrollTop
+    popup.current.style.top = `${top}px`
+  }, [filterText, state])
+
   // Sluiten bij klikken buiten het veld of de lijst, en bij het wijzigen van de venstergrootte
   useEffect(() => {
     if (!state.open || state.closing) return
+    // Zoals Radzen.closePopup: na het sluiten de focus terug naar het veld (of naar het aangeklikte element als dat
+    // focus kan krijgen), als de focus nog op het veld of nergens (body) staat
+    const closeAndRefocus = (e: Event) => {
+      close()
+      const active = element.current
+      if (active && (document.activeElement === active || document.activeElement === document.body)) {
+        window.setTimeout(() => {
+          const target = e.target as HTMLElement | null
+          const next = target && typeof target.tabIndex === 'number' && target.tabIndex !== -1 && 'focus' in target ? target : active
+          next.focus()
+        })
+      }
+    }
     const onMouseDown = (e: MouseEvent) => {
       const target = e.target as Node
-      if (!element.current?.contains(target) && !popup.current?.contains(target)) close()
+      if (!element.current?.contains(target) && !popup.current?.contains(target)) closeAndRefocus(e)
     }
     const onResize = () => {
       const tag = document.activeElement?.tagName.toLowerCase() ?? ''
@@ -126,9 +153,13 @@ export function DropDown<TItem, TValue = TItem>({
     }
     document.addEventListener('mousedown', onMouseDown)
     window.addEventListener('resize', onResize)
+    // Zoals Radzen.openPopup: sluiten als een scrollbare ouder scrollt (closeAllPopups)
+    const scrollParents = scrollableParents(element.current)
+    scrollParents.forEach(p => p.addEventListener('scroll', closeAndRefocus))
     return () => {
       document.removeEventListener('mousedown', onMouseDown)
       window.removeEventListener('resize', onResize)
+      scrollParents.forEach(p => p.removeEventListener('scroll', closeAndRefocus))
     }
   }, [state.open, state.closing, close])
 
@@ -246,7 +277,7 @@ export function DropDown<TItem, TValue = TItem>({
             tabIndex={disabled ? -1 : tabIndex}
             placeholder={filterPlaceholder}
             className="rz-dropdown-filter rz-inputtext"
-            autoComplete="off"
+            autoComplete="Off"
             aria-autocomplete="none"
             type="text"
             defaultValue={searchText}
@@ -263,7 +294,7 @@ export function DropDown<TItem, TValue = TItem>({
               <li
                 key={i}
                 role="option"
-                className={cls('rz-dropdown-item', i === selectedIndex && 'rz-state-highlight', i === focusedIndex && 'rz-state-focused') + ' '}
+                className={cls('rz-dropdown-item', (state.open && !state.closing ? i === focusedIndex : i === selectedIndex) && 'rz-state-highlight') + ' '}
                 aria-label={textOf(item)}
                 onMouseDown={e => e.preventDefault()}
                 onClick={e => {
@@ -308,7 +339,8 @@ export function DropDown<TItem, TValue = TItem>({
           name={name}
           value={value !== null && value !== undefined ? String(value) : ''}
           id={name}
-          aria-label={value !== null && value !== undefined ? String(value) : 'Empty'}
+          // Zoals Blazor bij een bool-waarde: true = leeg attribuut, false = geen attribuut
+          aria-label={value === true ? '' : value === false ? undefined : value !== null && value !== undefined ? String(value) : 'Empty'}
         />
       </div>
       {label}
